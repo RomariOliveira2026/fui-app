@@ -1,0 +1,100 @@
+{
+  "query": "SELECT id, openId, name, email, phone, role, createdAt FROM users ORDER BY createdAt DESC LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2KbQAwj2ZZgmHZ7.96913130ecdd --database kzfSj4x7eR8vE8AeXUkeWP --execute SELECT id, openId, name, email, phone, role, createdAt FROM users ORDER BY createdAt DESC LIMIT 10;",
+  "rows": [
+    {
+      "id": "4710011",
+      "openId": "test-profile-ext-1774135475101",
+      "name": "Avatar User",
+      "email": "profile-ext@test.com",
+      "phone": "(79) 98765-4321",
+      "role": "user",
+      "createdAt": "2026-03-21 23:24:35"
+    },
+    {
+      "id": "4710013",
+      "openId": "test-profile-user-1774135475714",
+      "name": "Only Name Changed",
+      "email": "profile@test.com",
+      "phone": "(79) 91111-2222",
+      "role": "user",
+      "createdAt": "2026-03-21 23:24:35"
+    },
+    {
+      "id": "4710005",
+      "openId": "test-safety-1774135474279",
+      "name": "Test Safety User",
+      "email": "safety1774135474279@test.com",
+      "phone": "NULL",
+      "role": "passenger",
+      "createdAt": "2026-03-21 23:24:34"
+    },
+    {
+      "id": "4710006",
+      "openId": "test-safety-1774135474334",
+      "name": "Test Safety User",
+      "email": "safety1774135474334@test.com",
+      "phone": "NULL",
+      "role": "passenger",
+      "createdAt": "2026-03-21 23:24:34"
+    },
+    {
+      "id": "4710008",
+      "openId": "test-safety-1774135474437",
+      "name": "Test Safety User",
+      "email": "safety1774135474437@test.com",
+      "phone": "NULL",
+      "role": "passenger",
+      "createdAt": "2026-03-21 23:24:34"
+    },
+    {
+      "id": "4710004",
+      "openId": "test-safety-1774135474236",
+      "name": "Test Safety User",
+      "email": "safety1774135474236@test.com",
+      "phone": "NULL",
+      "role": "passenger",
+      "createdAt": "2026-03-21 23:24:34"
+    },
+    {
+      "id": "4710009",
+      "openId": "test-safety-1774135474525",
+      "name": "Test Safety User",
+      "email": "safety1774135474525@test.com",
+      "phone": "NULL",
+      "role": "passenger",
+      "createdAt": "2026-03-21 23:24:34"
+    },
+    {
+      "id": "4710010",
+      "openId": "test-safety-1774135474593",
+      "name": "Test Safety User",
+      "email": "safety1774135474593@test.com",
+      "phone": "NULL",
+      "role": "passenger",
+      "createdAt": "2026-03-21 23:24:34"
+    },
+    {
+      "id": "4710007",
+      "openId": "test-safety-1774135474386",
+      "name": "Test Safety User",
+      "email": "safety1774135474386@test.com",
+      "phone": "NULL",
+      "role": "passenger",
+      "createdAt": "2026-03-21 23:24:34"
+    },
+    {
+      "id": "4710002",
+      "openId": "test-safety-1774135473591",
+      "name": "Test Safety User",
+      "email": "safety1774135473591@test.com",
+      "phone": "NULL",
+      "role": "passenger",
+      "createdAt": "2026-03-21 23:24:34"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\topenId\tname\temail\tphone\trole\tcreatedAt\n4710011\ttest-profile-ext-1774135475101\tAvatar User\tprofile-ext@test.com\t(79) 98765-4321\tuser\t2026-03-21 23:24:35\n4710013\ttest-profile-user-1774135475714\tOnly Name Changed\tprofile@test.com\t(79) 91111-2222\tuser\t2026-03-21 23:24:35\n4710005\ttest-safety-1774135474279\tTest Safety User\tsafety1774135474279@test.com\tNULL\tpassenger\t2026-03-21 23:24:34\n4710006\ttest-safety-1774135474334\tTest Safety User\tsafety1774135474334@test.com\tNULL\tpassenger\t2026-03-21 23:24:34\n4710008\ttest-safety-1774135474437\tTest Safety User\tsafety1774135474437@test.com\tNULL\tpassenger\t2026-03-21 23:24:34\n4710004\ttest-safety-1774135474236\tTest Safety User\tsafety1774135474236@test.com\tNULL\tpassenger\t2026-03-21 23:24:34\n4710009\ttest-safety-1774135474525\tTest Safety User\tsafety1774135474525@test.com\tNULL\tpassenger\t2026-03-21 23:24:34\n4710010\ttest-safety-1774135474593\tTest Safety User\tsafety1774135474593@test.com\tNULL\tpassenger\t2026-03-21 23:24:34\n4710007\ttest-safety-1774135474386\tTest Safety User\tsafety1774135474386@test.com\tNULL\tpassenger\t2026-03-21 23:24:34\n4710002\ttest-safety-1774135473591\tTest Safety User\tsafety1774135473591@test.com\tNULL\tpassenger\t2026-03-21 23:24:34\n",
+  "stderr": "",
+  "execution_time_ms": 97
+}

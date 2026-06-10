@@ -1,0 +1,110 @@
+{
+  "query": "SELECT id, openId, name, email, phone, role, createdAt, lastSignedIn FROM users WHERE openId NOT LIKE 'test-%' ORDER BY lastSignedIn DESC LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2KbQAwj2ZZgmHZ7.96913130ecdd --database kzfSj4x7eR8vE8AeXUkeWP --execute SELECT id, openId, name, email, phone, role, createdAt, lastSignedIn FROM users WHERE openId NOT LIKE 'test-%' ORDER BY lastSignedIn DESC LIMIT 10;",
+  "rows": [
+    {
+      "id": "1",
+      "openId": "ePi6qczJKuer9DfZpgTrCg",
+      "name": "Romário Oliveira",
+      "email": "romario.negociosonline@gmail.com",
+      "phone": "79999348812",
+      "role": "admin",
+      "createdAt": "2025-12-03 16:05:13",
+      "lastSignedIn": "2026-03-21 23:29:26"
+    },
+    {
+      "id": "4020057",
+      "openId": "APqJYAQKM9zMYqGN8cXrU2",
+      "name": "Mara Nunes",
+      "email": "mn583971@gmail.com",
+      "phone": "79 99918-2596",
+      "role": "passenger",
+      "createdAt": "2026-03-07 14:22:51",
+      "lastSignedIn": "2026-03-19 08:58:13"
+    },
+    {
+      "id": "4290001",
+      "openId": "VALQCsMXWsyDok8ZFYxTmV",
+      "name": "Aleef Youtube",
+      "email": "aleefcontayou@gmail.com",
+      "phone": "NULL",
+      "role": "passenger",
+      "createdAt": "2026-03-09 01:11:11",
+      "lastSignedIn": "2026-03-09 01:18:05"
+    },
+    {
+      "id": "390001",
+      "openId": "JJY6FnuBhLn93EJ9apVwPy",
+      "name": "Kadu Barone",
+      "email": "carloseduardociclista@gmail.com",
+      "phone": "79998943315",
+      "role": "driver",
+      "createdAt": "2025-12-03 22:56:22",
+      "lastSignedIn": "2026-03-07 14:28:09"
+    },
+    {
+      "id": "3930169",
+      "openId": "demo_ana.costa_1772786109827",
+      "name": "Ana Costa",
+      "email": "ana.costa@demo.fui.app",
+      "phone": "(79) 99456-7890",
+      "role": "driver",
+      "createdAt": "2026-03-06 08:35:09",
+      "lastSignedIn": "2026-03-06 08:35:09"
+    },
+    {
+      "id": "3930168",
+      "openId": "demo_pedro.oliveira_1772786109760",
+      "name": "Pedro Oliveira",
+      "email": "pedro.oliveira@demo.fui.app",
+      "phone": "(79) 99345-6789",
+      "role": "driver",
+      "createdAt": "2026-03-06 08:35:09",
+      "lastSignedIn": "2026-03-06 08:35:09"
+    },
+    {
+      "id": "3930170",
+      "openId": "demo_carlos.mendes_1772786109876",
+      "name": "Carlos Mendes",
+      "email": "carlos.mendes@demo.fui.app",
+      "phone": "(79) 99567-8901",
+      "role": "driver",
+      "createdAt": "2026-03-06 08:35:09",
+      "lastSignedIn": "2026-03-06 08:35:09"
+    },
+    {
+      "id": "3930171",
+      "openId": "demo_fernanda.lima_1772786109926",
+      "name": "Fernanda Lima",
+      "email": "fernanda.lima@demo.fui.app",
+      "phone": "(79) 99678-9012",
+      "role": "driver",
+      "createdAt": "2026-03-06 08:35:09",
+      "lastSignedIn": "2026-03-06 08:35:09"
+    },
+    {
+      "id": "3930172",
+      "openId": "demo_roberto.alves_1772786109975",
+      "name": "Roberto Alves",
+      "email": "roberto.alves@demo.fui.app",
+      "phone": "(79) 99789-0123",
+      "role": "driver",
+      "createdAt": "2026-03-06 08:35:09",
+      "lastSignedIn": "2026-03-06 08:35:09"
+    },
+    {
+      "id": "3930166",
+      "openId": "demo_joao.silva_1772786109648",
+      "name": "João Silva",
+      "email": "joao.silva@demo.fui.app",
+      "phone": "(79) 99123-4567",
+      "role": "driver",
+      "createdAt": "2026-03-06 08:35:09",
+      "lastSignedIn": "2026-03-06 08:35:09"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\topenId\tname\temail\tphone\trole\tcreatedAt\tlastSignedIn\n1\tePi6qczJKuer9DfZpgTrCg\tRomário Oliveira\tromario.negociosonline@gmail.com\t79999348812\tadmin\t2025-12-03 16:05:13\t2026-03-21 23:29:26\n4020057\tAPqJYAQKM9zMYqGN8cXrU2\tMara Nunes\tmn583971@gmail.com\t79 99918-2596\tpassenger\t2026-03-07 14:22:51\t2026-03-19 08:58:13\n4290001\tVALQCsMXWsyDok8ZFYxTmV\tAleef Youtube\taleefcontayou@gmail.com\tNULL\tpassenger\t2026-03-09 01:11:11\t2026-03-09 01:18:05\n390001\tJJY6FnuBhLn93EJ9apVwPy\tKadu Barone\tcarloseduardociclista@gmail.com\t79998943315\tdriver\t2025-12-03 22:56:22\t2026-03-07 14:28:09\n3930169\tdemo_ana.costa_1772786109827\tAna Costa\tana.costa@demo.fui.app\t(79) 99456-7890\tdriver\t2026-03-06 08:35:09\t2026-03-06 08:35:09\n3930168\tdemo_pedro.oliveira_1772786109760\tPedro Oliveira\tpedro.oliveira@demo.fui.app\t(79) 99345-6789\tdriver\t2026-03-06 08:35:09\t2026-03-06 08:35:09\n3930170\tdemo_carlos.mendes_1772786109876\tCarlos Mendes\tcarlos.mendes@demo.fui.app\t(79) 99567-8901\tdriver\t2026-03-06 08:35:09\t2026-03-06 08:35:09\n3930171\tdemo_fernanda.lima_1772786109926\tFernanda Lima\tfernanda.lima@demo.fui.app\t(79) 99678-9012\tdriver\t2026-03-06 08:35:09\t2026-03-06 08:35:09\n3930172\tdemo_roberto.alves_1772786109975\tRoberto Alves\troberto.alves@demo.fui.app\t(79) 99789-0123\tdriver\t2026-03-06 08:35:09\t2026-03-06 08:35:09\n3930166\tdemo_joao.silva_1772786109648\tJoão Silva\tjoao.silva@demo.fui.app\t(79) 99123-4567\tdriver\t2026-03-06 08:35:09\t2026-03-06 08:35:09\n",
+  "stderr": "",
+  "execution_time_ms": 50
+}

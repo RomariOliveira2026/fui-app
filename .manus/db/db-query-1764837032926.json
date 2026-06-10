@@ -1,0 +1,9 @@
+{
+  "query": "UPDATE pricing_config SET \n  basePrice = CASE \n    WHEN vehicleType = 'moto' THEN 500\n    WHEN vehicleType = 'carro' THEN 800\n    WHEN vehicleType = 'van' THEN 1200\n  END,\n  pricePerKm = CASE \n    WHEN vehicleType = 'moto' THEN 180\n    WHEN vehicleType = 'carro' THEN 250\n    WHEN vehicleType = 'van' THEN 350\n  END,\n  pricePerMinute = CASE \n    WHEN vehicleType = 'moto' THEN 20\n    WHEN vehicleType = 'carro' THEN 30\n    WHEN vehicleType = 'van' THEN 40\n  END,\n  minimumPrice = CASE \n    WHEN vehicleType = 'moto' THEN 600\n    WHEN vehicleType = 'carro' THEN 1000\n    WHEN vehicleType = 'van' THEN 1500\n  END\nWHERE vehicleType IN ('moto', 'carro', 'van');",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2KbQAwj2ZZgmHZ7.96913130ecdd --database kzfSj4x7eR8vE8AeXUkeWP --execute UPDATE pricing_config SET \n  basePrice = CASE \n    WHEN vehicleType = 'moto' THEN 500\n    WHEN vehicleType = 'carro' THEN 800\n    WHEN vehicleType = 'van' THEN 1200\n  END,\n  pricePerKm = CASE \n    WHEN vehicleType = 'moto' THEN 180\n    WHEN vehicleType = 'carro' THEN 250\n    WHEN vehicleType = 'van' THEN 350\n  END,\n  pricePerMinute = CASE \n    WHEN vehicleType = 'moto' THEN 20\n    WHEN vehicleType = 'carro' THEN 30\n    WHEN vehicleType = 'van' THEN 40\n  END,\n  minimumPrice = CASE \n    WHEN vehicleType = 'moto' THEN 600\n    WHEN vehicleType = 'carro' THEN 1000\n    WHEN vehicleType = 'van' THEN 1500\n  END\nWHERE vehicleType IN ('moto', 'carro', 'van');",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 69
+}

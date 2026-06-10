@@ -1,0 +1,63 @@
+CREATE TABLE `delivery_orders` (
+	`id` int AUTO_INCREMENT NOT NULL,
+	`senderId` int NOT NULL,
+	`driverId` int,
+	`status` enum('requested','accepted','picked_up','in_transit','delivered','cancelled') NOT NULL DEFAULT 'requested',
+	`pickupAddress` text NOT NULL,
+	`pickupLat` varchar(20) NOT NULL,
+	`pickupLng` varchar(20) NOT NULL,
+	`pickupContactName` varchar(255),
+	`pickupContactPhone` varchar(20),
+	`deliveryAddress` text NOT NULL,
+	`deliveryLat` varchar(20) NOT NULL,
+	`deliveryLng` varchar(20) NOT NULL,
+	`recipientName` varchar(255) NOT NULL,
+	`recipientPhone` varchar(20) NOT NULL,
+	`packageType` enum('documento','pacote_pequeno','pacote_medio','pacote_grande','alimento','outro') NOT NULL,
+	`packageDescription` text,
+	`estimatedWeight` int,
+	`isFragile` boolean NOT NULL DEFAULT false,
+	`requiresSignature` boolean NOT NULL DEFAULT false,
+	`distance` int,
+	`duration` int,
+	`estimatedPrice` int,
+	`finalPrice` int,
+	`paymentMethod` enum('pix','card','cash') NOT NULL,
+	`paymentStatus` enum('pending','paid','failed') NOT NULL DEFAULT 'pending',
+	`trackingCode` varchar(20),
+	`proofOfDeliveryUrl` text,
+	`createdAt` timestamp NOT NULL DEFAULT (now()),
+	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	`pickedUpAt` timestamp,
+	`deliveredAt` timestamp,
+	`cancelledAt` timestamp,
+	CONSTRAINT `delivery_orders_id` PRIMARY KEY(`id`)
+);
+--> statement-breakpoint
+CREATE TABLE `favorite_drivers` (
+	`id` int AUTO_INCREMENT NOT NULL,
+	`passengerId` int NOT NULL,
+	`driverId` int NOT NULL,
+	`nickname` varchar(100),
+	`note` text,
+	`ridesCompleted` int NOT NULL DEFAULT 0,
+	`lastRideAt` timestamp,
+	`createdAt` timestamp NOT NULL DEFAULT (now()),
+	CONSTRAINT `favorite_drivers_id` PRIMARY KEY(`id`)
+);
+--> statement-breakpoint
+CREATE TABLE `referrals` (
+	`id` int AUTO_INCREMENT NOT NULL,
+	`referrerId` int NOT NULL,
+	`referredId` int,
+	`referralCode` varchar(20) NOT NULL,
+	`status` enum('pending','registered','completed','expired') NOT NULL DEFAULT 'pending',
+	`referrerRewardCents` int NOT NULL DEFAULT 500,
+	`referredRewardCents` int NOT NULL DEFAULT 500,
+	`referrerPaid` boolean NOT NULL DEFAULT false,
+	`referredPaid` boolean NOT NULL DEFAULT false,
+	`createdAt` timestamp NOT NULL DEFAULT (now()),
+	`completedAt` timestamp,
+	CONSTRAINT `referrals_id` PRIMARY KEY(`id`),
+	CONSTRAINT `referrals_referralCode_unique` UNIQUE(`referralCode`)
+);

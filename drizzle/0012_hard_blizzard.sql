@@ -1,0 +1,1 @@
+ALTER TABLE `pricing_config` MODIFY COLUMN `vehicleType` enum('moto','carro','van','utilitario') NOT NULL;

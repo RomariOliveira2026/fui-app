@@ -1,0 +1,1 @@
+ALTER TABLE `rides` ADD `stripePaymentIntentId` varchar(255);

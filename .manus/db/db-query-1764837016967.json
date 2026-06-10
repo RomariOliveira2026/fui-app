@@ -1,0 +1,43 @@
+{
+  "query": "SHOW TABLES;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2KbQAwj2ZZgmHZ7.96913130ecdd --database kzfSj4x7eR8vE8AeXUkeWP --execute SHOW TABLES;",
+  "rows": [
+    {
+      "Tables_in_kzfSj4x7eR8vE8AeXUkeWP": "__drizzle_migrations"
+    },
+    {
+      "Tables_in_kzfSj4x7eR8vE8AeXUkeWP": "chat_messages"
+    },
+    {
+      "Tables_in_kzfSj4x7eR8vE8AeXUkeWP": "coupon_usage"
+    },
+    {
+      "Tables_in_kzfSj4x7eR8vE8AeXUkeWP": "coupons"
+    },
+    {
+      "Tables_in_kzfSj4x7eR8vE8AeXUkeWP": "driver_locations"
+    },
+    {
+      "Tables_in_kzfSj4x7eR8vE8AeXUkeWP": "driver_profiles"
+    },
+    {
+      "Tables_in_kzfSj4x7eR8vE8AeXUkeWP": "pricing_config"
+    },
+    {
+      "Tables_in_kzfSj4x7eR8vE8AeXUkeWP": "ratings"
+    },
+    {
+      "Tables_in_kzfSj4x7eR8vE8AeXUkeWP": "rides"
+    },
+    {
+      "Tables_in_kzfSj4x7eR8vE8AeXUkeWP": "users"
+    },
+    {
+      "Tables_in_kzfSj4x7eR8vE8AeXUkeWP": "vehicles"
+    }
+  ],
+  "messages": [],
+  "stdout": "Tables_in_kzfSj4x7eR8vE8AeXUkeWP\n__drizzle_migrations\nchat_messages\ncoupon_usage\ncoupons\ndriver_locations\ndriver_profiles\npricing_config\nratings\nrides\nusers\nvehicles\n",
+  "stderr": "",
+  "execution_time_ms": 52
+}

@@ -1,0 +1,9 @@
+{
+  "query": "INSERT INTO pricing_config (vehicleType, basePrice, pricePerKm, pricePerMinute, minimumPrice, createdAt, updatedAt) \nVALUES ('utilitario', 2000, 250, 30, 2500, NOW(), NOW())",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2KbQAwj2ZZgmHZ7.96913130ecdd --database kzfSj4x7eR8vE8AeXUkeWP --execute INSERT INTO pricing_config (vehicleType, basePrice, pricePerKm, pricePerMinute, minimumPrice, createdAt, updatedAt) \nVALUES ('utilitario', 2000, 250, 30, 2500, NOW(), NOW())",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 57
+}

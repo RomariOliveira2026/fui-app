@@ -1,0 +1,73 @@
+{
+  "query": "SHOW TABLES;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2KbQAwj2ZZgmHZ7.96913130ecdd --database kzfSj4x7eR8vE8AeXUkeWP --execute SHOW TABLES;",
+  "rows": [
+    {
+      "Tables_in_kzfSj4x7eR8vE8AeXUkeWP": "__drizzle_migrations"
+    },
+    {
+      "Tables_in_kzfSj4x7eR8vE8AeXUkeWP": "chat_messages"
+    },
+    {
+      "Tables_in_kzfSj4x7eR8vE8AeXUkeWP": "coupon_usage"
+    },
+    {
+      "Tables_in_kzfSj4x7eR8vE8AeXUkeWP": "coupons"
+    },
+    {
+      "Tables_in_kzfSj4x7eR8vE8AeXUkeWP": "delivery_orders"
+    },
+    {
+      "Tables_in_kzfSj4x7eR8vE8AeXUkeWP": "driver_locations"
+    },
+    {
+      "Tables_in_kzfSj4x7eR8vE8AeXUkeWP": "driver_profiles"
+    },
+    {
+      "Tables_in_kzfSj4x7eR8vE8AeXUkeWP": "emergency_contacts"
+    },
+    {
+      "Tables_in_kzfSj4x7eR8vE8AeXUkeWP": "favorite_drivers"
+    },
+    {
+      "Tables_in_kzfSj4x7eR8vE8AeXUkeWP": "fcm_tokens"
+    },
+    {
+      "Tables_in_kzfSj4x7eR8vE8AeXUkeWP": "loyalty_history"
+    },
+    {
+      "Tables_in_kzfSj4x7eR8vE8AeXUkeWP": "notifications"
+    },
+    {
+      "Tables_in_kzfSj4x7eR8vE8AeXUkeWP": "pricing_config"
+    },
+    {
+      "Tables_in_kzfSj4x7eR8vE8AeXUkeWP": "ratings"
+    },
+    {
+      "Tables_in_kzfSj4x7eR8vE8AeXUkeWP": "referrals"
+    },
+    {
+      "Tables_in_kzfSj4x7eR8vE8AeXUkeWP": "ride_passengers"
+    },
+    {
+      "Tables_in_kzfSj4x7eR8vE8AeXUkeWP": "rides"
+    },
+    {
+      "Tables_in_kzfSj4x7eR8vE8AeXUkeWP": "saved_addresses"
+    },
+    {
+      "Tables_in_kzfSj4x7eR8vE8AeXUkeWP": "sos_alerts"
+    },
+    {
+      "Tables_in_kzfSj4x7eR8vE8AeXUkeWP": "users"
+    },
+    {
+      "Tables_in_kzfSj4x7eR8vE8AeXUkeWP": "vehicles"
+    }
+  ],
+  "messages": [],
+  "stdout": "Tables_in_kzfSj4x7eR8vE8AeXUkeWP\n__drizzle_migrations\nchat_messages\ncoupon_usage\ncoupons\ndelivery_orders\ndriver_locations\ndriver_profiles\nemergency_contacts\nfavorite_drivers\nfcm_tokens\nloyalty_history\nnotifications\npricing_config\nratings\nreferrals\nride_passengers\nrides\nsaved_addresses\nsos_alerts\nusers\nvehicles\n",
+  "stderr": "",
+  "execution_time_ms": 76
+}

@@ -1,0 +1,90 @@
+{
+  "query": "SELECT dp.id, dp.userId, dp.status, dp.isAvailable, u.name, u.email FROM driver_profiles dp JOIN users u ON dp.userId = u.id LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2KbQAwj2ZZgmHZ7.96913130ecdd --database kzfSj4x7eR8vE8AeXUkeWP --execute SELECT dp.id, dp.userId, dp.status, dp.isAvailable, u.name, u.email FROM driver_profiles dp JOIN users u ON dp.userId = u.id LIMIT 10;",
+  "rows": [
+    {
+      "id": "150001",
+      "userId": "1",
+      "status": "approved",
+      "isAvailable": "1",
+      "name": "Romário Oliveira",
+      "email": "romario.negociosonline@gmail.com"
+    },
+    {
+      "id": "60001",
+      "userId": "390001",
+      "status": "approved",
+      "isAvailable": "0",
+      "name": "Kadu Barone",
+      "email": "carloseduardociclista@gmail.com"
+    },
+    {
+      "id": "30001",
+      "userId": "420001",
+      "status": "rejected",
+      "isAvailable": "0",
+      "name": "RUY OLIVEIRA",
+      "email": "ruyboliveira@gmail.com"
+    },
+    {
+      "id": "90001",
+      "userId": "1140003",
+      "status": "approved",
+      "isAvailable": "0",
+      "name": "João Silva",
+      "email": "joao.silva@example.com"
+    },
+    {
+      "id": "90002",
+      "userId": "1140006",
+      "status": "approved",
+      "isAvailable": "1",
+      "name": "Maria Santos",
+      "email": "maria.santos@example.com"
+    },
+    {
+      "id": "90003",
+      "userId": "1140007",
+      "status": "approved",
+      "isAvailable": "1",
+      "name": "Pedro Oliveira",
+      "email": "pedro.oliveira@example.com"
+    },
+    {
+      "id": "90004",
+      "userId": "1140008",
+      "status": "approved",
+      "isAvailable": "0",
+      "name": "Ana Costa",
+      "email": "ana.costa@example.com"
+    },
+    {
+      "id": "90005",
+      "userId": "1140009",
+      "status": "approved",
+      "isAvailable": "1",
+      "name": "Carlos Mendes",
+      "email": "carlos.mendes@example.com"
+    },
+    {
+      "id": "120001",
+      "userId": "3930166",
+      "status": "approved",
+      "isAvailable": "1",
+      "name": "João Silva",
+      "email": "joao.silva@demo.fui.app"
+    },
+    {
+      "id": "120002",
+      "userId": "3930167",
+      "status": "approved",
+      "isAvailable": "1",
+      "name": "Maria Santos",
+      "email": "maria.santos@demo.fui.app"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tuserId\tstatus\tisAvailable\tname\temail\n150001\t1\tapproved\t1\tRomário Oliveira\tromario.negociosonline@gmail.com\n60001\t390001\tapproved\t0\tKadu Barone\tcarloseduardociclista@gmail.com\n30001\t420001\trejected\t0\tRUY OLIVEIRA\truyboliveira@gmail.com\n90001\t1140003\tapproved\t0\tJoão Silva\tjoao.silva@example.com\n90002\t1140006\tapproved\t1\tMaria Santos\tmaria.santos@example.com\n90003\t1140007\tapproved\t1\tPedro Oliveira\tpedro.oliveira@example.com\n90004\t1140008\tapproved\t0\tAna Costa\tana.costa@example.com\n90005\t1140009\tapproved\t1\tCarlos Mendes\tcarlos.mendes@example.com\n120001\t3930166\tapproved\t1\tJoão Silva\tjoao.silva@demo.fui.app\n120002\t3930167\tapproved\t1\tMaria Santos\tmaria.santos@demo.fui.app\n",
+  "stderr": "",
+  "execution_time_ms": 239
+}
