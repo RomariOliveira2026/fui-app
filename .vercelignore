@@ -3,6 +3,7 @@ node_modules
 .env.*
 !.env.example
 dist
+api/index.js
 .git
 *.log
 playwright-report
