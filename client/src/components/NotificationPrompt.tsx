@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
+import { useLocation } from "wouter";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { isLandingRoute } from "@/components/landing/landingRoutes";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,6 +9,7 @@ import { Bell, X } from "lucide-react";
 import { toast } from "sonner";
 
 export default function NotificationPrompt() {
+  const [location] = useLocation();
   const { user, canUsePrivateUserApi } = useAuth();
   const { permission, requestPermission, isConfigured } = usePushNotifications(
     canUsePrivateUserApi ? user?.id : undefined
@@ -77,6 +80,7 @@ export default function NotificationPrompt() {
   // - Permission already denied by browser (no point showing the prompt)
   // - User dismissed the prompt
   if (
+    isLandingRoute(location) ||
     !canUsePrivateUserApi ||
     !user ||
     !isConfigured ||

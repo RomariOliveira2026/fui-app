@@ -1,9 +1,12 @@
 import { useState, useEffect } from "react";
+import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { X, Download } from "lucide-react";
+import { isLandingRoute } from "@/components/landing/landingRoutes";
 
 export default function InstallPrompt() {
+  const [location] = useLocation();
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showPrompt, setShowPrompt] = useState(false);
 
@@ -48,7 +51,7 @@ export default function InstallPrompt() {
     localStorage.setItem("pwa-install-dismissed", "true");
   };
 
-  if (!showPrompt) return null;
+  if (isLandingRoute(location) || !showPrompt) return null;
 
   return (
     <div className="fixed bottom-4 left-4 right-4 z-50 md:left-auto md:right-4 md:w-96">

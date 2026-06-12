@@ -40,6 +40,7 @@ const AdminManage = lazy(() => import("./pages/AdminManage"));
 const AdminNotifications = lazy(() => import("./pages/AdminNotifications"));
 const AdminFinance = lazy(() => import("./pages/AdminFinance"));
 const PaymentCheckout = lazy(() => import("./pages/PaymentCheckout"));
+const LicenseLanding = lazy(() => import("./pages/LicenseLanding"));
 
 function RouteFallback() {
   return (
@@ -109,6 +110,9 @@ function Router() {
       <Route path="/utilities/history" component={UtilityHistory} />
       <Route path="/utilities/:id" component={UtilityDetail} />
       <Route path="/payment/:rideId">{() => <LazyRoute component={PaymentCheckout} />}</Route>
+      <Route path="/para-sua-cidade">{() => <LazyRoute component={LicenseLanding} />}</Route>
+      <Route path="/licenca">{() => <LazyRoute component={LicenseLanding} />}</Route>
+      <Route path="/fui-licenciamento">{() => <LazyRoute component={LicenseLanding} />}</Route>
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>

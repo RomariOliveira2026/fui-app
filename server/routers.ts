@@ -3,6 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
+import { landingRouter } from "./routers/landing";
 import { notificationRouter, createNotificationWithPush } from "./routers/notification";
 import { mapsRouter } from "./routers/maps";
 import { favoritesRouter } from "./routers/favorites";
@@ -146,6 +147,7 @@ function canAccessAdminOperational(ctx: { user: { role: string; openId: string }
 
 export const appRouter = router({
   system: systemRouter,
+  landing: landingRouter,
   notification: notificationRouter,
   maps: mapsRouter,
   favorites: favoritesRouter,
