@@ -41,8 +41,8 @@ export function FadeIn({ children, className }: { children: ReactNode; className
 
 export function SectionLabel({ children }: { children: ReactNode }) {
   return (
-    <span className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/[0.08] px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-primary shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)]">
-      <Sparkles className="h-3 w-3 opacity-80" />
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/25 bg-primary/[0.07] px-3 py-1 text-[10px] sm:text-[11px] font-semibold uppercase tracking-[0.12em] text-primary shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)]">
+      <Sparkles className="h-3 w-3 opacity-75" />
       {children}
     </span>
   );
@@ -60,7 +60,7 @@ export function SectionTitle({
   return (
     <h2
       className={cn(
-        "text-[1.65rem] sm:text-3xl lg:text-[2.35rem] font-bold tracking-[-0.02em] text-foreground leading-[1.15]",
+        "text-[1.625rem] sm:text-[1.875rem] lg:text-[2.25rem] xl:text-[2.35rem] font-bold tracking-[-0.025em] text-foreground leading-[1.12]",
         centered && "mx-auto",
         className
       )}
@@ -74,7 +74,7 @@ export function SectionLead({ children, className }: { children: ReactNode; clas
   return (
     <p
       className={cn(
-        "mt-5 text-base sm:text-lg text-muted-foreground/90 leading-relaxed max-w-2xl",
+        "mt-4 text-[0.9375rem] sm:text-base text-muted-foreground/85 leading-snug sm:leading-relaxed max-w-2xl",
         className
       )}
     >
@@ -86,7 +86,7 @@ export function SectionLead({ children, className }: { children: ReactNode; clas
 export function SectionDivider() {
   return (
     <div className="mx-auto max-w-6xl px-4 sm:px-6">
-      <div className="h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+      <div className="h-px bg-gradient-to-r from-transparent via-white/[0.08] to-transparent" />
     </div>
   );
 }
@@ -108,13 +108,13 @@ export function LandingSection({
     <section
       id={id}
       className={cn(
-        "relative py-24 sm:py-32 px-4 sm:px-6",
+        "relative py-16 sm:py-20 lg:py-24 px-4 sm:px-6",
         id && "scroll-mt-[5.5rem]",
-        tint === "muted" && "bg-white/[0.02] border-y border-white/[0.06]",
+        tint === "muted" && "bg-white/[0.015] border-y border-white/[0.06]",
         tint === "accent" &&
-          "bg-gradient-to-b from-primary/[0.07] via-primary/[0.02] to-transparent border-y border-primary/10",
+          "bg-gradient-to-b from-primary/[0.05] via-primary/[0.012] to-transparent border-y border-primary/[0.08]",
         tint === "warm" &&
-          "bg-gradient-to-br from-primary/[0.09] via-transparent to-primary/[0.03] border-y border-primary/10",
+          "bg-gradient-to-br from-primary/[0.06] via-transparent to-primary/[0.02] border-y border-primary/[0.08]",
         className
       )}
     >
@@ -124,10 +124,17 @@ export function LandingSection({
 }
 
 export const premiumCardClass =
-  "rounded-2xl border border-white/[0.08] bg-gradient-to-b from-white/[0.045] to-white/[0.01] backdrop-blur-sm shadow-[0_12px_40px_-20px_rgba(0,0,0,0.55)] transition-all duration-300";
+  "rounded-2xl border border-white/[0.07] bg-gradient-to-b from-white/[0.04] to-white/[0.008] backdrop-blur-sm shadow-[0_10px_36px_-22px_rgba(0,0,0,0.55)] transition-all duration-300";
 
 export const premiumCardHoverClass =
-  "hover:border-primary/25 hover:shadow-[0_16px_48px_-16px_rgba(249,146,0,0.18)] hover:-translate-y-0.5";
+  "hover:border-primary/20 hover:shadow-[0_14px_44px_-18px_rgba(249,146,0,0.14)] hover:-translate-y-0.5";
+
+/** Espaço padrão entre cabeçalho de seção e conteúdo */
+export const sectionContentMt = "mt-9 sm:mt-10";
+
+/** Destaque comercial laranja dentro de seções */
+export const sectionHighlightText =
+  "text-base sm:text-lg font-semibold text-primary leading-snug max-w-2xl";
 
 export function PremiumCard({
   children,
@@ -148,9 +155,11 @@ export function PremiumCard({
 }
 
 type CtaVariant = "primary" | "secondary" | "outline" | "ghost";
+type CtaSize = "default" | "compact";
 
 export function LandingCta({
   variant = "primary",
+  size = "default",
   children,
   message,
   href,
@@ -160,6 +169,7 @@ export function LandingCta({
   onClick,
 }: {
   variant?: CtaVariant;
+  size?: CtaSize;
   children: ReactNode;
   /** Mensagem pré-preenchida para WhatsApp */
   message?: string;
@@ -172,31 +182,39 @@ export function LandingCta({
 }) {
   const variantClass =
     variant === "primary"
-      ? "bg-primary text-primary-foreground hover:bg-primary/92 shadow-lg shadow-primary/25 hover:shadow-primary/35 border border-primary/20"
+      ? size === "compact"
+        ? "bg-primary text-primary-foreground hover:bg-primary/92 shadow-sm shadow-primary/12 hover:shadow-md hover:shadow-primary/18 border border-primary/12"
+        : "bg-primary text-primary-foreground hover:bg-primary/92 shadow-lg shadow-primary/25 hover:shadow-primary/35 border border-primary/20"
       : variant === "outline"
         ? "border-white/15 bg-white/[0.03] text-foreground hover:bg-white/[0.06] hover:border-white/25 shadow-none"
         : variant === "ghost"
           ? "border-transparent bg-transparent text-muted-foreground hover:text-foreground hover:bg-white/5"
           : "bg-secondary text-secondary-foreground hover:bg-secondary/85";
 
+  const sizeClass =
+    size === "compact"
+      ? "h-9 sm:h-10 rounded-full px-4 sm:px-5 text-xs sm:text-[13px] font-semibold"
+      : "h-11 sm:h-12 rounded-full px-6 sm:px-7 text-sm sm:text-[0.9375rem] font-semibold";
+
   const content = (
     <>
       {children}
-      {showArrow ? <ArrowRight className="h-4 w-4 opacity-80" /> : null}
+      {showArrow ? (
+        <ArrowRight
+          className={cn(size === "compact" ? "h-3.5 w-3.5" : "h-4 w-4", "opacity-80 shrink-0")}
+        />
+      ) : null}
     </>
   );
 
-  const buttonClass = cn(
-    "h-11 sm:h-12 rounded-full px-6 sm:px-7 text-sm sm:text-[0.9375rem] font-semibold",
-    variantClass,
-    className
-  );
+  const buttonClass = cn(sizeClass, variantClass, className);
+  const buttonSize = size === "compact" ? "default" : "lg";
 
   if (scrollToLead) {
     return (
       <Button
         type="button"
-        size="lg"
+        size={buttonSize}
         className={buttonClass}
         onClick={() => {
           scrollToLeadSection();
@@ -212,7 +230,7 @@ export function LandingCta({
     const waUrl = landingWhatsAppUrl(message);
     if (waUrl) {
       return (
-        <Button size="lg" className={buttonClass} asChild>
+        <Button size={buttonSize} className={buttonClass} asChild>
           <a href={waUrl} target="_blank" rel="noopener noreferrer" onClick={onClick}>
             {content}
           </a>
@@ -222,7 +240,7 @@ export function LandingCta({
     return (
       <Button
         type="button"
-        size="lg"
+        size={buttonSize}
         className={buttonClass}
         onClick={() => {
           if (!openLandingWhatsApp(message)) scrollToLeadSection();
@@ -236,7 +254,7 @@ export function LandingCta({
 
   if (href) {
     return (
-      <Button size="lg" className={buttonClass} asChild>
+      <Button size={buttonSize} className={buttonClass} asChild>
         <a href={href} target="_blank" rel="noopener noreferrer" onClick={onClick}>
           {content}
         </a>
@@ -246,7 +264,7 @@ export function LandingCta({
 
   return (
     <Button
-      size="lg"
+      size={buttonSize}
       className={buttonClass}
       asChild
     >
@@ -272,24 +290,30 @@ export function CtaBand({
 }) {
   return (
     <FadeIn>
-      <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-primary/20 bg-gradient-to-r from-primary/[0.12] via-card/60 to-background px-6 py-8 sm:px-10 sm:py-10">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,oklch(0.68_0.18_55/0.15),transparent_55%)]" />
-        <div className="relative flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
-          <div className="max-w-xl">
-            <h3 className="text-xl sm:text-2xl font-bold tracking-tight">{title}</h3>
-            <p className="mt-2 text-sm sm:text-base text-muted-foreground/90 leading-relaxed">
+      <div className="relative overflow-hidden rounded-2xl border border-primary/12 bg-gradient-to-r from-primary/[0.06] via-card/40 to-background px-5 py-5 sm:px-7 sm:py-6 shadow-[0_8px_32px_-20px_rgba(0,0,0,0.42)]">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,oklch(0.68_0.18_55/0.08),transparent_52%)]" />
+        <div className="relative flex flex-col md:flex-row md:items-center md:justify-between gap-4 md:gap-6">
+          <div className="min-w-0 max-w-lg">
+            <p className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-[0.12em] text-primary/75">
+              Potencial comercial
+            </p>
+            <h3 className="mt-1.5 text-base sm:text-lg font-bold tracking-[-0.02em] leading-snug">
+              {title}
+            </h3>
+            <p className="mt-1.5 text-xs sm:text-sm text-muted-foreground/80 leading-relaxed">
               {subtitle}
             </p>
           </div>
-          <div className="flex flex-col sm:flex-row gap-3 shrink-0">
-            <LandingCta scrollToLead showArrow>
-              Quero levar o Fui para minha cidade
+          <div className="flex flex-col sm:flex-row gap-2.5 shrink-0">
+            <LandingCta scrollToLead showArrow size="compact">
+              Solicitar proposta
             </LandingCta>
             <LandingCta
               variant="outline"
+              size="compact"
               message={secondaryWhatsappMessage || LANDING_WHATSAPP_MESSAGES.demo}
             >
-              Agendar demonstração
+              Agendar demo
             </LandingCta>
           </div>
         </div>

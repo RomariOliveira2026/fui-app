@@ -143,30 +143,30 @@ export default function ComercialLeadForm({
 
   return (
     <div>
-      <div className="grid lg:grid-cols-[1fr_1.15fr] gap-10 lg:gap-14 items-start">
+      <div className="grid lg:grid-cols-[1fr_1.15fr] gap-8 lg:gap-12 items-start">
         <div>
           <SectionLabel>Captação comercial</SectionLabel>
-          <SectionTitle className="mt-5">Leve o Fui para sua cidade</SectionTitle>
+          <SectionTitle className="mt-4">Leve o Fui para sua cidade</SectionTitle>
           <SectionLead>
             Preencha os dados abaixo e receba uma apresentação comercial da plataforma.
           </SectionLead>
 
-          <div className="mt-8 flex flex-wrap gap-2">
+          <div className="mt-7 flex flex-wrap gap-2">
             {TRUST_BADGES.map((badge) => (
               <span
                 key={badge}
-                className="rounded-full border border-primary/20 bg-primary/8 px-3.5 py-1.5 text-xs font-medium text-primary/90"
+                className="inline-flex items-center rounded-full border border-primary/20 bg-primary/[0.07] px-3 py-1 text-[11px] sm:text-xs font-medium text-primary/90"
               >
                 {badge}
               </span>
             ))}
           </div>
 
-          <div className="mt-8 grid sm:grid-cols-2 gap-3">
+          <div className="mt-7 grid sm:grid-cols-2 gap-2.5">
             {VALUE_PROOFS.map((item) => (
               <div
                 key={item}
-                className="rounded-xl border border-white/[0.08] bg-white/[0.02] px-4 py-3 text-sm text-muted-foreground/90"
+                className="rounded-xl border border-white/[0.07] bg-white/[0.02] px-3.5 py-3 text-[13px] sm:text-sm text-muted-foreground/85 leading-snug"
               >
                 {item}
               </div>
@@ -178,9 +178,9 @@ export default function ComercialLeadForm({
           hover={false}
           id="lead-form"
           className={cn(
-            "p-6 sm:p-8 transition-all duration-500 scroll-mt-24",
+            "p-5 sm:p-7 transition-all duration-500 scroll-mt-24",
             highlighted &&
-              "ring-2 ring-primary/50 shadow-[0_0_0_8px_rgba(249,146,0,0.12)] border-primary/35"
+              "ring-2 ring-primary/40 shadow-[0_0_0_6px_rgba(249,146,0,0.10)] border-primary/30"
           )}
         >
           <form onSubmit={handleSubmit} className="space-y-5" noValidate>
@@ -294,7 +294,7 @@ export default function ComercialLeadForm({
               type="submit"
               size="lg"
               disabled={submitMutation.isPending}
-              className="w-full h-12 rounded-full font-semibold shadow-lg shadow-primary/20"
+              className="w-full h-11 rounded-full font-semibold shadow-md shadow-primary/15"
             >
               {submitMutation.isPending ? (
                 <>

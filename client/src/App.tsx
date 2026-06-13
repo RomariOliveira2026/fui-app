@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, type ComponentType } from "react";
 import { useLocation } from "wouter";
 import { Toaster } from "@/components/ui/sonner";
+import { isLandingRoute } from "@/components/landing/landingRoutes";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
 import { Route, Switch } from "wouter";
@@ -119,15 +120,26 @@ function Router() {
   );
 }
 
+function GlobalAppOverlays() {
+  const [location] = useLocation();
+  if (isLandingRoute(location)) return null;
+
+  return (
+    <>
+      <InstallPrompt />
+      <NotificationPrompt />
+      <PushNotificationSetup />
+    </>
+  );
+}
+
 function App() {
   return (
     <ErrorBoundary>
       <ThemeProvider defaultTheme="dark">
         <TooltipProvider>
           <Toaster />
-          <InstallPrompt />
-          <NotificationPrompt />
-          <PushNotificationSetup />
+          <GlobalAppOverlays />
           <ScrollToTopButton />
           <Router />
         </TooltipProvider>

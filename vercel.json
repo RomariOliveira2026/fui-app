@@ -5,7 +5,6 @@
   "framework": null,
   "outputDirectory": "dist/public",
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api" },
     {
       "source": "/((?!assets/|manifest\\.json|sw\\.js|favicon\\.ico|.*\\..+$).*)",
       "destination": "/index.html"
@@ -35,7 +34,7 @@
     }
   ],
   "functions": {
-    "api/index.js": {
+    "api/[[...path]].js": {
       "maxDuration": 30
     }
   }

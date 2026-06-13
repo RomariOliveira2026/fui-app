@@ -6,6 +6,7 @@ import {
   isLocalDemoDev,
 } from "@/lib/demoMode";
 import { mergeDemoUserProfile } from "@/lib/demoUserProfile";
+import { isLandingRoute } from "@/components/landing/landingRoutes";
 import { trpc } from "@/lib/trpc";
 import { TRPCClientError } from "@trpc/client";
 import { useCallback, useEffect, useMemo } from "react";
@@ -20,7 +21,9 @@ export function useAuth(options?: UseAuthOptions) {
     options ?? {};
   const utils = trpc.useUtils();
 
-  const skipMeQuery = isLocalDemoDev();
+  const skipMeQuery =
+    isLocalDemoDev() ||
+    (typeof window !== "undefined" && isLandingRoute(window.location.pathname));
 
   const meQuery = trpc.auth.me.useQuery(undefined, {
     enabled: !skipMeQuery,

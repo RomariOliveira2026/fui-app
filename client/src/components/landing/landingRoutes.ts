@@ -10,3 +10,9 @@ export function isLandingRoute(path: string): boolean {
     (route) => path === route || path.startsWith(`${route}/`)
   );
 }
+
+/** Checagem síncrona para bootstrap (main.tsx) antes do router montar. */
+export function isLandingRoutePathname(pathname: string = ""): boolean {
+  const path = pathname || (typeof window !== "undefined" ? window.location.pathname : "");
+  return isLandingRoute(path);
+}

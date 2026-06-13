@@ -5,6 +5,7 @@ import { httpBatchLink, TRPCClientError } from "@trpc/client";
 import { createRoot } from "react-dom/client";
 import superjson from "superjson";
 import App from "./App";
+import { isLandingRoutePathname } from "./components/landing/landingRoutes";
 import { getLoginUrl } from "./const";
 import "./index.css";
 
@@ -37,7 +38,7 @@ const queryClient = new QueryClient({
     queries: {
       retry: false,
       refetchOnWindowFocus: false,
-      throwOnError: import.meta.env.PROD,
+      throwOnError: () => import.meta.env.PROD && !isLandingRoutePathname(),
     },
   },
 });
@@ -45,6 +46,7 @@ const queryClient = new QueryClient({
 const redirectToLoginIfUnauthorized = (error: unknown) => {
   if (!(error instanceof TRPCClientError)) return;
   if (typeof window === "undefined") return;
+  if (isLandingRoutePathname()) return;
 
   const isUnauthorized = error.message === UNAUTHED_ERR_MSG;
 

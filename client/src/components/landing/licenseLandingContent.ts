@@ -54,6 +54,13 @@ export const LANDING_NAV = [
   { id: "faq", label: "FAQ" },
 ] as const;
 
+export const HERO_BENEFIT_CHIPS = [
+  { label: "Plataforma multi-serviços", icon: Sparkles },
+  { label: "7 fontes de receita", icon: Coins },
+  { label: "8+ módulos integrados", icon: LayoutDashboard },
+  { label: "Mobilidade + logística urbana", icon: Car },
+] as const;
+
 export const HERO_MICROCOPY = [
   "Plataforma multi-serviços",
   "Mobilidade + logística urbana",
