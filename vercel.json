@@ -6,7 +6,7 @@
   "outputDirectory": "dist/public",
   "rewrites": [
     {
-      "source": "/((?!assets/|manifest\\.json|sw\\.js|favicon\\.ico|.*\\..+$).*)",
+      "source": "/((?!assets/|manifest\\.json|sw\\.js|favicon\\.ico|.*\\..*).*)",
       "destination": "/index.html"
     }
   ],
@@ -32,10 +32,5 @@
         { "key": "Cache-Control", "value": "public, max-age=3600" }
       ]
     }
-  ],
-  "functions": {
-    "api/[[...path]].js": {
-      "maxDuration": 30
-    }
-  }
+  ]
 }
