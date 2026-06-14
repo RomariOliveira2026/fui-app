@@ -7,6 +7,7 @@ dist/
 build/
 *.dist
 api/*.js
+!api/app-config.js
 
 # Environment variables
 .env

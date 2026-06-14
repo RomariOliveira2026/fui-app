@@ -6,7 +6,7 @@
   "outputDirectory": "dist/public",
   "rewrites": [
     {
-      "source": "/((?!assets/|manifest\\.json|sw\\.js|favicon\\.ico|.*\\..*).*)",
+      "source": "/((?!api/|assets/|manifest\\.json|sw\\.js|favicon\\.ico|.*\\..*).*)",
       "destination": "/index.html"
     }
   ],

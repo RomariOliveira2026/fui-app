@@ -4,7 +4,8 @@ export type AuthUserLike = { openId?: string | null; id?: number } | null | unde
 
 /** Beta demo na Vercel — habilita app operacional sem OAuth (build-time). */
 export function isBetaDemoRuntime(): boolean {
-  return import.meta.env.VITE_BETA_DEMO === "true";
+  const value = import.meta.env.VITE_BETA_DEMO;
+  return value === "true" || value === true;
 }
 
 /** Dev local ou beta demo na Vercel — passageiro demo e stores in-memory. */

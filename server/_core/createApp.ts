@@ -3,6 +3,7 @@ import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
+import { ENV } from "./env";
 import { handleStripeWebhook } from "../stripe-webhook";
 import { serveStatic } from "./vite";
 
@@ -26,6 +27,11 @@ export function createApp(options: CreateAppOptions = {}): Express {
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
   registerOAuthRoutes(app);
+
+  app.get("/api/app-config", (_req, res) => {
+    res.setHeader("Cache-Control", "public, max-age=60, stale-while-revalidate=300");
+    res.json({ betaDemo: ENV.betaDemo });
+  });
 
   app.use(
     "/api/trpc",

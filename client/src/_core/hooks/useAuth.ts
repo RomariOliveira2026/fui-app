@@ -2,10 +2,11 @@ import { getLoginUrl } from "@/const";
 import {
   canUsePrivateUserApi,
   DEMO_PASSENGER_USER,
+  isBetaDemoRuntime,
   isDemoLocalUser,
-  isLocalDemoDev,
 } from "@/lib/demoMode";
 import { mergeDemoUserProfile } from "@/lib/demoUserProfile";
+import { useBetaDemoRuntime } from "@/lib/useBetaDemoRuntime";
 import { isLandingRoute } from "@/components/landing/landingRoutes";
 import { trpc } from "@/lib/trpc";
 import { TRPCClientError } from "@trpc/client";
@@ -23,8 +24,12 @@ export function useAuth(options?: UseAuthOptions) {
 
   const onLanding =
     typeof window !== "undefined" && isLandingRoute(window.location.pathname);
+  const needsRuntimeBeta = !onLanding && !isBetaDemoRuntime();
+  const { active: betaDemoActive, pending: betaConfigPending } =
+    useBetaDemoRuntime(onLanding);
+
   /** Demo no app operacional; landing comercial não recebe usuário demo. */
-  const useDemoPassenger = isLocalDemoDev() && !onLanding;
+  const useDemoPassenger = betaDemoActive && !onLanding;
   const skipMeQuery = useDemoPassenger || onLanding;
 
   const meQuery = trpc.auth.me.useQuery(undefined, {
@@ -68,14 +73,22 @@ export function useAuth(options?: UseAuthOptions) {
       ? mergeDemoUserProfile(DEMO_PASSENGER_USER)
       : (meQuery.data ?? null);
     localStorage.setItem("manus-runtime-user-info", JSON.stringify(user));
-    const authUnavailable = !skipMeQuery && meQuery.isError;
+    const authUnavailable =
+      !skipMeQuery && meQuery.isError && !betaDemoActive;
+    const waitingForBetaConfig =
+      needsRuntimeBeta && betaConfigPending && !user && !meQuery.isError;
     return {
       user: authUnavailable ? null : user,
-      loading: skipMeQuery ? false : meQuery.isLoading || logoutMutation.isPending,
+      loading:
+        waitingForBetaConfig ||
+        (!skipMeQuery && (meQuery.isLoading || logoutMutation.isPending)),
       error: skipMeQuery ? null : meQuery.error ?? logoutMutation.error ?? null,
       isAuthenticated: authUnavailable ? false : Boolean(user),
     };
   }, [
+    betaConfigPending,
+    betaDemoActive,
+    needsRuntimeBeta,
     useDemoPassenger,
     skipMeQuery,
     meQuery.data,
@@ -87,7 +100,7 @@ export function useAuth(options?: UseAuthOptions) {
 
   useEffect(() => {
     if (!redirectOnUnauthenticated) return;
-    if (meQuery.isLoading || logoutMutation.isPending) return;
+    if (state.loading || logoutMutation.isPending) return;
     if (state.user) return;
     if (typeof window === "undefined") return;
     if (window.location.pathname === redirectPath) return;
@@ -97,7 +110,7 @@ export function useAuth(options?: UseAuthOptions) {
     redirectOnUnauthenticated,
     redirectPath,
     logoutMutation.isPending,
-    meQuery.isLoading,
+    state.loading,
     state.user,
   ]);
 

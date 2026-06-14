@@ -49,10 +49,9 @@ function FuiAppScreen() {
         </div>
       </div>
 
-      <div className="flex flex-col flex-1 min-h-0 px-3 pt-2 pb-3">
-        <div className="space-y-2.5">
-          {/* Map + search */}
-          <div className="relative h-[7.5rem] sm:h-[8.25rem] rounded-2xl overflow-hidden border border-primary/20 bg-gradient-to-br from-primary/30 via-primary/10 to-background">
+      <div className="flex flex-col flex-1 min-h-0 px-3 pt-1.5 pb-2 sm:pt-2 sm:pb-3 gap-1.5 sm:gap-2.5">
+        {/* Map + search */}
+        <div className="relative h-[6.25rem] sm:h-[7.5rem] lg:h-[8.25rem] shrink-0 rounded-2xl overflow-hidden border border-primary/20 bg-gradient-to-br from-primary/30 via-primary/10 to-background">
           <div
             className="absolute inset-0 opacity-40"
             style={{
@@ -111,11 +110,11 @@ function FuiAppScreen() {
         </div>
 
         {/* Quick indicators */}
-        <div className="grid grid-cols-3 gap-1.5">
+        <div className="grid grid-cols-3 gap-1 sm:gap-1.5 shrink-0">
           {quickStats.map((stat) => (
             <div
               key={stat.label}
-              className="rounded-xl bg-white/[0.03] border border-white/[0.06] px-1.5 py-2 text-center"
+              className="rounded-xl bg-white/[0.03] border border-white/[0.06] px-1.5 py-1.5 sm:py-2 text-center"
             >
               <p className="text-[8px] text-muted-foreground leading-tight">{stat.label}</p>
               <p className="text-[10px] font-bold text-primary mt-0.5">{stat.value}</p>
@@ -124,28 +123,27 @@ function FuiAppScreen() {
         </div>
 
         {/* Service cards */}
-        <div className="grid grid-cols-2 gap-1.5">
+        <div className="grid grid-cols-2 gap-1 sm:gap-1.5 shrink-0">
           {services.map(({ label, icon: Icon, accent }) => (
             <div
               key={label}
               className={cn(
-                "flex items-center gap-2 rounded-xl border px-2 py-2",
+                "flex items-center gap-1.5 sm:gap-2 rounded-xl border px-1.5 sm:px-2 py-1.5 sm:py-2",
                 accent
               )}
             >
-              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-background/40">
-                <Icon className="h-3.5 w-3.5" />
+              <div className="flex h-6 w-6 sm:h-7 sm:w-7 shrink-0 items-center justify-center rounded-lg bg-background/40">
+                <Icon className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
               </div>
-              <span className="text-[10px] font-semibold">{label}</span>
+              <span className="text-[9px] sm:text-[10px] font-semibold">{label}</span>
             </div>
           ))}
         </div>
-        </div>
 
-        {/* Main CTA — centrado no espaço entre os cards e o rodapé */}
-        <div className="flex flex-1 flex-col justify-center min-h-0 pt-1">
-          <div className="rounded-full bg-gradient-to-r from-primary to-primary/85 py-2 text-center shadow-sm shadow-primary/12">
-            <span className="text-[10px] font-semibold text-primary-foreground tracking-wide">
+        {/* Main CTA — fixo no rodapé da tela (evita corte no mobile) */}
+        <div className="shrink-0 mt-auto pt-0.5 sm:pt-1">
+          <div className="rounded-full bg-gradient-to-r from-primary to-primary/85 py-1.5 sm:py-2 text-center shadow-sm shadow-primary/12">
+            <span className="text-[9px] sm:text-[10px] font-semibold text-primary-foreground tracking-wide">
               Solicitar agora
             </span>
           </div>
@@ -212,7 +210,7 @@ export default function HeroPhoneMockup({ className }: HeroPhoneMockupProps) {
           <div className="absolute top-1.5 left-1/2 z-30 -translate-x-1/2 h-[14px] w-[58px] rounded-full bg-black/95 ring-1 ring-white/10" />
 
           {/* Screen */}
-          <div className="relative aspect-[9/19.5] min-h-[12.25rem] sm:min-h-[13.5rem] lg:min-h-[19.25rem]">
+          <div className="relative aspect-[9/19.5] min-h-[13.5rem] sm:min-h-[14.5rem] lg:min-h-[19.25rem]">
             <FuiAppScreen />
 
             {/* Subtle glass reflection */}
