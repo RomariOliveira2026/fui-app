@@ -17,6 +17,23 @@ export function createApp(options: CreateAppOptions = {}): Express {
   const { enableStatic = false } = options;
   const app = express();
 
+  // Vercel catch-all entrega /trpc/... sem prefixo /api — normaliza antes dos handlers.
+  if (isVercelRuntime()) {
+    app.use((req, _res, next) => {
+      const raw = req.url ?? "";
+      const pathOnly = raw.split("?")[0] ?? "";
+      if (
+        pathOnly.startsWith("/trpc") ||
+        pathOnly.startsWith("/oauth/") ||
+        pathOnly === "/app-config" ||
+        pathOnly.startsWith("/stripe/")
+      ) {
+        req.url = `/api${raw}`;
+      }
+      next();
+    });
+  }
+
   app.post(
     "/api/stripe/webhook",
     express.raw({ type: "application/json" }),

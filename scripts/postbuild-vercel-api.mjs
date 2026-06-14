@@ -2,21 +2,13 @@ import fs from "node:fs";
 import path from "node:path";
 
 const apiDir = path.resolve("api");
-const reExportFromIndex = 'export { default } from "./index.js";\n';
-const reExportFromParent = 'export { default } from "../index.js";\n';
 
-const routes = [
-  { file: "trpc.js", content: reExportFromIndex },
-  { file: path.join("oauth", "callback.js"), content: reExportFromParent },
-];
-
-for (const { file, content } of routes) {
-  const target = path.join(apiDir, file);
-  fs.mkdirSync(path.dirname(target), { recursive: true });
-  fs.writeFileSync(target, content, "utf8");
-}
-
-for (const legacy of ["[[...path]].js"]) {
+/** api/trpc.js só atende /api/trpc exato — subpaths tRPC caem em 404 HTML. */
+for (const legacy of [
+  "index.js",
+  "trpc.js",
+  path.join("oauth", "callback.js"),
+]) {
   try {
     fs.unlinkSync(path.join(apiDir, legacy));
   } catch {
@@ -24,4 +16,10 @@ for (const legacy of ["[[...path]].js"]) {
   }
 }
 
-console.info("[build] Vercel API entrypoints:", routes.map((r) => r.file).join(", "));
+const catchAll = path.join(apiDir, "[[...path]].js");
+if (!fs.existsSync(catchAll)) {
+  console.error("[build] api/[[...path]].js missing — run esbuild server/vercel.ts first");
+  process.exit(1);
+}
+
+console.info("[build] Vercel API catch-all:", catchAll);

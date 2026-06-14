@@ -4,6 +4,14 @@
   "installCommand": "pnpm install",
   "framework": null,
   "outputDirectory": "dist/public",
+  "functions": {
+    "api/[[...path]].js": {
+      "maxDuration": 30
+    },
+    "api/app-config.js": {
+      "maxDuration": 10
+    }
+  },
   "rewrites": [
     {
       "source": "/((?!api/|assets/|manifest\\.json|sw\\.js|favicon\\.ico|.*\\..*).*)",
