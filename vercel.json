@@ -34,15 +34,4 @@
       ]
     }
   ],
-  "functions": {
-    "api/index.js": {
-      "maxDuration": 30
-    },
-    "api/trpc.js": {
-      "maxDuration": 30
-    },
-    "api/oauth/callback.js": {
-      "maxDuration": 30
-    }
-  }
-}
+ 
