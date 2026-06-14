@@ -3,11 +3,13 @@ import path from "node:path";
 
 const apiDir = path.resolve("api");
 
-/** api/trpc.js só atende /api/trpc exato — subpaths tRPC caem em 404 HTML. */
+/** Rotas parciais quebram subpaths tRPC — tudo passa por api/index.js + rewrite /api/(.*). */
 for (const legacy of [
-  "index.js",
   "trpc.js",
+  "[[...path]].js",
+  "[...path].js",
   path.join("oauth", "callback.js"),
+  path.join("trpc", "[...path].js"),
 ]) {
   try {
     fs.unlinkSync(path.join(apiDir, legacy));
@@ -16,10 +18,10 @@ for (const legacy of [
   }
 }
 
-const catchAll = path.join(apiDir, "[[...path]].js");
-if (!fs.existsSync(catchAll)) {
-  console.error("[build] api/[[...path]].js missing — run esbuild server/vercel.ts first");
+const indexHandler = path.join(apiDir, "index.js");
+if (!fs.existsSync(indexHandler)) {
+  console.error("[build] api/index.js missing — run esbuild server/vercel.ts first");
   process.exit(1);
 }
 
-console.info("[build] Vercel API catch-all:", catchAll);
+console.info("[build] Vercel API: api/index.js + rewrite /api/(.*) → /api");

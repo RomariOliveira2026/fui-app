@@ -8,7 +8,6 @@ build/
 *.dist
 api/*.js
 !api/app-config.js
-!api/[[...path]].js
 
 # Environment variables
 .env
