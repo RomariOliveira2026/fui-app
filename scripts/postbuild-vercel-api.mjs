@@ -3,13 +3,8 @@ import path from "node:path";
 
 const apiDir = path.resolve("api");
 
-/** trpc.js quebra subpaths — tRPC usa api/index.js + rewrite /api/(.*). */
-for (const legacy of [
-  "trpc.js",
-  "[[...path]].js",
-  "[...path].js",
-  path.join("trpc", "[...path].js"),
-]) {
+/** Legado: trpc.js só atendia /api/trpc exato. */
+for (const legacy of ["trpc.js", "[[...path]].js", "[...path].js"]) {
   try {
     fs.unlinkSync(path.join(apiDir, legacy));
   } catch {
@@ -23,9 +18,18 @@ if (!fs.existsSync(indexHandler)) {
   process.exit(1);
 }
 
-/** Vercel exige este entrypoint (OAuth callback exato — não interfere no tRPC). */
+const reExport = 'export { default } from "../index.js";\n';
+
+/** tRPC usa /api/trpc/<procedure> — catch-all nativo da Vercel. */
+const trpcCatchAll = path.join(apiDir, "trpc", "[...path].js");
+fs.mkdirSync(path.dirname(trpcCatchAll), { recursive: true });
+fs.writeFileSync(trpcCatchAll, reExport, "utf8");
+
+/** OAuth callback exato — reutiliza o mesmo Express bundle. */
 const oauthCallback = path.join(apiDir, "oauth", "callback.js");
 fs.mkdirSync(path.dirname(oauthCallback), { recursive: true });
-fs.writeFileSync(oauthCallback, 'export { default } from "../index.js";\n', "utf8");
+fs.writeFileSync(oauthCallback, reExport, "utf8");
 
-console.info("[build] Vercel API: api/index.js + oauth/callback.js + rewrite /api/(.*) → /api");
+console.info(
+  "[build] Vercel API: api/index.js + api/trpc/[...path].js + api/oauth/callback.js"
+);
