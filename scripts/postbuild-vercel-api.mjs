@@ -3,12 +3,11 @@ import path from "node:path";
 
 const apiDir = path.resolve("api");
 
-/** Rotas parciais quebram subpaths tRPC — tudo passa por api/index.js + rewrite /api/(.*). */
+/** trpc.js quebra subpaths — tRPC usa api/index.js + rewrite /api/(.*). */
 for (const legacy of [
   "trpc.js",
   "[[...path]].js",
   "[...path].js",
-  path.join("oauth", "callback.js"),
   path.join("trpc", "[...path].js"),
 ]) {
   try {
@@ -24,4 +23,9 @@ if (!fs.existsSync(indexHandler)) {
   process.exit(1);
 }
 
-console.info("[build] Vercel API: api/index.js + rewrite /api/(.*) → /api");
+/** Vercel exige este entrypoint (OAuth callback exato — não interfere no tRPC). */
+const oauthCallback = path.join(apiDir, "oauth", "callback.js");
+fs.mkdirSync(path.dirname(oauthCallback), { recursive: true });
+fs.writeFileSync(oauthCallback, 'export { default } from "../index.js";\n', "utf8");
+
+console.info("[build] Vercel API: api/index.js + oauth/callback.js + rewrite /api/(.*) → /api");
