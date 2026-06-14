@@ -30,6 +30,11 @@ export async function createContext(
     user = null;
   }
 
+  // Beta demo (Vercel): fallback para passageiro demo sem sessão real.
+  if (!user && ENV.betaDemo) {
+    user = getStaticDemoPassenger();
+  }
+
   return {
     req: opts.req,
     res: opts.res,

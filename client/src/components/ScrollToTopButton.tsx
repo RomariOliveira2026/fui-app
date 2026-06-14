@@ -65,7 +65,7 @@ export default function ScrollToTopButton() {
         "fixed z-30",
         onLanding
           ? /* LP: esquerda no mobile (WhatsApp à direita); acima do WA no desktop */
-            "left-4 bottom-[calc(5.75rem+env(safe-area-inset-bottom,0px))] lg:left-auto lg:right-4 lg:bottom-[5.75rem]"
+            "left-4 bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] lg:left-auto lg:right-4 lg:bottom-[5.75rem]"
           : /* App: acima de FABs/chats + safe area */
             "right-4 bottom-[calc(5.25rem+env(safe-area-inset-bottom,0px))] sm:bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))]",
         "flex h-11 w-11 sm:h-10 sm:w-10 items-center justify-center",

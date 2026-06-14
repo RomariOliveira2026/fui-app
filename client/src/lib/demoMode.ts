@@ -2,9 +2,14 @@ import { DEMO_PASSENGER_OPEN_ID } from "@shared/const";
 
 export type AuthUserLike = { openId?: string | null; id?: number } | null | undefined;
 
-/** Dev local: auth via usuário em memória, sem auth.me no servidor. */
+/** Beta demo na Vercel — habilita app operacional sem OAuth (build-time). */
+export function isBetaDemoRuntime(): boolean {
+  return import.meta.env.VITE_BETA_DEMO === "true";
+}
+
+/** Dev local ou beta demo na Vercel — passageiro demo e stores in-memory. */
 export function isLocalDemoDev(): boolean {
-  return import.meta.env.DEV;
+  return import.meta.env.DEV || isBetaDemoRuntime();
 }
 
 /** Usuário demo injetado no cliente (espelha getStaticDemoPassenger no servidor). */

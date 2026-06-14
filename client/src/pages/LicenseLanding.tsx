@@ -183,13 +183,13 @@ export default function LicenseLanding() {
 
       <main>
         {/* Hero */}
-        <section id="hero" className="relative pt-[6.5rem] pb-16 sm:pt-[6.75rem] sm:pb-16 lg:pt-28 lg:pb-14 xl:pb-16 px-4 sm:px-6 scroll-mt-[5.5rem] overflow-visible">
+        <section id="hero" className="relative pt-[6.5rem] pb-12 sm:pb-16 lg:pt-28 lg:pb-14 xl:pb-16 px-4 sm:px-6 scroll-mt-[5.5rem] overflow-visible">
           <div className="mx-auto max-w-6xl">
-            <div className="grid lg:grid-cols-[1.12fr_0.88fr] gap-10 md:gap-12 lg:gap-[3.25rem] xl:gap-14 items-center">
+            <div className="grid lg:grid-cols-[1.12fr_0.88fr] gap-6 sm:gap-10 md:gap-12 lg:gap-[3.25rem] xl:gap-14 items-center">
               <FadeIn className="lg:pr-3 xl:pr-5">
                 <SectionLabel>Licenciamento Fui</SectionLabel>
 
-                <h1 className="mt-3 sm:mt-3.5 lg:mt-3.5 text-[1.875rem] sm:text-[2.125rem] lg:text-[2.875rem] xl:text-[3rem] font-bold tracking-[-0.03em] leading-[1.12] max-w-[21rem] sm:max-w-xl lg:max-w-[32rem]">
+                <h1 className="mt-3 sm:mt-3.5 lg:mt-3.5 text-[1.875rem] sm:text-[2.125rem] lg:text-[2.875rem] xl:text-[3rem] font-bold tracking-[-0.03em] leading-[1.12] max-w-[22rem] sm:max-w-xl lg:max-w-[32rem]">
                   Leve uma plataforma completa de{" "}
                   <HighlightPhrase>mobilidade, entregas e utilitários</HighlightPhrase>{" "}
                   <span className="block sm:inline">para a sua cidade.</span>
@@ -204,7 +204,7 @@ export default function LicenseLanding() {
                   múltiplas fontes de receita e base pronta para crescer na sua região.
                 </p>
 
-                <div className="mt-5 sm:mt-6 lg:mt-6 flex flex-col sm:flex-row sm:flex-wrap gap-3.5 sm:gap-5 lg:gap-6">
+                <div className="mt-4 sm:mt-6 lg:mt-6 flex flex-col sm:flex-row sm:flex-wrap gap-3 sm:gap-5 lg:gap-6">
                   <LandingCta scrollToLead showArrow size="compact">
                     Quero levar o Fui para minha cidade
                   </LandingCta>
@@ -224,12 +224,12 @@ export default function LicenseLanding() {
                 </div>
               </FadeIn>
 
-              <FadeIn className="relative mt-10 sm:mt-12 lg:mt-1 xl:mt-1 lg:pl-0 xl:pl-1 flex justify-center lg:justify-end lg:translate-x-[16px] xl:translate-x-[14px] lg:-translate-y-[10px] xl:-translate-y-[18px] pb-2 lg:pb-0">
+              <FadeIn className="relative mt-5 sm:mt-8 lg:mt-1 xl:mt-1 lg:pl-0 xl:pl-1 flex justify-center lg:justify-end lg:translate-x-[16px] xl:translate-x-[14px] lg:-translate-y-[10px] xl:-translate-y-[18px] pb-0 lg:pb-0">
                 <HeroPhoneMockup />
               </FadeIn>
             </div>
 
-            <FadeIn className="mt-6 sm:mt-7 lg:mt-5 flex flex-wrap gap-2 sm:gap-2.5 justify-start lg:justify-center">
+            <FadeIn className="mt-8 sm:mt-7 lg:mt-5 flex flex-wrap gap-2 sm:gap-2.5 justify-center lg:justify-center">
               {HERO_BENEFIT_CHIPS.map(({ label, icon: Icon }) => (
                 <span
                   key={label}
@@ -795,16 +795,16 @@ export default function LicenseLanding() {
       </footer>
 
       {/* Mobile sticky CTA */}
-      <div className="fixed bottom-0 inset-x-0 z-40 md:hidden border-t border-white/[0.08] bg-background/95 backdrop-blur-2xl px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-8px_32px_-8px_rgba(0,0,0,0.4)]">
+      <div className="fixed bottom-0 inset-x-0 z-40 md:hidden border-t border-white/[0.06] bg-background/90 backdrop-blur-xl px-3 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-[0_-4px_24px_-10px_rgba(0,0,0,0.35)]">
         <div className="flex gap-2">
           <LandingCta
             variant="outline"
             message={LANDING_WHATSAPP_MESSAGES.demo}
-            className="h-11 flex-1 px-4 text-xs"
+            className="h-9 flex-1 px-3 text-[11px]"
           >
             Demonstração
           </LandingCta>
-          <LandingCta scrollToLead className="h-11 flex-[1.4] px-4 text-xs">
+          <LandingCta scrollToLead className="h-9 flex-[1.35] px-3 text-[11px]">
             Quero o Fui
           </LandingCta>
         </div>
@@ -813,10 +813,10 @@ export default function LicenseLanding() {
       <WhatsAppCTAButton
         message={LANDING_WHATSAPP_MESSAGES.demo}
         variant="icon"
-        className="fixed bottom-[5.75rem] lg:bottom-6 right-4 z-40"
+        className="fixed bottom-[4.5rem] md:bottom-6 right-4 z-40 max-md:scale-90 max-md:origin-bottom-right"
       />
 
-      <div className="h-[5rem] lg:h-0" aria-hidden />
+      <div className="h-[4.25rem] md:h-0" aria-hidden />
     </div>
   );
 }

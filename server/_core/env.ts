@@ -15,4 +15,6 @@ export const ENV = {
   appCity: process.env.VITE_APP_CITY ?? "Itabaiana",
   platformFeePercent: Number(process.env.VITE_PLATFORM_FEE_PERCENT ?? "15"),
   supportWhatsApp: process.env.VITE_SUPPORT_WHATSAPP ?? "",
+  /** Beta demo na Vercel: passageiro demo quando não há sessão OAuth. */
+  betaDemo: process.env.BETA_DEMO === "true",
 };

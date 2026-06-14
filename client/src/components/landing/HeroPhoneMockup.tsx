@@ -163,21 +163,21 @@ export default function HeroPhoneMockup({ className }: HeroPhoneMockupProps) {
   return (
     <div
       className={cn(
-        "relative mx-auto w-full max-w-[14.5rem] sm:max-w-[15rem] lg:max-w-[15.5rem] xl:max-w-[16rem]",
+        "relative mx-auto w-full max-w-[10.25rem] sm:max-w-[11.5rem] lg:max-w-[15.5rem] xl:max-w-[16rem]",
         className
       )}
     >
       <div
         className={cn(
           "relative mx-auto",
-          "rotate-[6deg] sm:rotate-[7deg] lg:rotate-[9deg]",
-          "origin-[center_54%] motion-reduce:rotate-0",
+          "rotate-0 lg:rotate-[9deg]",
+          "origin-center lg:origin-[center_54%] motion-reduce:rotate-0",
           "will-change-transform"
         )}
       >
         {/* Ambient glow — muito sutil, acompanha a inclinação */}
         <div
-          className="pointer-events-none absolute -inset-2.5 sm:-inset-3 rounded-[2.25rem] bg-gradient-to-br from-primary/[0.05] via-primary/[0.015] to-transparent blur-[1.75rem] opacity-30"
+          className="pointer-events-none absolute -inset-2 sm:-inset-2.5 lg:-inset-3 rounded-[2.25rem] bg-gradient-to-br from-primary/[0.05] via-primary/[0.015] to-transparent blur-[1.75rem] opacity-20 lg:opacity-30"
           aria-hidden
         />
 
@@ -185,11 +185,11 @@ export default function HeroPhoneMockup({ className }: HeroPhoneMockupProps) {
         <div
           className={cn(
             "relative z-10 animate-float-gentle motion-reduce:animate-none",
-            "rounded-[2.15rem] sm:rounded-[2.35rem] lg:rounded-[2.5rem]",
+            "rounded-[1.95rem] sm:rounded-[2.35rem] lg:rounded-[2.5rem]",
             "border-[2px] sm:border-[2.5px] border-zinc-600/50",
             "bg-gradient-to-b from-zinc-700/75 via-zinc-900 to-zinc-950",
-            "p-[3.5px] sm:p-[4.5px]",
-            "shadow-[0_20px_52px_-28px_rgba(0,0,0,0.82),0_0_24px_-30px_rgba(249,146,0,0.06)]",
+            "p-[3px] sm:p-[4.5px]",
+            "shadow-[0_14px_36px_-24px_rgba(0,0,0,0.78),0_0_20px_-28px_rgba(249,146,0,0.05)] lg:shadow-[0_20px_52px_-28px_rgba(0,0,0,0.82),0_0_24px_-30px_rgba(249,146,0,0.06)]",
             "ring-1 ring-white/[0.06]"
           )}
         >
@@ -212,7 +212,7 @@ export default function HeroPhoneMockup({ className }: HeroPhoneMockupProps) {
           <div className="absolute top-1.5 left-1/2 z-30 -translate-x-1/2 h-[14px] w-[58px] rounded-full bg-black/95 ring-1 ring-white/10" />
 
           {/* Screen */}
-          <div className="relative aspect-[9/19.5] min-h-[17.5rem] sm:min-h-[18.75rem] lg:min-h-[19.25rem]">
+          <div className="relative aspect-[9/19.5] min-h-[12.25rem] sm:min-h-[13.5rem] lg:min-h-[19.25rem]">
             <FuiAppScreen />
 
             {/* Subtle glass reflection */}

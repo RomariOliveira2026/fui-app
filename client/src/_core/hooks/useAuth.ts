@@ -21,9 +21,11 @@ export function useAuth(options?: UseAuthOptions) {
     options ?? {};
   const utils = trpc.useUtils();
 
-  const skipMeQuery =
-    isLocalDemoDev() ||
-    (typeof window !== "undefined" && isLandingRoute(window.location.pathname));
+  const onLanding =
+    typeof window !== "undefined" && isLandingRoute(window.location.pathname);
+  /** Demo no app operacional; landing comercial não recebe usuário demo. */
+  const useDemoPassenger = isLocalDemoDev() && !onLanding;
+  const skipMeQuery = useDemoPassenger || onLanding;
 
   const meQuery = trpc.auth.me.useQuery(undefined, {
     enabled: !skipMeQuery,
@@ -35,8 +37,8 @@ export function useAuth(options?: UseAuthOptions) {
   useEffect(() => {
     if (!skipMeQuery) return;
     void utils.auth.me.cancel();
-    utils.auth.me.setData(undefined, DEMO_PASSENGER_USER);
-  }, [skipMeQuery, utils]);
+    utils.auth.me.setData(undefined, useDemoPassenger ? DEMO_PASSENGER_USER : null);
+  }, [skipMeQuery, useDemoPassenger, utils]);
 
   const logoutMutation = trpc.auth.logout.useMutation({
     onSuccess: () => {
@@ -62,8 +64,9 @@ export function useAuth(options?: UseAuthOptions) {
   }, [logoutMutation, utils]);
 
   const state = useMemo(() => {
-    const baseUser = skipMeQuery ? DEMO_PASSENGER_USER : (meQuery.data ?? null);
-    const user = baseUser && skipMeQuery ? mergeDemoUserProfile(baseUser) : baseUser;
+    const user = useDemoPassenger
+      ? mergeDemoUserProfile(DEMO_PASSENGER_USER)
+      : (meQuery.data ?? null);
     localStorage.setItem("manus-runtime-user-info", JSON.stringify(user));
     const authUnavailable = !skipMeQuery && meQuery.isError;
     return {
@@ -73,6 +76,7 @@ export function useAuth(options?: UseAuthOptions) {
       isAuthenticated: authUnavailable ? false : Boolean(user),
     };
   }, [
+    useDemoPassenger,
     skipMeQuery,
     meQuery.data,
     meQuery.error,
