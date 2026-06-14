@@ -43,7 +43,7 @@ const PERIOD_OPTIONS: { preset: IntelligencePeriodPreset; label: string }[] = [
   { preset: "custom", label: "Personalizado" },
 ];
 
-export default function AdminIntelligencePanel() {
+export default function AdminIntelligencePanel({ enabled = true }: { enabled?: boolean }) {
   const [preset, setPreset] = useState<IntelligencePeriodPreset>("7d");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
@@ -53,26 +53,66 @@ export default function AdminIntelligencePanel() {
       ? { preset, from: customFrom, to: customTo || undefined }
       : { preset };
 
-  const { data, isLoading, isFetching } = trpc.admin.getOperationalIntelligence.useQuery(
-    periodInput,
-    { refetchInterval: 30_000 }
-  );
+  const { data, isLoading, isFetching, isError, error, refetch } =
+    trpc.admin.getOperationalIntelligence.useQuery(periodInput, {
+      enabled,
+      staleTime: 60_000,
+      refetchInterval: 60_000,
+      throwOnError: false,
+    });
 
   if (isLoading) {
     return (
-      <div className="flex justify-center py-24">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      <div className="flex min-h-[320px] items-center justify-center rounded-2xl border border-border/50 bg-card/30">
+        <div className="text-center space-y-3">
+          <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto" />
+          <p className="text-sm text-muted-foreground">Carregando inteligência operacional…</p>
+        </div>
       </div>
     );
   }
 
-  if (!data) return null;
+  if (isError) {
+    return (
+      <div className={cn(adminPanelCard, "p-8 text-center space-y-4")}>
+        <AlertTriangle className="h-10 w-10 text-amber-500 mx-auto" />
+        <div>
+          <h2 className={adminSectionTitle}>Inteligência indisponível</h2>
+          <p className={cn(adminSectionSubtitle, "mt-2")}>
+            {error.message || "Não foi possível carregar os insights operacionais."}
+          </p>
+        </div>
+        <Button variant="outline" size="sm" onClick={() => void refetch()}>
+          Tentar novamente
+        </Button>
+      </div>
+    );
+  }
 
-  const maxPeak = Math.max(...data.peakHours.map((h) => h.rideCount), 1);
-  const sortedHours = [...data.peakHours].sort((a, b) => a.hour - b.hour);
-  const topZone = data.demandZones[0];
-  const topHour = data.peakHours[0];
-  const topPosition = data.positioning[0];
+  if (!data) {
+    return (
+      <div className={cn(adminPanelCard, "p-8 text-center space-y-3")}>
+        <BarChart3 className="h-10 w-10 text-muted-foreground mx-auto" />
+        <h2 className={adminSectionTitle}>Sem dados de inteligência</h2>
+        <p className={adminSectionSubtitle}>
+          Nenhum insight disponível para o período selecionado.
+        </p>
+      </div>
+    );
+  }
+
+  const peakHours = data.peakHours ?? [];
+  const demandZones = data.demandZones ?? [];
+  const comparisons = data.comparisons ?? [];
+  const alerts = data.alerts ?? [];
+  const positioning = data.positioning ?? [];
+  const demandPoints = data.demandPoints ?? [];
+
+  const maxPeak = Math.max(...peakHours.map((h) => h.rideCount), 1);
+  const sortedHours = [...peakHours].sort((a, b) => a.hour - b.hour);
+  const topZone = demandZones[0];
+  const topHour = peakHours[0];
+  const topPosition = positioning[0];
   const vehicleLabel = data.topVehicleType
     ? (VEHICLE_LABELS[data.topVehicleType] ?? data.topVehicleType)
     : "—";
@@ -144,9 +184,9 @@ export default function AdminIntelligencePanel() {
         </div>
       </div>
 
-      {data.alerts.length > 0 ? (
+      {alerts.length > 0 ? (
         <div className="space-y-2">
-          {data.alerts.map((alert) => (
+          {alerts.map((alert) => (
             <div
               key={alert.id}
               className={cn(
@@ -178,7 +218,7 @@ export default function AdminIntelligencePanel() {
       ) : null}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {data.comparisons.map((cmp) => (
+        {comparisons.map((cmp) => (
           <div key={cmp.id} className={cn(adminPanelCard, "p-4")}>
             <p className={adminMetricLabel}>{cmp.label}</p>
             <div className="flex items-end justify-between gap-2 mt-2">
@@ -234,7 +274,7 @@ export default function AdminIntelligencePanel() {
           label="Tendência"
           value={data.trend.changePercent != null ? `${data.trend.changePercent}%` : "—"}
         />
-        <SecondaryPill icon={AlertTriangle} label="Alertas" value={String(data.alerts.length)} />
+        <SecondaryPill icon={AlertTriangle} label="Alertas" value={String(alerts.length)} />
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-5">
@@ -247,7 +287,7 @@ export default function AdminIntelligencePanel() {
           </div>
           <div className={cn(adminPanelCard, "p-1 overflow-hidden")}>
             <AdminDemandHeatmap
-              points={data.demandPoints}
+              points={demandPoints}
               className="border-0 shadow-none rounded-xl"
             />
           </div>
@@ -260,10 +300,10 @@ export default function AdminIntelligencePanel() {
               <p className={adminSectionSubtitle}>Participação no período selecionado</p>
             </div>
             <div className="p-4 space-y-4">
-              {data.demandZones.length === 0 ? (
+              {demandZones.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-8">Sem zonas</p>
               ) : (
-                data.demandZones.slice(0, 6).map((zone, index) => (
+                demandZones.slice(0, 6).map((zone, index) => (
                   <div key={zone.areaLabel} className="space-y-2">
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2 min-w-0">
@@ -341,10 +381,10 @@ export default function AdminIntelligencePanel() {
             <p className={adminSectionSubtitle}>Onde concentrar motoristas disponíveis</p>
           </div>
           <div className="p-4 space-y-3">
-            {data.positioning.length === 0 ? (
+            {positioning.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-8">Sem recomendações</p>
             ) : (
-              data.positioning.map((item) => (
+              positioning.map((item) => (
                 <div
                   key={item.priority}
                   className={cn(

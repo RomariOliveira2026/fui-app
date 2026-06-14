@@ -45,10 +45,17 @@ export default memo(function AdminDemandHeatmap({
 }: AdminDemandHeatmapProps) {
   const mapRef = useRef<L.Map | null>(null);
   const layersRef = useRef<L.Layer[]>([]);
+  const lastPointsKeyRef = useRef("");
 
   const syncLayers = useCallback(() => {
     const map = mapRef.current;
     if (!map) return;
+
+    const pointsKey = points
+      .map((p) => `${p.lat},${p.lng},${p.weight},${p.intensity}`)
+      .join("|");
+    const shouldRefit = pointsKey !== lastPointsKeyRef.current;
+    lastPointsKeyRef.current = pointsKey;
 
     for (const layer of layersRef.current) {
       layer.remove();
@@ -56,7 +63,9 @@ export default memo(function AdminDemandHeatmap({
     layersRef.current = [];
 
     if (points.length === 0) {
-      map.setView([ADMIN_MAP_DEFAULT_CENTER.lat, ADMIN_MAP_DEFAULT_CENTER.lng], 13);
+      if (shouldRefit) {
+        map.setView([ADMIN_MAP_DEFAULT_CENTER.lat, ADMIN_MAP_DEFAULT_CENTER.lng], 13);
+      }
       return;
     }
 
@@ -105,8 +114,10 @@ export default memo(function AdminDemandHeatmap({
       bounds.push([point.lat, point.lng]);
     }
 
-    map.fitBounds(bounds as L.LatLngBoundsExpression, { padding: [52, 52], maxZoom: 14 });
-    requestAnimationFrame(() => map.invalidateSize());
+    if (shouldRefit) {
+      map.fitBounds(bounds as L.LatLngBoundsExpression, { padding: [52, 52], maxZoom: 14 });
+      requestAnimationFrame(() => map.invalidateSize());
+    }
   }, [points]);
 
   useEffect(() => {

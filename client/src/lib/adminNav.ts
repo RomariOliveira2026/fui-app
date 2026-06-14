@@ -10,6 +10,26 @@ export const ADMIN_NAV_ROUTES: Record<AdminNavId, string> = {
   coupons: "/admin/finance?tab=coupons",
 };
 
+/** Navega para um módulo admin — preserva ?view= na Central (wouter ignora query string). */
+export function navigateAdminNav(
+  id: AdminNavId,
+  setLocation: (path: string) => void
+) {
+  if (id === "analytics") {
+    window.history.pushState(window.history.state, "", "/admin?view=intelligence");
+    window.dispatchEvent(new PopStateEvent("popstate"));
+    setLocation("/admin");
+    return;
+  }
+  const href = ADMIN_NAV_ROUTES[id];
+  const path = href.split("?")[0] || href;
+  setLocation(path);
+  if (href.includes("?")) {
+    const query = href.slice(href.indexOf("?"));
+    window.history.replaceState(window.history.state, "", `${path}${query}`);
+  }
+}
+
 export function resolveAdminNavActive(
   pathname: string,
   search: string = typeof window !== "undefined" ? window.location.search : ""

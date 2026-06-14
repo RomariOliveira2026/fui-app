@@ -7,6 +7,15 @@ export function isDemoPassenger(user: Pick<User, "openId"> | null | undefined): 
   return user?.openId === DEMO_PASSENGER_OPEN_ID;
 }
 
+/** Demo passageiro pode usar módulos admin fora de dev quando BETA_DEMO=true. */
+export function canDemoPassengerUseAdminModules(
+  user: Pick<User, "openId"> | null | undefined
+): boolean {
+  if (!isDemoPassenger(user)) return false;
+  if (process.env.NODE_ENV !== "production") return true;
+  return process.env.BETA_DEMO === "true";
+}
+
 /** Passageiro demo em memória — sem consulta ao banco em dev local. */
 export function getStaticDemoPassenger(): User {
   const now = new Date();

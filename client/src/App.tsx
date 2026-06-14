@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, type ComponentType } from "react";
 import { useLocation } from "wouter";
 import { Toaster } from "@/components/ui/sonner";
 import { isLandingRoute } from "@/components/landing/landingRoutes";
+import { navigateAdminNav } from "@/lib/adminNav";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
 import { Route, Switch } from "wouter";
@@ -72,7 +73,7 @@ function AdminCouponsRedirect() {
 function AdminAnalyticsRedirect() {
   const [, setLocation] = useLocation();
   useEffect(() => {
-    setLocation("/admin?view=intelligence");
+    navigateAdminNav("analytics", setLocation);
   }, [setLocation]);
   return <RouteFallback />;
 }

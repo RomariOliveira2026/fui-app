@@ -25,7 +25,7 @@ import Stripe from "stripe";
 import { getRidePaymentDescription } from "./stripe-products";
 import { ENV } from "./_core/env";
 import { getPricingForVehicle, withDemoPricingFallback } from "./_core/demoPricing";
-import { isDemoPassenger } from "./_core/demoUser";
+import { isDemoPassenger, canDemoPassengerUseAdminModules } from "./_core/demoUser";
 import {
   getDemoOperationalOverview,
   getProductionOperationalOverview,
@@ -139,10 +139,10 @@ const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
   return next({ ctx });
 });
 
-/** Admin real ou passageiro demo em dev local (Central Operacional). */
+/** Admin real ou passageiro demo (dev local / beta demo na Vercel). */
 function canAccessAdminOperational(ctx: { user: { role: string; openId: string } }): boolean {
   if (ctx.user.role === "admin") return true;
-  return !ENV.isProduction && isDemoPassenger(ctx.user);
+  return canDemoPassengerUseAdminModules(ctx.user);
 }
 
 export const appRouter = router({

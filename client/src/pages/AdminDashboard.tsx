@@ -7,6 +7,7 @@ import { useLocation } from "wouter";
 import AppHeader from "@/components/AppHeader";
 import { canAccessAdminPanel } from "@/lib/adminAccess";
 import { useDemoRideHydration } from "@/lib/useDemoRideHydration";
+import { useAdminView } from "@/lib/useAdminView";
 import { adminContainer, adminPageBg } from "@/lib/adminShell";
 import AdminTopBar from "@/components/admin/AdminTopBar";
 import AdminViewSwitcher from "@/components/admin/AdminViewSwitcher";
@@ -18,6 +19,7 @@ import AdminDriverList from "@/components/admin/AdminDriverList";
 import AdminRideDetailsSheet from "@/components/admin/AdminRideDetailsSheet";
 import AdminDriverDetailsSheet from "@/components/admin/AdminDriverDetailsSheet";
 import AdminIntelligencePanel from "@/components/admin/AdminIntelligencePanel";
+import AdminPanelErrorBoundary from "@/components/admin/AdminPanelErrorBoundary";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { adminPanelCard, adminSectionSubtitle, adminSectionTitle } from "@/lib/adminShell";
 import type {
@@ -33,16 +35,10 @@ import {
 } from "@/lib/adminOperationalUi";
 import { cn } from "@/lib/utils";
 
-type AdminView = "live" | "intelligence";
-
-function readAdminViewFromUrl(): AdminView {
-  const view = new URLSearchParams(window.location.search).get("view");
-  return view === "intelligence" ? "intelligence" : "live";
-}
-
 export default function AdminDashboard() {
   const { user, loading: authLoading } = useAuth();
-  const [location, setLocation] = useLocation();
+  const [, setLocation] = useLocation();
+  const [adminView, setAdminView] = useAdminView();
   useDemoRideHydration();
 
   const [filters, setFilters] = useState<AdminFiltersState>(DEFAULT_ADMIN_FILTERS);
@@ -51,7 +47,6 @@ export default function AdminDashboard() {
   const [driverDetails, setDriverDetails] = useState<AdminOperationalDriver | null>(null);
   const [rideSheetOpen, setRideSheetOpen] = useState(false);
   const [driverSheetOpen, setDriverSheetOpen] = useState(false);
-  const [adminView, setAdminView] = useState<AdminView>(readAdminViewFromUrl);
 
   const allowed = canAccessAdminPanel(user);
 
@@ -61,25 +56,16 @@ export default function AdminDashboard() {
     }
   }, [authLoading, allowed, setLocation]);
 
-  useEffect(() => {
-    setAdminView(readAdminViewFromUrl());
-  }, [location]);
-
-  const onAdminViewChange = (view: AdminView) => {
-    setAdminView(view);
-    setLocation(view === "live" ? "/admin" : `/admin?view=${view}`);
-  };
-
   const utils = trpc.useUtils();
 
   const {
     data: overview,
-    isLoading,
+    isLoading: overviewLoading,
     isFetching,
     refetch,
   } = trpc.admin.getOperationalOverview.useQuery(undefined, {
-    enabled: allowed,
-    refetchInterval: 8000,
+    enabled: allowed && adminView === "live",
+    refetchInterval: adminView === "live" ? 8000 : false,
   });
 
   const cancelRideMutation = trpc.admin.cancelRide.useMutation({
@@ -152,7 +138,7 @@ export default function AdminDashboard() {
     );
   }
 
-  if (isLoading) {
+  if (adminView === "live" && overviewLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -165,22 +151,24 @@ export default function AdminDashboard() {
       <AppHeader title="Central Operacional" showBack />
       <div className={adminContainer}>
         <AdminTopBar
-          updatedAt={overview?.updatedAt}
-          onRefresh={() => refetch()}
-          isRefreshing={isFetching}
+          updatedAt={adminView === "live" ? overview?.updatedAt : undefined}
+          onRefresh={adminView === "live" ? () => refetch() : undefined}
+          isRefreshing={adminView === "live" ? isFetching : false}
           showLiveIndicator={adminView === "live"}
           activeNav={adminView === "intelligence" ? "analytics" : null}
         />
 
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <AdminViewSwitcher value={adminView} onChange={onAdminViewChange} />
-          {isFetching && adminView === "live" && !isLoading ? (
+          <AdminViewSwitcher value={adminView} onChange={setAdminView} />
+          {isFetching && adminView === "live" && !overviewLoading ? (
             <p className="text-xs text-primary/80">Sincronizando operação…</p>
           ) : null}
         </div>
 
         {adminView === "intelligence" ? (
-          <AdminIntelligencePanel />
+          <AdminPanelErrorBoundary title="Inteligência operacional">
+            <AdminIntelligencePanel enabled={allowed} />
+          </AdminPanelErrorBoundary>
         ) : (
           <div className="space-y-5">
             {overview ? <AdminStatsCards metrics={overview.metrics} /> : null}

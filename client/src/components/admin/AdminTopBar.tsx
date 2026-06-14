@@ -3,7 +3,7 @@ import { Bell, BarChart3, RefreshCw, Settings, Tag, Wallet } from "lucide-react"
 import { useLocation } from "wouter";
 import { adminLiveBadge, adminSectionSubtitle } from "@/lib/adminShell";
 import {
-  ADMIN_NAV_ROUTES,
+  navigateAdminNav,
   resolveAdminNavActive,
   type AdminNavId,
 } from "@/lib/adminNav";
@@ -95,7 +95,7 @@ export default function AdminTopBar({
                 "border-border/70 bg-card/40",
                 isActive && "border-primary/40 bg-primary/10 text-primary shadow-sm"
               )}
-              onClick={() => setLocation(ADMIN_NAV_ROUTES[id])}
+              onClick={() => navigateAdminNav(id, setLocation)}
             >
               <Icon className="h-4 w-4 mr-1.5" />
               {label}
