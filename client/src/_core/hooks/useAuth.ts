@@ -29,6 +29,7 @@ export function useAuth(options?: UseAuthOptions) {
     enabled: !skipMeQuery,
     retry: false,
     refetchOnWindowFocus: false,
+    throwOnError: false,
   });
 
   useEffect(() => {
@@ -64,11 +65,12 @@ export function useAuth(options?: UseAuthOptions) {
     const baseUser = skipMeQuery ? DEMO_PASSENGER_USER : (meQuery.data ?? null);
     const user = baseUser && skipMeQuery ? mergeDemoUserProfile(baseUser) : baseUser;
     localStorage.setItem("manus-runtime-user-info", JSON.stringify(user));
+    const authUnavailable = !skipMeQuery && meQuery.isError;
     return {
-      user,
+      user: authUnavailable ? null : user,
       loading: skipMeQuery ? false : meQuery.isLoading || logoutMutation.isPending,
       error: skipMeQuery ? null : meQuery.error ?? logoutMutation.error ?? null,
-      isAuthenticated: Boolean(user),
+      isAuthenticated: authUnavailable ? false : Boolean(user),
     };
   }, [
     skipMeQuery,

@@ -38,7 +38,13 @@ const queryClient = new QueryClient({
     queries: {
       retry: false,
       refetchOnWindowFocus: false,
-      throwOnError: () => import.meta.env.PROD && !isLandingRoutePathname(),
+      throwOnError: (error) => {
+        if (isLandingRoutePathname()) return false;
+        if (!import.meta.env.PROD) return false;
+        // Falha de transporte (HTML/404 da Vercel) não deve derrubar a home.
+        if (error instanceof TRPCClientError && error.data == null) return false;
+        return true;
+      },
     },
   },
 });
