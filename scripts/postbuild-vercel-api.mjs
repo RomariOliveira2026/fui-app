@@ -3,8 +3,13 @@ import path from "node:path";
 
 const apiDir = path.resolve("api");
 
-/** Legado: trpc.js só atendia /api/trpc exato. */
-for (const legacy of ["trpc.js", "[[...path]].js", "[...path].js"]) {
+for (const legacy of [
+  "index.js",
+  "trpc.js",
+  "[[...path]].js",
+  "[...path].js",
+  path.join("trpc", "[...path].js"),
+]) {
   try {
     fs.unlinkSync(path.join(apiDir, legacy));
   } catch {
@@ -12,24 +17,20 @@ for (const legacy of ["trpc.js", "[[...path]].js", "[...path].js"]) {
   }
 }
 
-const indexHandler = path.join(apiDir, "index.js");
-if (!fs.existsSync(indexHandler)) {
-  console.error("[build] api/index.js missing — run esbuild server/vercel.ts first");
+const handlerBundle = path.join(apiDir, "_handler.js");
+if (!fs.existsSync(handlerBundle)) {
+  console.error("[build] api/_handler.js missing — run esbuild server/vercel.ts first");
   process.exit(1);
 }
 
-const reExport = 'export { default } from "../index.js";\n';
+const reExport = 'export { default } from "./_handler.js";\n';
 
-/** tRPC usa /api/trpc/<procedure> — catch-all nativo da Vercel. */
-const trpcCatchAll = path.join(apiDir, "trpc", "[...path].js");
-fs.mkdirSync(path.dirname(trpcCatchAll), { recursive: true });
-fs.writeFileSync(trpcCatchAll, reExport, "utf8");
+/** Catch-all /api/* (tRPC, OAuth, Stripe) — app-config.js tem rota própria. */
+fs.writeFileSync(path.join(apiDir, "[[...path]].js"), reExport, "utf8");
 
-/** OAuth callback exato — reutiliza o mesmo Express bundle. */
+/** OAuth callback exato. */
 const oauthCallback = path.join(apiDir, "oauth", "callback.js");
 fs.mkdirSync(path.dirname(oauthCallback), { recursive: true });
-fs.writeFileSync(oauthCallback, reExport, "utf8");
+fs.writeFileSync(oauthCallback, 'export { default } from "../_handler.js";\n', "utf8");
 
-console.info(
-  "[build] Vercel API: api/index.js + api/trpc/[...path].js + api/oauth/callback.js"
-);
+console.info("[build] Vercel API: _handler.js + [[...path]].js + oauth/callback.js");

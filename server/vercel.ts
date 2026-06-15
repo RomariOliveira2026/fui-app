@@ -1,10 +1,16 @@
 import "dotenv/config";
+import type { IncomingMessage, ServerResponse } from "node:http";
 import { createApp } from "./_core/createApp";
 
-/**
- * Entry point bundlado para a função serverless Vercel (api/index.js).
- * Não importar este arquivo diretamente em runtime — use o bundle gerado no build.
- */
 const app = createApp({ enableStatic: false });
 
-export default app;
+/** Handler serverless Vercel — Express não pode ser exportado cru. */
+export default function handler(req: IncomingMessage, res: ServerResponse) {
+  return new Promise<void>((resolve, reject) => {
+    res.on("finish", () => resolve());
+    res.on("close", () => resolve());
+    app(req, res, (err: unknown) => {
+      if (err) reject(err);
+    });
+  });
+}

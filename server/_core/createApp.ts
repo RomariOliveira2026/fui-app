@@ -17,11 +17,15 @@ export function createApp(options: CreateAppOptions = {}): Express {
   const { enableStatic = false } = options;
   const app = express();
 
-  // Vercel catch-all entrega /trpc/... sem prefixo /api — normaliza antes dos handlers.
+  // Vercel catch-all pode entregar /trpc/... ou /api/trpc/... — normaliza antes dos handlers.
   if (isVercelRuntime()) {
     app.use((req, _res, next) => {
       const raw = req.url ?? "";
       const pathOnly = raw.split("?")[0] ?? "";
+      if (pathOnly.startsWith("/api/")) {
+        next();
+        return;
+      }
       if (
         pathOnly.startsWith("/trpc") ||
         pathOnly.startsWith("/oauth/") ||
