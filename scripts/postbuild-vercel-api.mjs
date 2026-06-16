@@ -5,10 +5,10 @@ const apiDir = path.resolve("api");
 
 for (const legacy of [
   "index.js",
+  "_handler.js",
   "trpc.js",
   "[[...path]].js",
   "[...path].js",
-  path.join("trpc", "[...path].js"),
 ]) {
   try {
     fs.unlinkSync(path.join(apiDir, legacy));
@@ -17,28 +17,27 @@ for (const legacy of [
   }
 }
 
-const handlerBundle = path.join(apiDir, "_handler.js");
-if (!fs.existsSync(handlerBundle)) {
-  console.error("[build] api/_handler.js missing — run esbuild server/vercel.ts first");
+const trpcHandler = path.join(apiDir, "trpc", "[...path].js");
+if (!fs.existsSync(trpcHandler)) {
+  console.error("[build] api/trpc/[...path].js missing — run esbuild server/trpcVercel.ts first");
   process.exit(1);
 }
 
-const reExport = 'export { default } from "./_handler.js";\n';
-const reExportFromParent = 'export { default } from "../_handler.js";\n';
+/** /api/trpc exato + alvo do rewrite opcional */
+fs.copyFileSync(trpcHandler, path.join(apiDir, "trpc.js"));
 
-/** Catch-all /api/* (Stripe, etc.) — rotas específicas têm prioridade. */
-fs.writeFileSync(path.join(apiDir, "[[...path]].js"), reExport, "utf8");
-
-/** tRPC: /api/trpc/<procedure> */
-const trpcCatchAll = path.join(apiDir, "trpc", "[...path].js");
-fs.mkdirSync(path.dirname(trpcCatchAll), { recursive: true });
-fs.writeFileSync(trpcCatchAll, reExportFromParent, "utf8");
-
-/** OAuth callback exato. */
+/** OAuth callback — reutiliza o mesmo handler tRPC por ora (rota OAuth fica no Express em Railway). */
 const oauthCallback = path.join(apiDir, "oauth", "callback.js");
 fs.mkdirSync(path.dirname(oauthCallback), { recursive: true });
-fs.writeFileSync(oauthCallback, 'export { default } from "../_handler.js";\n', "utf8");
-
-console.info(
-  "[build] Vercel API: _handler.js + trpc/[...path].js + [[...path]].js + oauth/callback.js"
+fs.writeFileSync(
+  oauthCallback,
+  `export default function handler(_req, res) {
+  res.statusCode = 501;
+  res.setHeader("Content-Type", "application/json");
+  res.end(JSON.stringify({ error: "OAuth callback not configured on Vercel preview" }));
+}
+`,
+  "utf8"
 );
+
+console.info("[build] Vercel API: trpc/[...path].js + trpc.js");
