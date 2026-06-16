@@ -6,10 +6,6 @@
   "outputDirectory": "dist/public",
   "rewrites": [
     {
-      "source": "/api/trpc/:path*",
-      "destination": "/api/trpc"
-    },
-    {
       "source": "/((?!api/|assets/|manifest\\.json|sw\\.js|favicon\\.ico|.*\\..*).*)",
       "destination": "/index.html"
     }
