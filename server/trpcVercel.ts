@@ -1,22 +1,60 @@
+import "dotenv/config";
 import type { IncomingMessage, ServerResponse } from "node:http";
+import express, { type Express } from "express";
+import { createExpressMiddleware } from "@trpc/server/adapters/express";
+import { appRouter } from "./routers";
+import { createContext } from "./_core/context";
 
-import type { Express } from "express";
+function createTrpcApp() {
+  const app = express();
 
-let appPromise: Promise<Express> | null = null;
+  app.use((req, _res, next) => {
+    const raw = req.url ?? "";
+    const pathOnly = raw.split("?")[0] ?? "";
 
-function loadApp() {
-  if (!appPromise) {
-    appPromise = import("./_app.js").then((mod) => mod.createTrpcApp());
-  }
-  return appPromise;
+    if (pathOnly.startsWith("/api/trpc")) {
+      next();
+      return;
+    }
+    if (pathOnly.startsWith("/trpc/") || pathOnly === "/trpc") {
+      req.url = `/api${raw}`;
+      next();
+      return;
+    }
+    if (pathOnly.startsWith("/") && !pathOnly.startsWith("/api/")) {
+      req.url = `/api/trpc${raw}`;
+    }
+    next();
+  });
+
+  app.use(
+    "/api/trpc",
+    createExpressMiddleware({
+      router: appRouter,
+      createContext,
+    })
+  );
+
+  return app;
 }
 
-/** Entry leve — carrega o bundle tRPC só no primeiro request (evita crash no cold start). */
+let app: Express | null = null;
+
+function getApp() {
+  if (!app) app = createTrpcApp();
+  return app;
+}
+
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
   try {
-    const app = await loadApp();
-    const { handleTrpcRequest } = await import("./_app.js");
-    await handleTrpcRequest(req, res, app);
+    const expressApp = getApp();
+    await new Promise<void>((resolve, reject) => {
+      res.on("finish", () => resolve());
+      res.on("close", () => resolve());
+      expressApp(req as never, res as never, (err: unknown) => {
+        if (err) reject(err);
+      });
+    });
   } catch (err) {
     console.error("[tRPC Vercel]", err);
     if (!res.headersSent) {

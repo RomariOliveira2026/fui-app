@@ -8,6 +8,7 @@ build/
 *.dist
 api/*.js
 !api/app-config.js
+api/trpc/handler.js
 api/trpc/_*.js
 
 # Environment variables

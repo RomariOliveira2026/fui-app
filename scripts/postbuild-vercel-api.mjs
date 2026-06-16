@@ -9,7 +9,8 @@ for (const legacy of [
   "_handler.js",
   "trpc.js",
   "[[...path]].js",
-  path.join("trpc", "[...path].js"),
+  path.join("trpc", "_app.js"),
+  path.join("trpc", "_entry.js"),
 ]) {
   try {
     fs.unlinkSync(path.join(apiDir, legacy));
@@ -18,17 +19,14 @@ for (const legacy of [
   }
 }
 
-const appBundle = path.join(trpcDir, "_app.js");
-const entryBundle = path.join(trpcDir, "_entry.js");
-
-if (!fs.existsSync(appBundle) || !fs.existsSync(entryBundle)) {
-  console.error("[build] api/trpc/_app.js and _entry.js required — run esbuild first");
+const handlerBundle = path.join(trpcDir, "handler.js");
+if (!fs.existsSync(handlerBundle)) {
+  console.error("[build] api/trpc/handler.js missing — run esbuild server/trpcVercel.ts first");
   process.exit(1);
 }
 
 const catchAll = path.join(trpcDir, "[...path].js");
-fs.writeFileSync(catchAll, 'export { default } from "./_entry.js";\n', "utf8");
-
+fs.writeFileSync(catchAll, 'export { default } from "./handler.js";\n', "utf8");
 fs.copyFileSync(catchAll, path.join(apiDir, "trpc.js"));
 
 const oauthCallback = path.join(apiDir, "oauth", "callback.js");
@@ -44,4 +42,4 @@ fs.writeFileSync(
   "utf8"
 );
 
-console.info("[build] Vercel API: trpc/_entry.js + trpc/_app.js + trpc/[...path].js");
+console.info("[build] Vercel API: trpc/handler.js + trpc/[...path].js");

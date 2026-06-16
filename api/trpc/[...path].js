@@ -1,1 +1,1 @@
-export { default } from "./_entry.js";
+export { default } from "./handler.js";
