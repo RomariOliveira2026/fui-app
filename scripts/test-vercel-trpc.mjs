@@ -1,5 +1,6 @@
 import http from "node:http";
-import app from "../api/trpc/[...path].ts";
+
+const { default: run } = await import("../api/trpc/[...path].js");
 
 const intelligenceInput = encodeURIComponent(
   JSON.stringify({ 0: { json: { preset: "7d" } } })
@@ -13,7 +14,9 @@ const paths = [
 
 function request(path) {
   return new Promise((resolve, reject) => {
-    const server = http.createServer(app);
+    const server = http.createServer((req, res) => {
+      void run(req, res).catch(reject);
+    });
     server.listen(0, async () => {
       const { port } = server.address();
       try {

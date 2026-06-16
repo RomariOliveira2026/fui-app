@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 const apiDir = path.resolve("api");
+const trpcCatchAll = path.join(apiDir, "trpc", "[...path].js");
 
 for (const legacy of [
   "index.js",
@@ -9,15 +10,18 @@ for (const legacy of [
   "trpc.js",
   "[[...path]].js",
   path.join("trpc", "handler.js"),
-  path.join("trpc", "_app.js"),
-  path.join("trpc", "_entry.js"),
-  path.join("trpc", "[...path].js"),
+  path.join("trpc", "[...path].ts"),
 ]) {
   try {
     fs.unlinkSync(path.join(apiDir, legacy));
   } catch {
     // optional cleanup
   }
+}
+
+if (!fs.existsSync(trpcCatchAll)) {
+  console.error("[build] api/trpc/[...path].js missing — run esbuild server/trpcVercel.ts first");
+  process.exit(1);
 }
 
 const oauthCallback = path.join(apiDir, "oauth", "callback.js");
@@ -33,4 +37,4 @@ fs.writeFileSync(
   "utf8"
 );
 
-console.info("[build] Vercel API: api/trpc/[...path].ts (native) + oauth/callback.js");
+console.info("[build] Vercel API: trpc/[...path].js");
