@@ -8,7 +8,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { filterDemoPlaces, findDemoPlaceByPlaceId, findDemoPlaceByText } from "@shared/demoMaps";
-import { isLocalDemoDev } from "@/lib/demoMode";
 import type { AddressHistoryItem } from "@/lib/addressHistory";
 import {
   filterHistoryByQuery,
@@ -62,6 +61,8 @@ interface AddressAutocompleteProps {
   historyItems?: AddressHistoryItem[];
   /** Endereços salvos — exibidos no dropdown ao digitar. */
   savedAddresses?: SavedAddressLike[];
+  /** Viés regional para sugestões (lat/lng do usuário). */
+  locationBias?: { lat: number; lng: number } | null;
 }
 
 function savedIcon(label?: string) {
@@ -84,6 +85,7 @@ export function AddressAutocomplete({
   onConfirm,
   historyItems = [],
   savedAddresses = [],
+  locationBias = null,
 }: AddressAutocompleteProps) {
   const [query, setQuery] = useState(value);
   const [isFocused, setIsFocused] = useState(false);
@@ -119,25 +121,29 @@ export function AddressAutocomplete({
     [onChange]
   );
 
-  const useLocalDemoPlaces = isLocalDemoDev();
-
   const { data: mapsConfigured } = trpc.maps.isConfigured.useQuery(undefined, {
     staleTime: 60_000,
     refetchOnWindowFocus: false,
-    enabled: !useLocalDemoPlaces,
   });
 
+  const locationBiasParam =
+    locationBias && Number.isFinite(locationBias.lat) && Number.isFinite(locationBias.lng)
+      ? `${locationBias.lat},${locationBias.lng}`
+      : undefined;
+
+  const useDemoPlacesCatalog = mapsConfigured === false;
+
   const { data: suggestions, isLoading: isLoadingApi } = trpc.maps.autocomplete.useQuery(
-    { input: debouncedQuery },
+    { input: debouncedQuery, location: locationBiasParam },
     {
-      enabled: !useLocalDemoPlaces && debouncedQuery.trim().length >= 3,
+      enabled: !useDemoPlacesCatalog && debouncedQuery.trim().length >= 3,
       staleTime: 30000,
       refetchOnWindowFocus: false,
       retry: false,
     }
   );
 
-  const isLoading = useLocalDemoPlaces ? false : isLoadingApi;
+  const isLoading = useDemoPlacesCatalog ? false : isLoadingApi;
 
   const apiResults: AddressResult[] = (suggestions || []).map((s: any) => ({
     description: s.description,
@@ -147,7 +153,7 @@ export function AddressAutocomplete({
       s.structured_formatting?.secondary_text || s.description.split(",").slice(1).join(","),
   }));
 
-  const useDemoPlaces = useLocalDemoPlaces || mapsConfigured === false;
+  const useDemoPlaces = useDemoPlacesCatalog;
 
   const demoResults: AddressResult[] = useDemoPlaces
     ? filterDemoPlaces(debouncedQuery).map((p) => ({
@@ -158,7 +164,7 @@ export function AddressAutocomplete({
       }))
     : [];
 
-  const placeResults: AddressResult[] = useLocalDemoPlaces
+  const placeResults: AddressResult[] = useDemoPlacesCatalog
     ? demoResults
     : apiResults.length > 0
       ? apiResults
@@ -434,8 +440,10 @@ export function AddressAutocomplete({
           {debouncedQuery.trim().length >= 3 ? (
             <div className="px-4 py-2 border-t border-border">
               <p className="text-[10px] text-muted-foreground/50 text-right">
-                {useLocalDemoPlaces || (demoResults.length > 0 && apiResults.length === 0)
-                  ? "Sugestões locais — Itabaiana/SE"
+                {useDemoPlacesCatalog || (demoResults.length > 0 && apiResults.length === 0)
+                  ? mapsConfigured === false
+                    ? "Sugestões via OpenStreetMap"
+                    : "Sugestões locais — Itabaiana/SE"
                   : "Powered by Google"}
               </p>
             </div>

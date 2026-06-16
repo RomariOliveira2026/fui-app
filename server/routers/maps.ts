@@ -10,7 +10,7 @@ import {
   resolveDemoLocation,
 } from "@shared/demoMaps";
 import type { GeocodingResult, DirectionsResult } from "../_core/map";
-import { geocodeAddressWithNominatim, sleepMs } from "../_core/nominatim";
+import { geocodeAddressWithNominatim, reverseGeocodeWithNominatim, searchPlacesWithNominatim, sleepMs } from "../_core/nominatim";
 import { calculateDrivingRouteWithOsrm } from "../_core/osrmRoute";
 import { calculatePassengerRoute } from "../_core/passengerRoute";
 
@@ -98,6 +98,79 @@ async function resolveEndpoint(value: string): Promise<{
   return geocodeWithOsmOrDemo({ address: value });
 }
 
+function nominatimToAutocompletePredictions(
+  places: Awaited<ReturnType<typeof searchPlacesWithNominatim>>
+) {
+  return places.map((p) => {
+    const parts = p.displayName.split(",");
+    const mainText = parts[0]?.trim() || p.displayName;
+    const secondaryText = parts.slice(1).join(",").trim();
+    return {
+      description: p.displayName,
+      place_id: p.placeId,
+      structured_formatting: {
+        main_text: mainText,
+        secondary_text: secondaryText,
+      },
+      types: ["geocode"] as string[],
+    };
+  });
+}
+
+async function geocodeWithoutGoogle(params: {
+  address?: string;
+  placeId?: string;
+  latlng?: string;
+}): Promise<{
+  lat: number;
+  lng: number;
+  formattedAddress: string;
+  placeId: string;
+} | null> {
+  if (params.placeId) {
+    const demo = findDemoPlaceByPlaceId(params.placeId);
+    if (demo) {
+      return {
+        lat: demo.lat,
+        lng: demo.lng,
+        formattedAddress: demo.description,
+        placeId: demo.placeId,
+      };
+    }
+  }
+
+  if (params.address) {
+    const osm = await geocodeWithOsmOrDemo({
+      address: params.address,
+      placeId: params.placeId,
+    });
+    if (osm) return osm;
+  }
+
+  if (params.latlng) {
+    const parsed = parseLatLngPair(params.latlng);
+    if (parsed) {
+      const reversed = await reverseGeocodeWithNominatim(parsed.lat, parsed.lng);
+      if (reversed) {
+        return {
+          lat: reversed.lat,
+          lng: reversed.lng,
+          formattedAddress: reversed.displayName,
+          placeId: reversed.placeId,
+        };
+      }
+      return {
+        lat: parsed.lat,
+        lng: parsed.lng,
+        formattedAddress: params.latlng,
+        placeId: `coord:${parsed.lat},${parsed.lng}`,
+      };
+    }
+  }
+
+  return null;
+}
+
 export const mapsRouter = router({
   /** Whether Google Maps REST APIs are configured (direct key or Forge proxy). */
   isConfigured: publicProcedure.query(() => isMapsConfigured()),
@@ -114,16 +187,23 @@ export const mapsRouter = router({
       components: z.string().optional().default("country:br"),
     }))
     .query(async ({ input: params }) => {
-      if (!isMapsConfigured() && !ENV.isProduction) {
-        return filterDemoPlaces(params.input).map((p) => ({
-          description: p.description,
-          place_id: p.placeId,
-          structured_formatting: {
-            main_text: p.mainText,
-            secondary_text: p.secondaryText,
-          },
-          types: ["geocode"],
-        }));
+      if (!isMapsConfigured()) {
+        const demo = filterDemoPlaces(params.input);
+        if (demo.length > 0) {
+          return demo.map((p) => ({
+            description: p.description,
+            place_id: p.placeId,
+            structured_formatting: {
+              main_text: p.mainText,
+              secondary_text: p.secondaryText,
+            },
+            types: ["geocode"],
+          }));
+        }
+
+        await sleepMs(300);
+        const nominatim = await searchPlacesWithNominatim(params.input, 5);
+        return nominatimToAutocompletePredictions(nominatim);
       }
 
       const result = await makeRequest<{
@@ -163,40 +243,8 @@ export const mapsRouter = router({
       language: z.string().optional().default("pt-BR"),
     }))
     .query(async ({ input: params }) => {
-      if (!isMapsConfigured() && !ENV.isProduction) {
-        if (params.placeId) {
-          const demo = findDemoPlaceByPlaceId(params.placeId);
-          if (demo) {
-            return {
-              lat: demo.lat,
-              lng: demo.lng,
-              formattedAddress: demo.description,
-              placeId: demo.placeId,
-            };
-          }
-        }
-
-        if (params.address) {
-          const osm = await geocodeWithOsmOrDemo({
-            address: params.address,
-            placeId: params.placeId,
-          });
-          if (osm) return osm;
-        }
-
-        if (params.latlng) {
-          const parsed = parseLatLngPair(params.latlng);
-          if (parsed) {
-            return {
-              lat: parsed.lat,
-              lng: parsed.lng,
-              formattedAddress: params.latlng,
-              placeId: `coord:${parsed.lat},${parsed.lng}`,
-            };
-          }
-        }
-
-        return null;
+      if (!isMapsConfigured()) {
+        return geocodeWithoutGoogle(params);
       }
 
       const queryParams: Record<string, unknown> = {

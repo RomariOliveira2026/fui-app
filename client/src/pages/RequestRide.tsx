@@ -26,6 +26,7 @@ import type { BookedForThirdParty, IntermediateStop, IntermediateStopInput } fro
 import { getDemoPricingByVehicleType } from "@shared/demoPricing";
 import { useSavedAddresses } from "@/lib/useSavedAddresses";
 import { isLocalDemoDev } from "@/lib/demoMode";
+import { usePassengerCurrentLocation } from "@/lib/usePassengerCurrentLocation";
 import { fetchRouteWithDemoFallback } from "@/lib/demoRoute";
 import {
   persistRideAddressHistory,
@@ -72,6 +73,7 @@ export default function RequestRide() {
   const [thirdPartyEnabled, setThirdPartyEnabled] = useState(false);
   const [bookedFor, setBookedFor] = useState<BookedForThirdParty>({ name: "", phone: "" });
   const prefillAppliedRef = useRef(false);
+  const [autoLocateOrigin, setAutoLocateOrigin] = useState(true);
   
   // Carpool fields
   const [isShared, setIsShared] = useState(false);
@@ -149,16 +151,41 @@ export default function RequestRide() {
   const distanceRef = useRef(0);
   const durationRef = useRef(0);
 
+  const shouldAutoLocate = autoLocateOrigin && !originAddress.trim();
+  const passengerLocation = usePassengerCurrentLocation({ enabled: shouldAutoLocate });
+
   const utils = trpc.useUtils();
 
   useEffect(() => {
     syncHistoryFromStorage();
   }, []);
 
+  useEffect(() => {
+    if (!shouldAutoLocate || !passengerLocation.address) return;
+    setOriginAddress(passengerLocation.address);
+    if (passengerLocation.placeId) {
+      setOriginPlaceId(passengerLocation.placeId);
+      originPlaceIdRef.current = passengerLocation.placeId;
+    }
+  }, [shouldAutoLocate, passengerLocation.address, passengerLocation.placeId]);
+
+  useEffect(() => {
+    if (!shouldAutoLocate || !passengerLocation.coords) return;
+    originCoordsRef.current = passengerLocation.coords;
+    setOriginCoords(passengerLocation.coords);
+  }, [shouldAutoLocate, passengerLocation.coords]);
+
+  useEffect(() => {
+    if (passengerLocation.status !== "denied") return;
+    toast.error(
+      passengerLocation.errorMessage ??
+        "Permissão de localização negada. Digite sua origem manualmente."
+    );
+  }, [passengerLocation.status, passengerLocation.errorMessage]);
+
   const { data: mapsConfigured } = trpc.maps.isConfigured.useQuery(undefined, {
     staleTime: 60_000,
     refetchOnWindowFocus: false,
-    enabled: !isLocalDemoDev(),
   });
 
   const { data: pricing } = trpc.pricing.getAll.useQuery();
@@ -286,6 +313,7 @@ export default function RequestRide() {
     const prefill = loadRidePrefill();
     if (!prefill || prefillAppliedRef.current) return;
     prefillAppliedRef.current = true;
+    setAutoLocateOrigin(false);
     clearRidePrefill();
 
     setOriginAddress(prefill.originAddress);
@@ -662,37 +690,50 @@ export default function RequestRide() {
                 <MapPin className={`w-4 h-4 inline mr-2 ${fuiRoute.originIcon}`} />
                 Origem
               </Label>
-              <AddressAutocomplete
-                value={originAddress}
-                onChange={(val) => {
-                  setOriginAddress(val);
-                  setOriginPlaceId("");
-                  originPlaceIdRef.current = "";
-                  clearRouteCalculation();
-                }}
-                onSelect={(result) => {
-                  clearRouteCalculation();
-                  setOriginAddress(result.address);
-                  setOriginPlaceId(result.placeId);
-                  originPlaceIdRef.current = result.placeId;
-                  recordOriginHistory(result.address, result.placeId);
-                }}
-                onConfirm={(address) => {
-                  const placeId = resolveDemoPlaceIdForHistory(
-                    address,
-                    originPlaceIdRef.current || undefined
-                  );
-                  if (placeId && !originPlaceIdRef.current) {
-                    setOriginPlaceId(placeId);
-                    originPlaceIdRef.current = placeId;
-                  }
-                  recordOriginHistory(address, placeId);
-                }}
-                placeholder="Digite o endereço de origem"
-                icon={<MapPin className={`w-4 h-4 ${fuiRoute.originIcon}`} />}
-                historyItems={originHistory}
-                savedAddresses={savedAddresses}
-              />
+              <div className="relative">
+                <AddressAutocomplete
+                  value={originAddress}
+                  onChange={(val) => {
+                    setOriginAddress(val);
+                    setOriginPlaceId("");
+                    originPlaceIdRef.current = "";
+                    clearRouteCalculation();
+                  }}
+                  onSelect={(result) => {
+                    clearRouteCalculation();
+                    setOriginAddress(result.address);
+                    setOriginPlaceId(result.placeId);
+                    originPlaceIdRef.current = result.placeId;
+                    recordOriginHistory(result.address, result.placeId);
+                  }}
+                  onConfirm={(address) => {
+                    const placeId = resolveDemoPlaceIdForHistory(
+                      address,
+                      originPlaceIdRef.current || undefined
+                    );
+                    if (placeId && !originPlaceIdRef.current) {
+                      setOriginPlaceId(placeId);
+                      originPlaceIdRef.current = placeId;
+                    }
+                    recordOriginHistory(address, placeId);
+                  }}
+                  placeholder={passengerLocation.isLocating ? "Obtendo sua localização..." : "De onde você está?"}
+                  icon={<MapPin className={`w-4 h-4 ${fuiRoute.originIcon}`} />}
+                  historyItems={originHistory}
+                  savedAddresses={savedAddresses}
+                  locationBias={passengerLocation.coords ?? originCoords}
+                />
+                {(passengerLocation.status === "denied" || passengerLocation.status === "error") && (
+                  <button
+                    type="button"
+                    onClick={() => void passengerLocation.retry()}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-primary hover:text-primary/80"
+                    aria-label="Usar minha localização"
+                  >
+                    <Navigation className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Destination */}
@@ -733,6 +774,7 @@ export default function RequestRide() {
                 icon={<Navigation className={`w-4 h-4 ${fuiRoute.destinationIcon}`} />}
                 historyItems={destinationHistory}
                 savedAddresses={savedAddresses}
+                locationBias={passengerLocation.coords ?? originCoords}
               />
             </div>
 

@@ -39,7 +39,7 @@ export default function PassengerDashboardHeader({
           <Menu className="h-5 w-5" />
         </button>
 
-        <AppLogoMark variant="onMap" />
+        <AppLogoMark />
 
         <div className="absolute right-3 sm:right-4 flex items-center gap-2">
           {canUsePrivateUserApi ? (

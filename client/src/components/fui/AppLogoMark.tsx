@@ -2,14 +2,14 @@ import { WL } from "@/whitelabel";
 import { cn } from "@/lib/utils";
 
 type AppLogoMarkProps = {
-  /** Logo escura legível sobre mapa claro (OSM) */
-  variant?: "onMap" | "default";
+  /** Header escuro — logo transparente, sem cápsula */
+  variant?: "header" | "onMap";
   className?: string;
   imageClassName?: string;
 };
 
 export default function AppLogoMark({
-  variant = "default",
+  variant = "header",
   className,
   imageClassName,
 }: AppLogoMarkProps) {
@@ -32,7 +32,9 @@ export default function AppLogoMark({
   return (
     <div
       className={cn(
-        onMap && "rounded-xl bg-white/90 px-3 py-1.5 shadow-sm backdrop-blur-sm border border-black/5",
+        "flex shrink-0 items-center justify-center bg-transparent",
+        onMap &&
+          "rounded-xl bg-white/90 px-3 py-1.5 shadow-sm backdrop-blur-sm border border-black/5",
         className
       )}
     >
@@ -40,8 +42,10 @@ export default function AppLogoMark({
         src={WL.logoUrl}
         alt={WL.appName}
         className={cn(
-          "h-7 sm:h-8 w-auto max-w-full object-contain",
-          onMap && "brightness-0 opacity-90",
+          "w-auto max-w-full object-contain",
+          onMap
+            ? "h-7 sm:h-8 brightness-0 opacity-90"
+            : "h-6 sm:h-8 max-w-[8.5rem] sm:max-w-none",
           imageClassName
         )}
       />

@@ -31,7 +31,8 @@ import {
   LogOut,
   Truck,
   CreditCard,
-  ChevronLeft
+  ChevronLeft,
+  Navigation
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { useState, useRef, useCallback, useEffect } from "react";
@@ -49,6 +50,7 @@ import { useSavedAddresses } from "@/lib/useSavedAddresses";
 import { getDemoPricingByVehicleType } from "@shared/demoPricing";
 import { toast } from "sonner";
 import { isLocalDemoDev } from "@/lib/demoMode";
+import { usePassengerCurrentLocation } from "@/lib/usePassengerCurrentLocation";
 import { persistDemoRideFromServer } from "@/lib/useDemoRideHydration";
 import NotificationCenter from "@/components/NotificationCenter";
 import AppLogoMark from "@/components/fui/AppLogoMark";
@@ -118,6 +120,9 @@ function LoggedInHome() {
   // Store coordinates for ride request (refs stay in sync for mutations)
   const originCoordsRef = useRef<{ lat: number; lng: number } | null>(null);
   const destCoordsRef = useRef<{ lat: number; lng: number } | null>(null);
+
+  const shouldAutoLocate = requestMode && !originAddress.trim();
+  const passengerLocation = usePassengerCurrentLocation({ enabled: shouldAutoLocate });
   
   // Requesting state
   const [requesting, setRequesting] = useState(false);
@@ -135,6 +140,26 @@ function LoggedInHome() {
     setOriginHistory(loadAddressHistory(FUI_HISTORY_ORIGIN_KEY));
     setDestinationHistory(loadAddressHistory(FUI_HISTORY_DESTINATION_KEY));
   }, []);
+
+  useEffect(() => {
+    if (!shouldAutoLocate || !passengerLocation.address) return;
+    setOriginAddress(passengerLocation.address);
+    if (passengerLocation.placeId) setOriginPlaceId(passengerLocation.placeId);
+  }, [shouldAutoLocate, passengerLocation.address, passengerLocation.placeId]);
+
+  useEffect(() => {
+    if (!shouldAutoLocate || !passengerLocation.coords) return;
+    originCoordsRef.current = passengerLocation.coords;
+    setOriginCoords(passengerLocation.coords);
+  }, [shouldAutoLocate, passengerLocation.coords]);
+
+  useEffect(() => {
+    if (!requestMode || passengerLocation.status !== "denied") return;
+    toast.error(
+      passengerLocation.errorMessage ??
+        "Permissão de localização negada. Digite sua origem manualmente."
+    );
+  }, [requestMode, passengerLocation.status, passengerLocation.errorMessage]);
 
   const clearRoute = useCallback(() => {
     setRouteCalculated(false);
@@ -304,6 +329,8 @@ function LoggedInHome() {
     setRequestMode(true);
   };
 
+  const locationBias = passengerLocation.coords ?? originCoords;
+
   return (
     <div
       className={cn(
@@ -411,25 +438,38 @@ function LoggedInHome() {
             {/* Address Inputs with Autocomplete */}
             <div className="space-y-2">
               {/* Origin */}
-              <AddressAutocomplete
-                value={originAddress}
-                onChange={(val) => { setOriginAddress(val); setOriginPlaceId(""); if (routeCalculated) clearRoute(); }}
-                onSelect={(result) => {
-                  setOriginAddress(result.address);
-                  setOriginPlaceId(result.placeId);
-                  if (routeCalculated) clearRoute();
-                }}
-                onConfirm={(address) => {
-                  const placeId = resolveLocalPlaceId(address, originPlaceId || undefined);
-                  if (placeId) setOriginPlaceId(placeId);
-                  addAddressHistory(FUI_HISTORY_ORIGIN_KEY, { address, placeId });
-                  setOriginHistory(loadAddressHistory(FUI_HISTORY_ORIGIN_KEY));
-                }}
-                placeholder="Onde você está?"
-                icon={<div className="w-3 h-3 rounded-full bg-green-500 border-2 border-green-300" />}
-                historyItems={originHistory}
-                savedAddresses={savedAddresses}
-              />
+              <div className="relative">
+                <AddressAutocomplete
+                  value={originAddress}
+                  onChange={(val) => { setOriginAddress(val); setOriginPlaceId(""); if (routeCalculated) clearRoute(); }}
+                  onSelect={(result) => {
+                    setOriginAddress(result.address);
+                    setOriginPlaceId(result.placeId);
+                    if (routeCalculated) clearRoute();
+                  }}
+                  onConfirm={(address) => {
+                    const placeId = resolveLocalPlaceId(address, originPlaceId || undefined);
+                    if (placeId) setOriginPlaceId(placeId);
+                    addAddressHistory(FUI_HISTORY_ORIGIN_KEY, { address, placeId });
+                    setOriginHistory(loadAddressHistory(FUI_HISTORY_ORIGIN_KEY));
+                  }}
+                  placeholder={passengerLocation.isLocating ? "Obtendo sua localização..." : "Onde você está?"}
+                  icon={<div className="w-3 h-3 rounded-full bg-green-500 border-2 border-green-300" />}
+                  historyItems={originHistory}
+                  savedAddresses={savedAddresses}
+                  locationBias={locationBias}
+                />
+                {(passengerLocation.status === "denied" || passengerLocation.status === "error") && (
+                  <button
+                    type="button"
+                    onClick={() => void passengerLocation.retry()}
+                    className="absolute right-12 top-1/2 -translate-y-1/2 text-[#F39200] hover:text-[#F39200]/80"
+                    aria-label="Usar minha localização"
+                  >
+                    <Navigation className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
 
               {/* Connecting line */}
               <div className="flex items-center pl-[18px]">
@@ -455,6 +495,7 @@ function LoggedInHome() {
                 icon={<div className="w-3 h-3 rounded-full bg-primary border-2 border-primary/40" />}
                 historyItems={destinationHistory}
                 savedAddresses={savedAddresses}
+                locationBias={locationBias}
               />
             </div>
 
