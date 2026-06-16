@@ -2,6 +2,12 @@ import type { Ride } from "../../drizzle/schema";
 import { haversineMeters } from "@shared/demoMaps";
 import type { DemoSimulationPhase } from "@shared/demoSimulation";
 import { isDemoDriverSimulationEnabledServer } from "@shared/demoSimulation";
+import { isDemoOperationalRidesEnabledServer } from "@shared/demoOperationalRides";
+import {
+  advanceOperationalDemoRide,
+  getOperationalPhase,
+  isOperationalDriverNearPickup,
+} from "./demoOperationalRide";
 import {
   DRIVER_ARRIVING_THRESHOLD_M,
   parseMapPoint,
@@ -225,6 +231,7 @@ export function advanceDemoRideSimulation(ride: Ride): Ride {
 
 export function attachSimulationMeta(ride: Ride): Ride & { simulationPhase: DemoSimulationPhase } {
   const phase =
+    getOperationalPhase(ride.id) ??
     getSimulationPhase(ride.id) ??
     (ride.status === "completed"
       ? "completed"
@@ -238,10 +245,15 @@ export function attachSimulationMeta(ride: Ride): Ride & { simulationPhase: Demo
 }
 
 export function isSimulationAwaitingStart(rideId: number): boolean {
+  const op = getOperationalPhase(rideId);
+  if (op === "arrived_pickup") return true;
   return states.get(rideId)?.phase === "arrived_pickup";
 }
 
 export function isSimulationDriverNearPickup(ride: Ride): boolean {
+  if (isDemoOperationalRidesEnabledServer()) {
+    return isOperationalDriverNearPickup(ride);
+  }
   const state = states.get(ride.id);
   if (state?.phase === "arrived_pickup") return true;
   if (state?.phase !== "to_pickup" || !state.segment) return false;
@@ -253,8 +265,11 @@ export function isSimulationDriverNearPickup(ride: Ride): boolean {
   );
 }
 
-/** Sincroniza posição demo: simulação completa ou rastreamento legado. */
+/** Sincroniza posição demo: operacional, simulação ou rastreamento legado. */
 export function syncDemoRideState(ride: Ride): Ride {
+  if (isDemoOperationalRidesEnabledServer()) {
+    return advanceOperationalDemoRide(ride);
+  }
   if (isDemoDriverSimulationEnabledServer()) {
     return advanceDemoRideSimulation(ride);
   }

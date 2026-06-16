@@ -51,6 +51,7 @@ import { getDemoPricingByVehicleType } from "@shared/demoPricing";
 import { toast } from "sonner";
 import { isLocalDemoDev } from "@/lib/demoMode";
 import { usePassengerCurrentLocation } from "@/lib/usePassengerCurrentLocation";
+import { useDemoFleetDrivers } from "@/lib/useDemoFleetDrivers";
 import { persistDemoRideFromServer } from "@/lib/useDemoRideHydration";
 import NotificationCenter from "@/components/NotificationCenter";
 import AppLogoMark from "@/components/fui/AppLogoMark";
@@ -330,6 +331,7 @@ function LoggedInHome() {
   };
 
   const locationBias = passengerLocation.coords ?? originCoords;
+  const nearbyDemoDrivers = useDemoFleetDrivers(locationBias);
 
   return (
     <div
@@ -349,6 +351,7 @@ function LoggedInHome() {
           destination={destCoords}
           routePath={routePath}
           encodedPolyline={routePolylineEncoded}
+          nearbyDrivers={nearbyDemoDrivers}
         />
       </div>
 

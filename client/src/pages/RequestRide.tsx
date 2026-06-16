@@ -27,6 +27,7 @@ import { getDemoPricingByVehicleType } from "@shared/demoPricing";
 import { useSavedAddresses } from "@/lib/useSavedAddresses";
 import { isLocalDemoDev } from "@/lib/demoMode";
 import { usePassengerCurrentLocation } from "@/lib/usePassengerCurrentLocation";
+import { useDemoFleetDrivers } from "@/lib/useDemoFleetDrivers";
 import { fetchRouteWithDemoFallback } from "@/lib/demoRoute";
 import {
   persistRideAddressHistory,
@@ -155,6 +156,8 @@ export default function RequestRide() {
 
   const shouldAutoLocate = autoLocateOrigin && !originAddress.trim();
   const passengerLocation = usePassengerCurrentLocation({ enabled: shouldAutoLocate });
+  const fleetMapCenter = passengerLocation.coords ?? originCoords;
+  const nearbyDemoDrivers = useDemoFleetDrivers(fleetMapCenter);
 
   const utils = trpc.useUtils();
 
@@ -805,6 +808,7 @@ export default function RequestRide() {
                 destination={destCoords}
                 routePath={routePath}
                 encodedPolyline={routePolylineEncoded}
+                nearbyDrivers={nearbyDemoDrivers}
               />
             </div>
 

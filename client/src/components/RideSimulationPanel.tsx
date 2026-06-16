@@ -21,6 +21,7 @@ export type RideWithSimulation = Ride & {
 type DemoDriverInfo = {
   driverName: string;
   rating: string;
+  avatarUrl?: string | null;
   vehicleBrand: string;
   vehicleModel: string;
   vehiclePlate: string;

@@ -4,6 +4,7 @@ import {
   DEMO_SIMULATION_DRIVER_NAME,
 } from "@shared/demoSimulation";
 import { ensureDemoSimulationDriver, isDemoSimulationDriverId } from "./demoSimulationDriver";
+import { getDemoFleetDriverMeta, getDemoFleetDriverName } from "./demoFleet";
 
 const DEMO_DRIVER_PROFILE_ID_START = 800_001;
 const DEMO_VEHICLE_ID_START = 850_001;
@@ -163,6 +164,33 @@ export function createDemoDriverProfile(
   return profile;
 }
 
+/** Perfil demo para frota operacional — sem veículo padrão (veículo é criado depois). */
+export function createDemoFleetDriverProfile(
+  userId: number,
+  rating: number
+): DriverProfile {
+  const existing = demoProfilesByUserId.get(userId);
+  if (existing) return existing;
+
+  const now = new Date();
+  const profile: DriverProfile = {
+    id: nextDemoProfileId++,
+    userId,
+    cpf: null,
+    cnh: null,
+    cnhImageUrl: null,
+    status: "approved",
+    rating,
+    totalRides: 42,
+    isAvailable: true,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  demoProfilesByUserId.set(userId, profile);
+  return profile;
+}
+
 export function getDemoRideDriverDetails(ride: {
   driverId?: number | null;
   vehicleId?: number | null;
@@ -186,15 +214,17 @@ export function getDemoRideDriverDetails(ride: {
   const profile = getDemoDriverProfileById(ride.driverId);
   const vehicle = ride.vehicleId ? getDemoVehicleById(ride.vehicleId) : null;
   const fallbackVehicle = vehicle ?? getDemoVehiclesByDriverId(ride.driverId)[0];
+  const fleetMeta = getDemoFleetDriverMeta(ride.driverId);
 
   return {
-    driverName: "João Demo",
-    rating: ((profile?.rating ?? 480) / 100).toFixed(1),
+    driverName: fleetMeta?.name ?? getDemoFleetDriverName(ride.driverId) ?? "Motorista Demo",
+    rating: ((fleetMeta?.rating ?? profile?.rating ?? 480) / 100).toFixed(1),
     vehicleBrand: fallbackVehicle?.brand ?? "Demo",
     vehicleModel: fallbackVehicle?.model ?? "Sedan",
     vehiclePlate: fallbackVehicle?.plate ?? "DEM0A00",
     vehicleColor: fallbackVehicle?.color ?? "Prata",
     vehicleType: fallbackVehicle?.type ?? ride.vehicleType ?? "carro",
+    avatarUrl: fleetMeta?.avatarUrl,
   };
 }
 

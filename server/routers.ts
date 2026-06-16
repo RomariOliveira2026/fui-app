@@ -63,6 +63,9 @@ import {
   syncDemoRideState,
 } from "./_core/demoRideSimulation";
 import { isDemoDriverSimulationAutoAcceptServer, isDemoDriverSimulationEnabledServer } from "@shared/demoSimulation";
+import { isDemoOperationalRidesEnabledServer } from "@shared/demoOperationalRides";
+import { registerOperationalDemoRide } from "./_core/demoOperationalRide";
+import { ensureDemoFleetSeed, listDemoFleetForMap } from "./_core/demoFleet";
 import {
   createDemoDriverProfile,
   createDemoVehicle,
@@ -165,6 +168,31 @@ export const appRouter = router({
   landing: landingRouter,
   notification: notificationRouter,
   maps: mapsRouter,
+
+  /** Frota demo operacional — motoristas fake no mapa (isolado; ver DEMO_OPERATIONAL_RIDES). */
+  demoOperational: router({
+    isEnabled: publicProcedure.query(() => isDemoOperationalRidesEnabledServer()),
+
+    getFleetDrivers: publicProcedure
+      .input(
+        z
+          .object({
+            nearLat: z.number().optional(),
+            nearLng: z.number().optional(),
+          })
+          .optional()
+      )
+      .query(({ input }) => {
+        if (!isDemoOperationalRidesEnabledServer()) return [];
+        const near =
+          input?.nearLat != null && input?.nearLng != null
+            ? { lat: input.nearLat, lng: input.nearLng }
+            : null;
+        ensureDemoFleetSeed(near);
+        return listDemoFleetForMap();
+      }),
+  }),
+
   favorites: favoritesRouter,
   referrals: referralsRouter,
   delivery: deliveryRouter,
@@ -556,7 +584,14 @@ export const appRouter = router({
 
           prefetchDemoRoutePath(ride);
 
-          if (isDemoDriverSimulationEnabledServer()) {
+          if (isDemoOperationalRidesEnabledServer()) {
+            registerOperationalDemoRide(
+              ride.id,
+              input.vehicleType,
+              input.originLat,
+              input.originLng
+            );
+          } else if (isDemoDriverSimulationEnabledServer()) {
             registerDemoRideForSimulation(ride.id);
             if (isDemoDriverSimulationAutoAcceptServer()) {
               simulationAcceptRide(ride.id);
@@ -1163,9 +1198,23 @@ export const appRouter = router({
         if (input.offers?.length) {
           hydrateDemoRideOffers(input.offers as never);
         }
-        for (const ride of getDemoRequestedRides()) {
-          if (isRideReadyForDispatch(ride)) {
-            processDispatchForDemoRide(ride.id);
+        if (isDemoOperationalRidesEnabledServer()) {
+          ensureDemoFleetSeed();
+          for (const ride of getAllDemoRides()) {
+            if (ride.status === "requested") {
+              registerOperationalDemoRide(
+                ride.id,
+                ride.vehicleType as "moto" | "carro" | "van" | "utilitario",
+                ride.originLat,
+                ride.originLng
+              );
+            }
+          }
+        } else {
+          for (const ride of getDemoRequestedRides()) {
+            if (isRideReadyForDispatch(ride)) {
+              processDispatchForDemoRide(ride.id);
+            }
           }
         }
         return {

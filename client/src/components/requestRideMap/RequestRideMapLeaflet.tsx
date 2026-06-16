@@ -90,6 +90,7 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
   origin,
   destination,
   driver,
+  nearbyDrivers,
   routePath,
   encodedPolyline,
   trackingPhase,
@@ -100,6 +101,7 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
     destination?: L.Marker;
     driver?: L.Marker;
     route?: L.Polyline;
+    fleet?: L.LayerGroup;
   }>({});
   const tripPathRef = useRef<RoutePoint[]>([]);
   const driverPathRef = useRef<RoutePoint[]>([]);
@@ -204,6 +206,31 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
 
     fitVisibleBounds(false);
   }, [origin, destination, routePath, encodedPolyline, refreshDriverPath, fitVisibleBounds]);
+
+  const syncFleetLayers = useCallback(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    if (layersRef.current.fleet) {
+      map.removeLayer(layersRef.current.fleet);
+      layersRef.current.fleet = undefined;
+    }
+
+    if (!nearbyDrivers?.length) return;
+
+    const group = L.layerGroup();
+    for (const d of nearbyDrivers) {
+      if (!Number.isFinite(d.lat) || !Number.isFinite(d.lng)) continue;
+      const marker = createCircleMarker(map, [d.lat, d.lng], {
+        color: d.status === "online" ? "#F39200" : "#94a3b8",
+        label: "•",
+        title: `${d.name} (${d.vehicleType})`,
+      });
+      group.addLayer(marker);
+    }
+    group.addTo(map);
+    layersRef.current.fleet = group;
+  }, [nearbyDrivers]);
 
   const stopDriverAnimation = useCallback(() => {
     if (animFrameRef.current != null) {
@@ -320,6 +347,10 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
   }, [syncStaticLayers]);
 
   useEffect(() => {
+    syncFleetLayers();
+  }, [syncFleetLayers]);
+
+  useEffect(() => {
     syncDriverLayer();
   }, [syncDriverLayer]);
 
@@ -337,6 +368,7 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
       onMapReady={(map) => {
         mapRef.current = map;
         syncStaticLayers();
+        syncFleetLayers();
         syncDriverLayer();
       }}
     />

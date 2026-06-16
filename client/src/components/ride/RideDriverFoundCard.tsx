@@ -7,6 +7,7 @@ import { Car, MessageCircle, Star, User } from "lucide-react";
 export type RideDriverInfo = {
   driverName: string;
   rating?: string;
+  avatarUrl?: string | null;
   vehicleBrand?: string;
   vehicleModel?: string;
   vehiclePlate?: string;
@@ -43,9 +44,17 @@ export default function RideDriverFoundCard({
 
       <div className="p-4 space-y-4">
         <div className="flex items-start gap-3">
-          <div className={fuiIconRingClass("brand")}>
-            <User className="h-5 w-5" />
-          </div>
+          {driver.avatarUrl ? (
+            <img
+              src={driver.avatarUrl}
+              alt=""
+              className="h-12 w-12 shrink-0 rounded-full border border-border object-cover"
+            />
+          ) : (
+            <div className={fuiIconRingClass("brand")}>
+              <User className="h-5 w-5" />
+            </div>
+          )}
           <div className="min-w-0 flex-1">
             <p className="text-lg font-semibold text-foreground truncate">{driver.driverName}</p>
             {driver.rating ? (

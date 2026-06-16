@@ -11,12 +11,13 @@ import { DEMO_PLACES } from "@shared/demoMaps";
 import { DEMO_SIMULATION_DRIVER_ID, DEMO_SIMULATION_DRIVER_NAME } from "@shared/demoSimulation";
 import * as db from "../db";
 import {
-  createDemoDriverProfile,
-  createDemoVehicle,
+  ensureDemoFleetSeed,
+  getDemoFleetDriverName,
+} from "./demoFleet";
+import {
   getAllDemoDriverProfiles,
   getDemoDriverLocationCoords,
   getDemoVehiclesByDriverId,
-  updateDemoDriverLocation,
 } from "./demoDriver";
 import { getAllDemoRides } from "./demoRide";
 import { ensureDemoSimulationDriver } from "./demoSimulationDriver";
@@ -100,25 +101,7 @@ function computeMetrics(rides: AdminOperationalRide[], drivers: AdminOperational
 
 /** Garante motoristas demo visíveis no mapa admin quando a store está vazia. */
 export function ensureDemoOperationalSeed(): void {
-  if (getAllDemoDriverProfiles().length > 0) return;
-
-  const seeds = [
-    { userId: 801_001, name: "Carlos Demo", type: "carro" as const, plate: "ITB1A23", place: DEMO_PLACES[0] },
-    { userId: 801_002, name: "Ana Demo", type: "moto" as const, plate: "ITB2B45", place: DEMO_PLACES[1] },
-    { userId: 801_003, name: "Pedro Demo", type: "van" as const, plate: "ITB3C67", place: DEMO_PLACES[2] },
-  ];
-
-  for (const seed of seeds) {
-    const profile = createDemoDriverProfile({ userId: seed.userId });
-    createDemoVehicle(profile.id, {
-      type: seed.type,
-      brand: "Demo",
-      model: seed.type === "moto" ? "CG 160" : seed.type === "van" ? "Sprinter" : "Onix",
-      plate: seed.plate,
-      color: "Prata",
-    });
-    updateDemoDriverLocation(profile.id, String(seed.place.lat), String(seed.place.lng));
-  }
+  ensureDemoFleetSeed();
 }
 
 function buildDemoDriverEntry(
@@ -171,7 +154,7 @@ export function getDemoOperationalOverview(): AdminOperationalOverview {
       if (ride.driverId === DEMO_SIMULATION_DRIVER_ID) {
         driverName = DEMO_SIMULATION_DRIVER_NAME;
       } else if (ride.driverId) {
-        driverName = ride.driverId >= 800_001 ? "Motorista Demo" : null;
+        driverName = getDemoFleetDriverName(ride.driverId) ?? "Motorista Demo";
       }
       return rideToOperational(ride, driverName, "Passageiro Demo");
     })
@@ -192,7 +175,8 @@ export function getDemoOperationalOverview(): AdminOperationalOverview {
   const drivers: AdminOperationalDriver[] = [];
 
   for (const profile of getAllDemoDriverProfiles()) {
-    drivers.push(buildDemoDriverEntry(profile, "Motorista Demo", activeDriverIds));
+    const fleetName = getDemoFleetDriverName(profile.id) ?? "Motorista Demo";
+    drivers.push(buildDemoDriverEntry(profile, fleetName, activeDriverIds));
   }
 
   const sim = ensureDemoSimulationDriver();

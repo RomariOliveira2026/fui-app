@@ -37,6 +37,7 @@ import type { RideDispatchMeta } from "@shared/rideDispatcher";
 type DemoDriverInfo = {
   driverName: string;
   rating: string;
+  avatarUrl?: string | null;
   vehicleBrand: string;
   vehicleModel: string;
   vehiclePlate: string;
@@ -260,6 +261,7 @@ export default function RideDetails() {
                 driver={{
                   driverName: demoDriver?.driverName ?? driverDisplayName,
                   rating: demoDriver?.rating,
+                  avatarUrl: demoDriver?.avatarUrl,
                   vehicleBrand: demoDriver?.vehicleBrand,
                   vehicleModel: demoDriver?.vehicleModel,
                   vehiclePlate: demoDriver?.vehiclePlate,
