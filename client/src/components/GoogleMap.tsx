@@ -8,6 +8,7 @@
  */
 
 import { useEffect, useRef, memo, useCallback } from "react";
+import { BRAZIL_MAP_CENTER, STREET_LEVEL_MAP_ZOOM } from "@shared/mapDefaults";
 import { cn } from "@/lib/utils";
 import {
   addDemoMarker,
@@ -201,8 +202,8 @@ interface GoogleMapProps {
 
 const GoogleMapInner = memo(function GoogleMapInner({
   className,
-  initialCenter = { lat: -10.6833, lng: -37.4250 }, // Itabaiana, SE
-  initialZoom = 14,
+  initialCenter = BRAZIL_MAP_CENTER,
+  initialZoom = STREET_LEVEL_MAP_ZOOM,
   onMapReady,
   darkMode = true,
 }: GoogleMapProps) {

@@ -1,3 +1,5 @@
+import { BRAZIL_MAP_CENTER } from "@shared/mapDefaults";
+import { ENV } from "./env";
 import type { Ride } from "../../drizzle/schema";
 import { DEMO_PLACES } from "@shared/demoMaps";
 import type {
@@ -39,13 +41,13 @@ export function inferRideAreaLabel(address: string): string {
     }
   }
   const parts = address.split(",");
-  return parts[0]?.trim() || "Itabaiana";
+  return parts[0]?.trim() || ENV.appCity || "região";
 }
 
 function areaCenter(areaLabel: string): { lat: number; lng: number } {
   const place = DEMO_PLACES.find((p) => p.mainText === areaLabel);
   if (place) return { lat: place.lat, lng: place.lng };
-  return { lat: -10.6833, lng: -37.425 };
+  return BRAZIL_MAP_CENTER;
 }
 
 function isAnalyticsEligible(ride: Ride): boolean {

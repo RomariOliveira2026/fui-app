@@ -355,7 +355,7 @@ export default function Delivery() {
                     <Input
                       value={pickupAddress}
                       onChange={(e) => setPickupAddress(e.target.value)}
-                      placeholder="Rua, número, bairro - Itabaiana"
+                      placeholder="Rua, número, bairro, cidade"
                     />
                     <div className="grid grid-cols-2 gap-2">
                       <div>
@@ -389,7 +389,7 @@ export default function Delivery() {
                     <Input
                       value={deliveryAddress}
                       onChange={(e) => setDeliveryAddress(e.target.value)}
-                      placeholder="Rua, número, bairro - Itabaiana"
+                      placeholder="Rua, número, bairro, cidade"
                     />
                     <div className="grid grid-cols-2 gap-2">
                       <div>

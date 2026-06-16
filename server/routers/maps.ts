@@ -7,7 +7,6 @@ import {
   filterDemoPlaces,
   findDemoPlaceByPlaceId,
   findDemoPlaceByText,
-  resolveDemoLocation,
 } from "@shared/demoMaps";
 import type { GeocodingResult, DirectionsResult } from "../_core/map";
 import { geocodeAddressWithNominatim, reverseGeocodeWithNominatim, searchPlacesWithNominatim, sleepMs } from "../_core/nominatim";
@@ -47,15 +46,6 @@ async function geocodeWithOsmOrDemo(params: {
         placeId: nominatim.placeId,
       };
     }
-
-    const loc = resolveDemoLocation(params.address);
-    const demoMatch = findDemoPlaceByText(loc.address);
-    return {
-      lat: loc.lat,
-      lng: loc.lng,
-      formattedAddress: loc.address,
-      placeId: demoMatch?.placeId ?? "demo-centro",
-    };
   }
 
   return null;
@@ -206,6 +196,16 @@ export const mapsRouter = router({
         return nominatimToAutocompletePredictions(nominatim);
       }
 
+      const autocompleteParams: Record<string, unknown> = {
+        input: params.input,
+        radius: params.radius,
+        language: params.language,
+        components: params.components,
+      };
+      if (params.location) {
+        autocompleteParams.location = params.location;
+      }
+
       const result = await makeRequest<{
         predictions: Array<{
           description: string;
@@ -217,13 +217,7 @@ export const mapsRouter = router({
           types: string[];
         }>;
         status: string;
-      }>("/maps/api/place/autocomplete/json", {
-        input: params.input,
-        location: params.location || "-10.6833,-37.4250", // Default: Itabaiana, SE
-        radius: params.radius,
-        language: params.language,
-        components: params.components,
-      });
+      }>("/maps/api/place/autocomplete/json", autocompleteParams);
 
       if (result.status === "OK" || result.status === "ZERO_RESULTS") {
         return result.predictions || [];
@@ -423,7 +417,7 @@ export const mapsRouter = router({
           )
           .max(2)
           .optional(),
-        allowDemoFallback: z.boolean().optional().default(true),
+        allowDemoFallback: z.boolean().optional().default(false),
       })
     )
     .mutation(async ({ input }) => {

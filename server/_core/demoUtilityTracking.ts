@@ -1,9 +1,8 @@
 import type { UtilityOrder, UtilityOrderStatus } from "@shared/utilities";
 import { parseUtilityMapPoint } from "@shared/utilityTracking";
+import { BRAZIL_MAP_CENTER } from "@shared/mapDefaults";
 import { getDemoDriverLocationCoords } from "./demoDriver";
 import { updateDemoUtilityOrder } from "./demoUtilities";
-
-const ITABAIANA_CENTER = { lat: -10.6833, lng: -37.425 };
 
 function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * Math.min(1, Math.max(0, t));
@@ -17,9 +16,13 @@ function lerpPoint(
   return { lat: lerp(from.lat, to.lat, t), lng: lerp(from.lng, to.lng, t) };
 }
 
-function defaultDriverStart(driverId: number): { lat: number; lng: number } {
+function defaultDriverStart(
+  driverId: number,
+  near?: { lat: number; lng: number }
+): { lat: number; lng: number } {
+  const base = near ?? BRAZIL_MAP_CENTER;
   const offset = (driverId % 5) * 0.003;
-  return { lat: ITABAIANA_CENTER.lat + offset, lng: ITABAIANA_CENTER.lng - offset * 0.5 };
+  return { lat: base.lat + offset, lng: base.lng - offset * 0.5 };
 }
 
 function positionForStatus(
@@ -32,7 +35,7 @@ function positionForStatus(
 
   const driverId = order.driverId ?? 0;
   const start =
-    getDemoDriverLocationCoords(driverId) ?? defaultDriverStart(driverId);
+    getDemoDriverLocationCoords(driverId) ?? defaultDriverStart(driverId, origin);
 
   switch (status) {
     case "accepted":
@@ -101,7 +104,7 @@ export function tickDemoUtilityDriverPosition(order: UtilityOrder): UtilityOrder
   const drift = Math.min(0.35, elapsedMs / cycleMs);
   const t = Math.min(0.95, baseT + drift);
 
-  const from = order.status === "accepted" ? defaultDriverStart(order.driverId) : origin;
+  const from = order.status === "accepted" ? defaultDriverStart(order.driverId, origin) : origin;
   const to = order.status === "accepted" ? origin : destination;
   const pos = lerpPoint(from, to, t);
 

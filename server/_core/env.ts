@@ -12,7 +12,7 @@ export const ENV = {
     process.env.GOOGLE_MAPS_API_KEY ?? process.env.VITE_GOOGLE_MAPS_API_KEY ?? "",
   // White-label configuration
   appName: process.env.VITE_APP_TITLE ?? "Fui!",
-  appCity: process.env.VITE_APP_CITY ?? "Itabaiana",
+  appCity: (process.env.VITE_APP_CITY ?? "").trim(),
   platformFeePercent: Number(process.env.VITE_PLATFORM_FEE_PERCENT ?? "15"),
   supportWhatsApp: process.env.VITE_SUPPORT_WHATSAPP ?? "",
   /** Beta demo na Vercel: passageiro demo quando não há sessão OAuth. */

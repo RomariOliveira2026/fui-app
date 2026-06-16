@@ -20,6 +20,7 @@ import {
 } from "./demoDriver";
 import { getAllDemoRides } from "./demoRide";
 import { ensureDemoSimulationDriver } from "./demoSimulationDriver";
+import { ENV } from "./env";
 import { parseCoord } from "./rideDispatcher";
 
 const ITABAIANA_CENTER = ADMIN_MAP_DEFAULT_CENTER;
@@ -31,7 +32,7 @@ function inferAreaLabel(address: string): string {
     }
   }
   const parts = address.split(",");
-  return parts[0]?.trim() || "Itabaiana";
+  return parts[0]?.trim() || ENV.appCity || "região";
 }
 
 function defaultDriverCoords(driverId: number): { lat: number; lng: number } {

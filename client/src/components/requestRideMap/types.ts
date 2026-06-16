@@ -15,10 +15,14 @@ export type RequestRideMapViewProps = {
   trackingPhase?: "searching" | "driver_found" | "en_route" | "arriving" | "waiting_pickup" | "in_trip" | "completed";
 };
 
-/** Centro padrão: Itabaiana, SE */
-export const REQUEST_RIDE_MAP_DEFAULT_CENTER = {
-  lat: -10.6833,
-  lng: -37.4250,
-} as const;
+import {
+  BRAZIL_MAP_CENTER,
+  BRAZIL_MAP_OVERVIEW_ZOOM,
+  STREET_LEVEL_MAP_ZOOM,
+} from "@shared/mapDefaults";
 
-export const REQUEST_RIDE_MAP_DEFAULT_ZOOM = 14;
+/** Centro padrão do mapa até o GPS do usuário (visão Brasil). */
+export const REQUEST_RIDE_MAP_DEFAULT_CENTER = BRAZIL_MAP_CENTER;
+
+export const REQUEST_RIDE_MAP_DEFAULT_ZOOM = BRAZIL_MAP_OVERVIEW_ZOOM;
+export const REQUEST_RIDE_MAP_STREET_ZOOM = STREET_LEVEL_MAP_ZOOM;

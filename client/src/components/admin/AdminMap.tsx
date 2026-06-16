@@ -253,14 +253,14 @@ export default memo(function AdminMap({
           <div className="rounded-xl bg-background/80 backdrop-blur border border-border/60 px-6 py-4 text-center max-w-xs">
             <p className="text-sm font-medium text-foreground">Mapa em modo demo</p>
             <p className="text-xs text-muted-foreground mt-1">
-              Motoristas seed em Itabaiana. Solicite uma corrida para ver marcadores ao vivo.
+              Motoristas demo. Solicite uma corrida para ver marcadores ao vivo.
             </p>
           </div>
         </div>
       ) : null}
 
       <div className="absolute bottom-3 left-3 z-[400] rounded-lg bg-background/90 backdrop-blur px-3 py-2 text-xs text-muted-foreground border border-border/60">
-        Itabaiana, SE · OpenStreetMap
+        Brasil · OpenStreetMap
       </div>
     </div>
   );

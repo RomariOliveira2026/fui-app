@@ -1,10 +1,11 @@
-import { calculateRoute } from "@/components/Map";
 import {
   demoDirections,
   encodeDemoPolyline,
   findDemoPlaceByPlaceId,
-  resolveDemoLocation,
+  tryResolveDemoCatalog,
 } from "@shared/demoMaps";
+import { geocodeAddress, calculateRoute } from "@/components/Map";
+import { appendCountryToAddress } from "@shared/mapDefaults";
 import type { ResolvedRoute } from "@/lib/demoRoute";
 
 export type LocalPassengerRoute = ResolvedRoute & {
@@ -25,37 +26,48 @@ function toRouteKey(address: string, placeId?: string): string {
   return address.trim();
 }
 
-/** Rota estável para demo local — OSRM (OSM) com fallback em lugares de Itabaiana. */
+async function resolveRoutePoint(
+  address: string,
+  placeId?: string
+): Promise<{ lat: number; lng: number }> {
+  if (placeId) {
+    const place = findDemoPlaceByPlaceId(placeId);
+    if (place) return { lat: place.lat, lng: place.lng };
+  }
+
+  const catalog = tryResolveDemoCatalog(toRouteKey(address, placeId));
+  if (catalog) return { lat: catalog.lat, lng: catalog.lng };
+
+  const geocoded = await geocodeAddress(appendCountryToAddress(address));
+  return { lat: geocoded.lat, lng: geocoded.lng };
+}
+
+/** Rota local via OSRM (OSM), com geocoding nacional. */
 export async function fetchLocalPassengerRoute(
   originAddress: string,
   destinationAddress: string,
   originPlaceId?: string,
   destinationPlaceId?: string
 ): Promise<LocalPassengerRoute> {
-  const originKey = toRouteKey(originAddress, originPlaceId);
-  const destKey = toRouteKey(destinationAddress, destinationPlaceId);
-
-  const start = resolveDemoLocation(originKey);
-  const end = resolveDemoLocation(destKey);
+  const start = await resolveRoutePoint(originAddress, originPlaceId);
+  const end = await resolveRoutePoint(destinationAddress, destinationPlaceId);
 
   try {
-    const osrm = await calculateRoute(
-      { lat: start.lat, lng: start.lng },
-      { lat: end.lat, lng: end.lng }
-    );
-
+    const osrm = await calculateRoute(start, end);
     const routePath = osrm.geometry.map(([lat, lng]) => ({ lat, lng }));
 
     return {
       distance: { text: formatDistance(osrm.distance), value: osrm.distance },
       duration: { text: formatDuration(osrm.duration), value: osrm.duration },
-      startLocation: { lat: start.lat, lng: start.lng },
-      endLocation: { lat: end.lat, lng: end.lng },
+      startLocation: start,
+      endLocation: end,
       overviewPolyline: encodeDemoPolyline(routePath),
       routePath,
     };
   } catch (error) {
     console.warn("[fetchLocalPassengerRoute] OSRM failed, using demo route:", error);
+    const originKey = toRouteKey(originAddress, originPlaceId);
+    const destKey = toRouteKey(destinationAddress, destinationPlaceId);
     const demo = demoDirections(originKey, destKey);
     return {
       ...demo,
@@ -68,14 +80,13 @@ export async function fetchLocalPassengerRoute(
 }
 
 /** Resolve coordenadas a partir de endereço ou placeId demo. */
-export function resolveLocalCoords(
+export async function resolveLocalCoords(
   address: string,
   placeId?: string
-): { lat: number; lng: number } | null {
-  if (placeId) {
-    const place = findDemoPlaceByPlaceId(placeId);
-    if (place) return { lat: place.lat, lng: place.lng };
+): Promise<{ lat: number; lng: number } | null> {
+  try {
+    return await resolveRoutePoint(address, placeId);
+  } catch {
+    return null;
   }
-  const loc = resolveDemoLocation(address);
-  return { lat: loc.lat, lng: loc.lng };
 }

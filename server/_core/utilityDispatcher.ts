@@ -20,20 +20,25 @@ import {
   exportDemoUtilityProviderProfiles,
   getDemoUtilityProviderProfile,
 } from "./demoUtilityProvider";
+import { BRAZIL_MAP_CENTER } from "@shared/mapDefaults";
 import { getDemoDriverLocationCoords } from "./demoDriver";
 
-const ITABAIANA_CENTER = { lat: -10.6833, lng: -37.425 };
+const DEMO_DISPATCH_FALLBACK_CENTER = BRAZIL_MAP_CENTER;
 
 export function parseUtilityCoord(value: string | number | null | undefined): number | null {
   const n = typeof value === "number" ? value : Number.parseFloat(String(value ?? ""));
   return Number.isFinite(n) ? n : null;
 }
 
-function defaultProviderCoords(driverId: number): { lat: number; lng: number } {
+function defaultProviderCoords(
+  driverId: number,
+  near?: { lat: number; lng: number }
+): { lat: number; lng: number } {
+  const base = near ?? DEMO_DISPATCH_FALLBACK_CENTER;
   const offset = (driverId % 5) * 0.002;
   return {
-    lat: ITABAIANA_CENTER.lat + offset,
-    lng: ITABAIANA_CENTER.lng - offset * 0.5,
+    lat: base.lat + offset,
+    lng: base.lng - offset * 0.5,
   };
 }
 
@@ -45,8 +50,9 @@ export function getProviderDistanceToOrderOriginMeters(
   const originLng = parseUtilityCoord(order.originLng);
   if (originLat == null || originLng == null) return null;
 
+  const origin = { lat: originLat, lng: originLng };
   const coords =
-    getDemoDriverLocationCoords(driverId) ?? defaultProviderCoords(driverId);
+    getDemoDriverLocationCoords(driverId) ?? defaultProviderCoords(driverId, origin);
 
   return Math.round(
     haversineMeters({ lat: originLat, lng: originLng }, coords)

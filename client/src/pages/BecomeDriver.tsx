@@ -12,6 +12,7 @@ import AppHeader from "@/components/AppHeader";
 import { isLocalDemoDev } from "@/lib/demoMode";
 import { loadDemoDriverProfile, saveDemoDriverProfile } from "@/lib/demoDriver";
 import { fuiBrand, fuiIconRingClass } from "@/lib/fuiTheme";
+import { WL } from "@/whitelabel";
 import StatusPanel from "@/components/fui/StatusPanel";
 
 export default function BecomeDriver() {
@@ -213,7 +214,9 @@ export default function BecomeDriver() {
             </div>
             <CardTitle className="text-2xl">Torne-se um Motorista Fui!</CardTitle>
             <CardDescription>
-              Ganhe dinheiro dirigindo com preços populares em Itabaiana
+              {WL.city
+                ? `Ganhe dinheiro dirigindo com preços populares em ${WL.city}`
+                : "Ganhe dinheiro dirigindo com preços populares no Brasil"}
             </CardDescription>
           </CardHeader>
           <CardContent>

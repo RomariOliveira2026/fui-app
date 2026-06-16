@@ -26,7 +26,8 @@ export function getAppIconUrl(): string {
 
 export const WL = {
   appName: import.meta.env.VITE_APP_TITLE || "Fui!",
-  city: import.meta.env.VITE_APP_CITY || "Itabaiana",
+  /** Cidade de branding (opcional). Vazio = app nacional, sem amarrar geocoding. */
+  city: (import.meta.env.VITE_APP_CITY as string | undefined)?.trim() || "",
   primaryColor: import.meta.env.VITE_PRIMARY_COLOR || "#D97706",
   logoUrl: (import.meta.env.VITE_APP_LOGO as string | undefined)?.trim() || FUI_DEFAULT_LOGO_URL,
   iconUrl: getAppIconUrl(),
@@ -35,7 +36,9 @@ export const WL = {
 
   // Derived helpers
   get pageTitle() {
-    return `${this.appName} - Transporte e Mobilidade Urbana em ${this.city}`;
+    return this.city
+      ? `${this.appName} - Transporte e Mobilidade Urbana em ${this.city}`
+      : `${this.appName} - Transporte e Mobilidade Urbana`;
   },
   get supportWhatsAppUrl() {
     if (!this.supportWhatsApp) return null;

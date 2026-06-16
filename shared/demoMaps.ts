@@ -120,11 +120,11 @@ function encodeSigned(value: number): string {
   return result;
 }
 
-export function resolveDemoLocation(input: string): {
+export function tryResolveDemoCatalog(input: string): {
   lat: number;
   lng: number;
   address: string;
-} {
+} | null {
   if (input.startsWith("place_id:")) {
     const placeId = input.slice("place_id:".length);
     const place = findDemoPlaceByPlaceId(placeId);
@@ -145,14 +145,35 @@ export function resolveDemoLocation(input: string): {
     return { lat: partial.lat, lng: partial.lng, address: partial.description };
   }
 
-  // Fallback: centro de Itabaiana
+  return null;
+}
+
+/** @deprecated Prefer tryResolveDemoCatalog — não força cidade fixa. */
+export function resolveDemoLocation(input: string): {
+  lat: number;
+  lng: number;
+  address: string;
+} {
+  const match = tryResolveDemoCatalog(input);
+  if (match) return match;
+
   const centro = DEMO_PLACES[0];
-  return { lat: centro.lat, lng: centro.lng, address: input || centro.description };
+  return { lat: centro.lat, lng: centro.lng, address: input.trim() || centro.description };
 }
 
 export function demoDirections(origin: string, destination: string) {
-  const start = resolveDemoLocation(origin);
-  const end = resolveDemoLocation(destination);
+  const start =
+    tryResolveDemoCatalog(origin) ?? {
+      lat: DEMO_PLACES[0].lat,
+      lng: DEMO_PLACES[0].lng,
+      address: origin.trim() || DEMO_PLACES[0].description,
+    };
+  const end =
+    tryResolveDemoCatalog(destination) ?? {
+      lat: DEMO_PLACES[1]?.lat ?? DEMO_PLACES[0].lat,
+      lng: DEMO_PLACES[1]?.lng ?? DEMO_PLACES[0].lng,
+      address: destination.trim() || DEMO_PLACES[1]?.description || DEMO_PLACES[0].description,
+    };
   const distanceM = Math.max(Math.round(haversineMeters(start, end)), 500);
   const durationS = Math.max(Math.round((distanceM / 1000 / 30) * 3600), 120);
 

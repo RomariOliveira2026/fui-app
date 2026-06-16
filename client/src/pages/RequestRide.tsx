@@ -36,6 +36,8 @@ import {
 import { persistDemoRideFromServer } from "@/lib/useDemoRideHydration";
 import { syncDemoRecurringSchedulesFromServer } from "@/lib/demoRecurringStorage";
 import { fuiBrand, fuiRoute, fuiSelectedTile, fuiSurface } from "@/lib/fuiTheme";
+import { formatAddressForGeocoding } from "@shared/mapDefaults";
+import { WL } from "@/whitelabel";
 import StatusPanel from "@/components/fui/StatusPanel";
 
 const vehicleInfo = {
@@ -372,10 +374,10 @@ export default function RequestRide() {
       const destPlace = destPlaceIdRef.current;
       const origin = originPlace
         ? `place_id:${originPlace}`
-        : `${originTrimmed}, Itabaiana, SE, Brasil`;
+        : formatAddressForGeocoding(originTrimmed, WL.city || undefined);
       const dest = destPlace
         ? `place_id:${destPlace}`
-        : `${destTrimmed}, Itabaiana, SE, Brasil`;
+        : formatAddressForGeocoding(destTrimmed, WL.city || undefined);
 
       recordOriginHistory(originTrimmed, originPlace || undefined);
       recordDestinationHistory(destTrimmed, destPlace || undefined);

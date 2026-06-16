@@ -21,6 +21,7 @@
  */
 
 import { useEffect, useRef, useCallback, memo } from "react";
+import { BRAZIL_MAP_CENTER, STREET_LEVEL_MAP_ZOOM } from "@shared/mapDefaults";
 import { cn } from "@/lib/utils";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -165,8 +166,8 @@ interface LeafletMapProps {
  */
 const LeafletMapInner = memo(function LeafletMapInner({
   className,
-  initialCenter = [-10.6833, -37.4250], // Itabaiana, SE
-  initialZoom = 14,
+  initialCenter = [BRAZIL_MAP_CENTER.lat, BRAZIL_MAP_CENTER.lng],
+  initialZoom = STREET_LEVEL_MAP_ZOOM,
   onMapReady,
 }: LeafletMapProps) {
   // Ref for the outer wrapper that React manages

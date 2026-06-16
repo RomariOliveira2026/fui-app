@@ -1,5 +1,7 @@
 /** Tipos compartilhados — Central Operacional Admin (Módulo 6). */
 
+import { BRAZIL_MAP_CENTER } from "./mapDefaults";
+
 export type AdminDriverOperationalStatus = "available" | "busy" | "offline" | "pending";
 
 export type AdminOperationalDriver = {
@@ -56,7 +58,7 @@ export type AdminOperationalOverview = {
   updatedAt: string;
 };
 
-export const ADMIN_MAP_DEFAULT_CENTER = { lat: -10.6833, lng: -37.425 };
+export const ADMIN_MAP_DEFAULT_CENTER = BRAZIL_MAP_CENTER;
 
 export const ADMIN_DEMO_AREAS = [
   "Centro",

@@ -11,6 +11,8 @@ import { Loader2, Home, Briefcase, Star, Trash2, Plus } from "lucide-react";
 import { useLocation } from "wouter";
 import AppHeader from "@/components/AppHeader";
 import { useSavedAddresses } from "@/lib/useSavedAddresses";
+import { appendCountryToAddress } from "@shared/mapDefaults";
+import { WL } from "@/whitelabel";
 import {
   deleteDemoSavedAddress,
   saveDemoSavedAddress,
@@ -66,7 +68,9 @@ export default function SavedAddresses() {
     setSaving(true);
     try {
       const result = await utils.maps.geocode.fetch({
-        address: `${address}, Itabaiana, SE, Brasil`,
+        address: appendCountryToAddress(
+          WL.city ? `${address}, ${WL.city}` : address
+        ),
       });
 
       if (!result) {

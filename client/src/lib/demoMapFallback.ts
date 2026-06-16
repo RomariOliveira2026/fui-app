@@ -146,7 +146,7 @@ export function createDemoMap(
   container.appendChild(grid);
 
   const badge = document.createElement("div");
-  badge.textContent = "Mapa Demo · Itabaiana, SE";
+  badge.textContent = "Mapa Demo · Brasil";
   badge.style.cssText = `
     position:absolute;top:10px;left:10px;z-index:2;
     background:rgba(0,0,0,.55);color:#F39200;font-size:11px;

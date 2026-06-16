@@ -8,6 +8,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { filterDemoPlaces, findDemoPlaceByPlaceId, findDemoPlaceByText } from "@shared/demoMaps";
+import { WL } from "@/whitelabel";
 import type { AddressHistoryItem } from "@/lib/addressHistory";
 import {
   filterHistoryByQuery,
@@ -443,7 +444,9 @@ export function AddressAutocomplete({
                 {useDemoPlacesCatalog || (demoResults.length > 0 && apiResults.length === 0)
                   ? mapsConfigured === false
                     ? "Sugestões via OpenStreetMap"
-                    : "Sugestões locais — Itabaiana/SE"
+                    : WL.city
+                      ? `Sugestões locais — ${WL.city}`
+                      : "Sugestões locais"
                   : "Powered by Google"}
               </p>
             </div>

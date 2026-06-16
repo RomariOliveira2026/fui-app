@@ -1,7 +1,7 @@
 import {
   findDemoPlaceByPlaceId,
   findDemoPlaceByText,
-  resolveDemoLocation,
+  tryResolveDemoCatalog,
 } from "@shared/demoMaps";
 import {
   getDemoPricingByVehicleType,
@@ -104,15 +104,17 @@ async function resolveLocation(
   }
 
   if (allowDemoFallback && trimmed.length >= 2) {
-    const fallback = resolveDemoLocation(trimmed);
-    const partialDemo = findDemoPlaceByText(fallback.address);
-    return {
-      lat: fallback.lat,
-      lng: fallback.lng,
-      displayName: fallback.address,
-      placeId: partialDemo?.placeId,
-      source: "demo_fallback",
-    };
+    const fallback = tryResolveDemoCatalog(trimmed);
+    if (fallback) {
+      const partialDemo = findDemoPlaceByText(fallback.address);
+      return {
+        lat: fallback.lat,
+        lng: fallback.lng,
+        displayName: fallback.address,
+        placeId: partialDemo?.placeId,
+        source: "demo_fallback",
+      };
+    }
   }
 
   return null;
@@ -145,7 +147,7 @@ export async function calculatePassengerRoute(input: {
   intermediateStops?: IntermediateStopInput[];
   allowDemoFallback?: boolean;
 }): Promise<PassengerRouteCalculation> {
-  const allowDemoFallback = input.allowDemoFallback ?? true;
+  const allowDemoFallback = input.allowDemoFallback ?? false;
 
   const origin = await resolveLocation(
     input.originAddress,

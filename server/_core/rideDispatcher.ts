@@ -1,3 +1,4 @@
+import { BRAZIL_MAP_CENTER } from "@shared/mapDefaults";
 import type { Ride } from "../../drizzle/schema";
 import {
   DISPATCHER_TOP_N_OFFERS,
@@ -30,7 +31,7 @@ import * as db from "../db";
 
 export { DISPATCHER_TOP_N_OFFERS };
 
-const ITABAIANA_CENTER = { lat: -10.6833, lng: -37.4250 };
+const DEMO_DISPATCH_FALLBACK_CENTER = BRAZIL_MAP_CENTER;
 
 export function parseCoord(value: string | number | null | undefined): number | null {
   const n = typeof value === "number" ? value : Number.parseFloat(String(value ?? ""));
@@ -49,8 +50,11 @@ function sortEligibleDrivers(
   return sortDriversByDispatchScore(drivers, vehicleType);
 }
 
-function defaultDemoDriverCoords(driverId: number): { lat: number; lng: number } {
-  const base = ITABAIANA_CENTER;
+function defaultDemoDriverCoords(
+  driverId: number,
+  near?: { lat: number; lng: number }
+): { lat: number; lng: number } {
+  const base = near ?? DEMO_DISPATCH_FALLBACK_CENTER;
   const offset = (driverId % 5) * 0.002;
   return { lat: base.lat + offset, lng: base.lng - offset * 0.5 };
 }
@@ -78,7 +82,7 @@ export function findEligibleDemoDrivers(
     if (vehicles.length === 0) continue;
 
     const coords =
-      getDemoDriverLocationCoords(profile.id) ?? defaultDemoDriverCoords(profile.id);
+      getDemoDriverLocationCoords(profile.id) ?? defaultDemoDriverCoords(profile.id, origin);
 
     eligible.push({
       driverId: profile.id,
@@ -111,7 +115,7 @@ function buildDemoEligibleWithFallback(
         (v) => v.status === "active" && v.type === vehicleType
       );
       if (vehicles.length === 0) continue;
-      const coords = defaultDemoDriverCoords(profile.id);
+      const coords = defaultDemoDriverCoords(profile.id, origin);
       fallbackEligible.push({
         driverId: profile.id,
         lat: coords.lat,
