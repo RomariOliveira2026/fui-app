@@ -1,37 +1,33 @@
-import "dotenv/config";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import express from "express";
-import { createExpressMiddleware } from "@trpc/server/adapters/express";
-import { appRouter } from "./routers";
-import { createContext } from "./_core/context";
 
-const app = express();
+import type { Express } from "express";
 
-// Vercel catch-all pode entregar /trpc/... sem prefixo /api.
-app.use((req, _res, next) => {
-  const raw = req.url ?? "";
-  const pathOnly = raw.split("?")[0] ?? "";
-  if (!pathOnly.startsWith("/api/") && pathOnly.startsWith("/trpc")) {
-    req.url = `/api${raw}`;
+let appPromise: Promise<Express> | null = null;
+
+function loadApp() {
+  if (!appPromise) {
+    appPromise = import("./_app.js").then((mod) => mod.createTrpcApp());
   }
-  next();
-});
+  return appPromise;
+}
 
-app.use(
-  "/api/trpc",
-  createExpressMiddleware({
-    router: appRouter,
-    createContext,
-  })
-);
-
-/** Wrapper explícito — Vercel ESM serverless não aceita Express cru em todos os runtimes. */
-export default function handler(req: IncomingMessage, res: ServerResponse) {
-  return new Promise<void>((resolve, reject) => {
-    res.on("finish", () => resolve());
-    res.on("close", () => resolve());
-    app(req as never, res as never, (err: unknown) => {
-      if (err) reject(err);
-    });
-  });
+/** Entry leve — carrega o bundle tRPC só no primeiro request (evita crash no cold start). */
+export default async function handler(req: IncomingMessage, res: ServerResponse) {
+  try {
+    const app = await loadApp();
+    const { handleTrpcRequest } = await import("./_app.js");
+    await handleTrpcRequest(req, res, app);
+  } catch (err) {
+    console.error("[tRPC Vercel]", err);
+    if (!res.headersSent) {
+      res.statusCode = 500;
+      res.setHeader("Content-Type", "application/json; charset=utf-8");
+      res.end(
+        JSON.stringify({
+          error: "tRPC handler failed",
+          message: err instanceof Error ? err.message : String(err),
+        })
+      );
+    }
+  }
 }

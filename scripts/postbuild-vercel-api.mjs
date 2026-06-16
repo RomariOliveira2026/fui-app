@@ -2,13 +2,14 @@ import fs from "node:fs";
 import path from "node:path";
 
 const apiDir = path.resolve("api");
+const trpcDir = path.join(apiDir, "trpc");
 
 for (const legacy of [
   "index.js",
   "_handler.js",
   "trpc.js",
   "[[...path]].js",
-  "[...path].js",
+  path.join("trpc", "[...path].js"),
 ]) {
   try {
     fs.unlinkSync(path.join(apiDir, legacy));
@@ -17,16 +18,19 @@ for (const legacy of [
   }
 }
 
-const trpcHandler = path.join(apiDir, "trpc", "[...path].js");
-if (!fs.existsSync(trpcHandler)) {
-  console.error("[build] api/trpc/[...path].js missing — run esbuild server/trpcVercel.ts first");
+const appBundle = path.join(trpcDir, "_app.js");
+const entryBundle = path.join(trpcDir, "_entry.js");
+
+if (!fs.existsSync(appBundle) || !fs.existsSync(entryBundle)) {
+  console.error("[build] api/trpc/_app.js and _entry.js required — run esbuild first");
   process.exit(1);
 }
 
-/** /api/trpc exato + alvo do rewrite opcional */
-fs.copyFileSync(trpcHandler, path.join(apiDir, "trpc.js"));
+const catchAll = path.join(trpcDir, "[...path].js");
+fs.writeFileSync(catchAll, 'export { default } from "./_entry.js";\n', "utf8");
 
-/** OAuth callback — reutiliza o mesmo handler tRPC por ora (rota OAuth fica no Express em Railway). */
+fs.copyFileSync(catchAll, path.join(apiDir, "trpc.js"));
+
 const oauthCallback = path.join(apiDir, "oauth", "callback.js");
 fs.mkdirSync(path.dirname(oauthCallback), { recursive: true });
 fs.writeFileSync(
@@ -40,4 +44,4 @@ fs.writeFileSync(
   "utf8"
 );
 
-console.info("[build] Vercel API: trpc/[...path].js + trpc.js");
+console.info("[build] Vercel API: trpc/_entry.js + trpc/_app.js + trpc/[...path].js");
