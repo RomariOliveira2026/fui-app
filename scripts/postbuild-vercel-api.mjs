@@ -24,6 +24,8 @@ if (!fs.existsSync(trpcCatchAll)) {
   process.exit(1);
 }
 
+fs.copyFileSync(trpcCatchAll, path.join(apiDir, "trpc.js"));
+
 const oauthCallback = path.join(apiDir, "oauth", "callback.js");
 fs.mkdirSync(path.dirname(oauthCallback), { recursive: true });
 fs.writeFileSync(
