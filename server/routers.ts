@@ -125,9 +125,24 @@ const recurrenceRuleInputSchema = z
   .optional();
 import { nanoid } from "nanoid";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
-  apiVersion: "2025-11-17.clover",
-});
+let stripeClient: Stripe | null = null;
+
+/** Lazy init — evita crash no import quando STRIPE_SECRET_KEY não está na Vercel. */
+function getStripe(): Stripe {
+  const key = process.env.STRIPE_SECRET_KEY?.trim();
+  if (!key) {
+    throw new TRPCError({
+      code: "INTERNAL_SERVER_ERROR",
+      message: "Pagamentos Stripe não configurados neste ambiente",
+    });
+  }
+  if (!stripeClient) {
+    stripeClient = new Stripe(key, {
+      apiVersion: "2025-11-17.clover",
+    });
+  }
+  return stripeClient;
+}
 
 // Helper procedure for driver-only access — re-exported from _core/driverProcedure.ts
 
@@ -2155,7 +2170,7 @@ export const appRouter = router({
       )
       .mutation(async ({ ctx, input }) => {
         // Create Stripe Payment Intent
-        const paymentIntent = await stripe.paymentIntents.create({
+        const paymentIntent = await getStripe().paymentIntents.create({
           amount: input.amount,
           currency: "brl",
           automatic_payment_methods: {

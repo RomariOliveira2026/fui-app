@@ -8,9 +8,10 @@ for (const legacy of [
   "_handler.js",
   "trpc.js",
   "[[...path]].js",
+  path.join("trpc", "handler.js"),
   path.join("trpc", "_app.js"),
   path.join("trpc", "_entry.js"),
-  path.join("trpc", "handler.js"),
+  path.join("trpc", "[...path].js"),
 ]) {
   try {
     fs.unlinkSync(path.join(apiDir, legacy));
@@ -18,14 +19,6 @@ for (const legacy of [
     // optional cleanup
   }
 }
-
-const trpcHandler = path.join(apiDir, "trpc", "[...path].js");
-if (!fs.existsSync(trpcHandler)) {
-  console.error("[build] api/trpc/[...path].js missing — run esbuild server/trpcVercel.ts first");
-  process.exit(1);
-}
-
-fs.copyFileSync(trpcHandler, path.join(apiDir, "trpc.js"));
 
 const oauthCallback = path.join(apiDir, "oauth", "callback.js");
 fs.mkdirSync(path.dirname(oauthCallback), { recursive: true });
@@ -40,4 +33,4 @@ fs.writeFileSync(
   "utf8"
 );
 
-console.info("[build] Vercel API: trpc/[...path].js (single bundle)");
+console.info("[build] Vercel API: api/trpc/[...path].ts (native) + oauth/callback.js");
