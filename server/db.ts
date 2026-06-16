@@ -1,4 +1,4 @@
-import { eq, and, desc, sql, inArray, lt, isNull } from "drizzle-orm";
+import { eq, and, desc, sql, inArray, lt, isNull, ne } from "drizzle-orm";
 import { getDispatcherOfferTimeoutMs } from "@shared/rideDispatcher";
 import { drizzle } from "drizzle-orm/mysql2";
 import { 
@@ -38,10 +38,13 @@ import {
   driverPremiumPreferences,
   platformFinanceSettings,
   financialLedger,
+  driverApplications,
+  type DriverApplicationRow,
 } from "../drizzle/schema";
 import type { PlatformFinanceConfig } from "@shared/adminFinance";
 import type { DriverPremiumPreferences } from "@shared/driverPremium";
 import type { FinancialLedgerEntry } from "@shared/financialLedger";
+import type { DriverApplication } from "@shared/driverRegistration";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -2239,4 +2242,123 @@ export async function getAllFinancialLedgerEntries(): Promise<FinancialLedgerEnt
 
   const rows = await db.select().from(financialLedger).orderBy(desc(financialLedger.completedAt));
   return rows.map(rowToLedgerEntry);
+}
+
+// ============= DRIVER APPLICATION OPERATIONS =============
+
+async function driverApplicationsTable() {
+  return driverApplications;
+}
+
+export async function getDriverApplicationByUserId(userId: number): Promise<DriverApplicationRow | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const table = await driverApplicationsTable();
+    const rows = await db.select().from(table).where(eq(table.userId, userId)).limit(1);
+    return rows[0] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function getDriverApplicationById(id: number): Promise<DriverApplicationRow | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const table = await driverApplicationsTable();
+    const rows = await db.select().from(table).where(eq(table.id, id)).limit(1);
+    return rows[0] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function listDriverApplications(): Promise<DriverApplicationRow[]> {
+  const db = await getDb();
+  if (!db) return [];
+  try {
+    const table = await driverApplicationsTable();
+    return await db
+      .select()
+      .from(table)
+      .where(ne(table.status, "rascunho"))
+      .orderBy(desc(table.updatedAt));
+  } catch {
+    return [];
+  }
+}
+
+export async function upsertDriverApplicationDraft(userId: number, app: DriverApplication): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  try {
+    const table = await driverApplicationsTable();
+    const existing = await getDriverApplicationByUserId(userId);
+    const payload = {
+      status: "rascunho" as const,
+      personalData: app.personal ?? null,
+      cnhData: app.cnh ?? null,
+      vehicleData: app.vehicle ?? null,
+      securityData: app.security ?? null,
+      termsData: app.terms ?? null,
+      updatedAt: new Date(),
+    };
+    if (existing) {
+      await db.update(table).set(payload).where(eq(table.userId, userId));
+    } else {
+      await db.insert(table).values({ userId, ...payload });
+    }
+  } catch {
+    /* tabela pode não existir ainda — store em memória */
+  }
+}
+
+export async function submitDriverApplicationRow(userId: number, app: DriverApplication): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  try {
+    const table = await driverApplicationsTable();
+    const existing = await getDriverApplicationByUserId(userId);
+    const payload = {
+      status: "enviado" as const,
+      personalData: app.personal ?? null,
+      cnhData: app.cnh ?? null,
+      vehicleData: app.vehicle ?? null,
+      securityData: app.security ?? null,
+      termsData: app.terms ?? null,
+      submittedAt: new Date(),
+      updatedAt: new Date(),
+    };
+    if (existing) {
+      await db.update(table).set(payload).where(eq(table.userId, userId));
+    } else {
+      await db.insert(table).values({ userId, ...payload });
+    }
+  } catch {
+    /* fallback memória */
+  }
+}
+
+export async function updateDriverApplicationStatus(
+  applicationId: number,
+  app: DriverApplication
+): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  try {
+    const table = await driverApplicationsTable();
+    await db
+      .update(table)
+      .set({
+        status: app.status,
+        reviewNotes: app.reviewNotes ?? null,
+        reviewedAt: app.reviewedAt ? new Date(app.reviewedAt) : null,
+        reviewedBy: app.reviewedBy ?? null,
+        updatedAt: new Date(),
+      })
+      .where(eq(table.id, applicationId));
+  } catch {
+    /* fallback memória */
+  }
 }

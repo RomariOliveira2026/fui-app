@@ -14,6 +14,7 @@ import { utilityProviderRouter } from "./routers/utilityProvider";
 import { utilityChatRouter } from "./routers/utilityChat";
 import { driverPremiumRouter } from "./routers/driverPremium";
 import { adminFinanceRouter } from "./routers/adminFinance";
+import { driverRegistrationRouter } from "./routers/driverRegistration";
 import { recordCancellationAudit } from "./_core/demoAdminFinance";
 import { applyFinanceMinimumPrice } from "./_core/platformFinance";
 import { recordRideLedgerEntry } from "./_core/financialLedger";
@@ -201,6 +202,7 @@ export const appRouter = router({
   utilityChat: utilityChatRouter,
   driverPremium: driverPremiumRouter,
   adminFinance: adminFinanceRouter,
+  driverRegistration: driverRegistrationRouter,
 
   user: router({
     updateProfile: protectedProcedure

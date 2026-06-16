@@ -563,3 +563,35 @@ export const financialLedger = mysqlTable("financial_ledger", {
 
 export type FinancialLedgerRow = typeof financialLedger.$inferSelect;
 export type InsertFinancialLedgerRow = typeof financialLedger.$inferInsert;
+
+/**
+ * Pré-cadastro de motorista — formulário em etapas + documentos.
+ */
+export const driverApplications = mysqlTable("driver_applications", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().unique(),
+  status: mysqlEnum("status", [
+    "rascunho",
+    "enviado",
+    "em_analise",
+    "pendente",
+    "aprovado",
+    "reprovado",
+  ])
+    .default("rascunho")
+    .notNull(),
+  personalData: json("personalData").$type<import("../shared/driverRegistration").DriverPersonalData>(),
+  cnhData: json("cnhData").$type<import("../shared/driverRegistration").DriverCnhData>(),
+  vehicleData: json("vehicleData").$type<import("../shared/driverRegistration").DriverVehicleData>(),
+  securityData: json("securityData").$type<import("../shared/driverRegistration").DriverSecurityData>(),
+  termsData: json("termsData").$type<import("../shared/driverRegistration").DriverTermsData>(),
+  reviewNotes: text("reviewNotes"),
+  submittedAt: timestamp("submittedAt"),
+  reviewedAt: timestamp("reviewedAt"),
+  reviewedBy: int("reviewedBy"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type DriverApplicationRow = typeof driverApplications.$inferSelect;
+export type InsertDriverApplicationRow = typeof driverApplications.$inferInsert;

@@ -18,6 +18,7 @@ import RequestRide from "./pages/RequestRide";
 import RideDetails from "./pages/RideDetails";
 import RideHistory from "./pages/RideHistory";
 import BecomeDriver from "./pages/BecomeDriver";
+import DriverRegistration from "./pages/DriverRegistration";
 import VehicleManagement from "./pages/VehicleManagement";
 import DriverDashboard from "./pages/DriverDashboard";
 import CompleteProfile from "./pages/CompleteProfile";
@@ -93,6 +94,7 @@ function Router() {
       <Route path="/ride-history" component={RideHistory} />
       <Route path="/rides" component={RideHistory} />
       <Route path="/become-driver" component={BecomeDriver} />
+      <Route path="/driver/register" component={DriverRegistration} />
       <Route path="/driver/vehicles" component={VehicleManagement} />
       <Route path="/driver-dashboard" component={DriverDashboard} />
       <Route path="/driver/history" component={RideHistory} />

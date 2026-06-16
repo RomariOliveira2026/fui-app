@@ -566,7 +566,7 @@ export default function DriverDashboard() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Button onClick={() => setLocation("/become-driver")} className="w-full">
+            <Button onClick={() => setLocation("/driver/register")} className="w-full">
               Criar Perfil de Motorista
             </Button>
           </CardContent>

@@ -42,6 +42,7 @@ import {
 import type { FinanceServiceKey, PlatformFinanceConfig } from "@shared/adminFinance";
 import { FINANCE_SERVICE_KEYS } from "@shared/adminFinance";
 import FuiMetricCard from "@/components/fui/FuiMetricCard";
+import AdminDriverRegistrationPanel from "@/components/admin/AdminDriverRegistrationPanel";
 
 const SERVICE_LABELS: Record<FinanceServiceKey, string> = {
   ride: "Corrida",
@@ -56,7 +57,7 @@ function formatBrl(cents: number) {
   return `R$ ${(cents / 100).toFixed(2)}`;
 }
 
-const FINANCE_TAB_VALUES = ["rules", "coupons", "drivers", "cancellations"] as const;
+const FINANCE_TAB_VALUES = ["rules", "coupons", "drivers", "registrations", "cancellations"] as const;
 type FinanceTabValue = (typeof FINANCE_TAB_VALUES)[number];
 
 function readFinanceTabFromUrl(): FinanceTabValue {
@@ -255,6 +256,7 @@ export default function AdminFinance() {
             <TabsTrigger value="rules">Comissões & preços mínimos</TabsTrigger>
             <TabsTrigger value="coupons">Cupons</TabsTrigger>
             <TabsTrigger value="drivers">Aprovação documental</TabsTrigger>
+            <TabsTrigger value="registrations">Pré-cadastros</TabsTrigger>
             <TabsTrigger value="cancellations">Cancelamentos</TabsTrigger>
           </TabsList>
 
@@ -530,6 +532,10 @@ export default function AdminFinance() {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="registrations">
+            <AdminDriverRegistrationPanel />
           </TabsContent>
 
           <TabsContent value="cancellations">

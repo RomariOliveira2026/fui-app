@@ -793,12 +793,12 @@ function LoggedInHome() {
               <div className="border-t border-border my-2" />
 
               <button
-                onClick={() => { setSidebarOpen(false); setLocation("/become-driver"); }}
-                className={sidebarNavClass(isSidebarPathActive("/become-driver"))}
-                aria-current={isSidebarPathActive("/become-driver") ? "page" : undefined}
+                onClick={() => { setSidebarOpen(false); setLocation("/driver/register"); }}
+                className={sidebarNavClass(isSidebarPathActive("/driver/register"))}
+                aria-current={isSidebarPathActive("/driver/register") ? "page" : undefined}
               >
-                <Briefcase className={sidebarIconClass(isSidebarPathActive("/become-driver"))} strokeWidth={2} />
-                <span className="text-left leading-tight">Quero Ser Motorista</span>
+                <Briefcase className={sidebarIconClass(isSidebarPathActive("/driver/register"))} strokeWidth={2} />
+                <span className="text-left leading-tight">Cadastrar como Motorista</span>
               </button>
 
               {showAdminPanel && (
@@ -913,7 +913,7 @@ function VisitorHome() {
                   size="lg" 
                   variant="outline"
                   className="text-lg px-8 py-6 border-primary/30 hover:bg-primary/10"
-                  onClick={() => setLocation("/become-driver")}
+                  onClick={() => setLocation("/driver/register")}
                 >
                   Quero Ser Motorista
                   <ChevronRight className="ml-2 w-5 h-5" />
@@ -1068,7 +1068,7 @@ function VisitorHome() {
                   size="lg" 
                   variant="outline"
                   className="text-lg px-8 py-6 border-white/30 text-white hover:bg-white/10"
-                  onClick={() => setLocation("/become-driver")}
+                  onClick={() => setLocation("/driver/register")}
                 >
                   Seja um Motorista
                 </Button>
@@ -1103,7 +1103,7 @@ function VisitorHome() {
             <div>
               <h4 className="font-bold text-foreground mb-4">Motoristas</h4>
               <ul className="space-y-2 text-muted-foreground">
-                <li><a href="/become-driver" className="hover:text-primary transition-colors">Seja Motorista</a></li>
+                <li><a href="/driver/register" className="hover:text-primary transition-colors">Seja Motorista</a></li>
                 <li><a href="/driver-dashboard" className="hover:text-primary transition-colors">Dashboard</a></li>
               </ul>
             </div>
