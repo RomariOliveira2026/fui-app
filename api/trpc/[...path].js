@@ -11336,6 +11336,14 @@ async function createContext(opts) {
 
 // server/trpcVercel.ts
 var app = express();
+app.use((req, _res, next) => {
+  const raw = req.url ?? "";
+  const pathOnly = raw.split("?")[0] ?? "";
+  if (!pathOnly.startsWith("/api/") && pathOnly.startsWith("/trpc")) {
+    req.url = `/api${raw}`;
+  }
+  next();
+});
 app.use(
   "/api/trpc",
   createExpressMiddleware({

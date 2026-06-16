@@ -7,6 +7,16 @@ import { createContext } from "./_core/context";
 
 const app = express();
 
+// Vercel catch-all pode entregar /trpc/... sem prefixo /api.
+app.use((req, _res, next) => {
+  const raw = req.url ?? "";
+  const pathOnly = raw.split("?")[0] ?? "";
+  if (!pathOnly.startsWith("/api/") && pathOnly.startsWith("/trpc")) {
+    req.url = `/api${raw}`;
+  }
+  next();
+});
+
 app.use(
   "/api/trpc",
   createExpressMiddleware({
