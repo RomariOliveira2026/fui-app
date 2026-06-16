@@ -714,11 +714,7 @@ function LoggedInHome() {
           <div className="absolute left-0 top-0 bottom-0 w-[min(20rem,88vw)] bg-background border-r border-border shadow-2xl animate-in slide-in-from-left duration-300 flex flex-col">
             <div className="px-4 pt-3.5 pb-3 border-b border-border/80 shrink-0 bg-gradient-to-b from-primary/[0.07] via-primary/[0.02] to-transparent">
               <div className="flex items-center justify-between mb-2.5">
-                {WL.logoUrl ? (
-                  <img src={WL.logoUrl} alt={WL.appName} className="h-6 w-auto object-contain" />
-                ) : (
-                  <span className="text-base font-bold tracking-tight text-primary">{WL.appName}</span>
-                )}
+                <AppLogoMark />
                 <button
                   onClick={() => setSidebarOpen(false)}
                   className="p-1.5 -mr-1.5 text-muted-foreground hover:text-foreground rounded-md"

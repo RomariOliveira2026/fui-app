@@ -1,4 +1,5 @@
 import { useAuth } from "@/_core/hooks/useAuth";
+import AppLogoMark from "@/components/fui/AppLogoMark";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -170,7 +171,7 @@ function DashboardLayoutContent({
               </button>
               {!isCollapsed ? (
                 <div className="flex items-center gap-2 min-w-0">
-                  <img src="https://d2xsxph8kpxj0f.cloudfront.net/310519663097022226/kzfSj4x7eR8vE8AeXUkeWP/fui-logo-white-v3_0ddd2b89.png" alt="Fui!" className="h-7 w-auto" />
+                  <AppLogoMark />
                 </div>
               ) : null}
             </div>
