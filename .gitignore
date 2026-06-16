@@ -8,7 +8,9 @@ build/
 *.dist
 api/*.js
 !api/app-config.js
+api/trpc/bundle.js
 api/trpc/*.js
+!api/trpc/\[...path\].js
 
 # Environment variables
 .env
