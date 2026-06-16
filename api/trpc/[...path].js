@@ -11343,7 +11343,15 @@ app.use(
     createContext
   })
 );
-var trpcVercel_default = app;
+function handler(req, res) {
+  return new Promise((resolve, reject) => {
+    res.on("finish", () => resolve());
+    res.on("close", () => resolve());
+    app(req, res, (err) => {
+      if (err) reject(err);
+    });
+  });
+}
 export {
-  trpcVercel_default as default
+  handler as default
 };
