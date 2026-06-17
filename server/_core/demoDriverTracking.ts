@@ -55,7 +55,7 @@ function buildTrack(ride: Ride, phase: TrackPhase): DemoTrack {
 
   const path = buildDriverPhasePath(tripPath, phase, {
     pickupOffsetMeters: START_OFFSET_M,
-    currentPosition: phase === "to_pickup" ? current : null,
+    currentPosition: current,
   });
 
   const target = phase === "to_pickup" ? origin : destination;

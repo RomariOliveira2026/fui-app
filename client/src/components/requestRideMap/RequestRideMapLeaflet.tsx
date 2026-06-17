@@ -58,12 +58,15 @@ function buildRouteGeometry(
 
 function resolveDriverPath(
   tripPath: RoutePoint[],
-  trackingPhase: RequestRideMapViewProps["trackingPhase"]
+  trackingPhase: RequestRideMapViewProps["trackingPhase"],
+  driverPosition?: RequestRideMapPoint | null
 ): RoutePoint[] {
   if (tripPath.length < 2) return tripPath;
 
   if (trackingPhase === "in_trip" || trackingPhase === "completed") {
-    return buildDriverPhasePath(tripPath, "to_destination");
+    return buildDriverPhasePath(tripPath, "to_destination", {
+      currentPosition: driverPosition ?? null,
+    });
   }
 
   if (
@@ -71,7 +74,9 @@ function resolveDriverPath(
     trackingPhase === "arriving" ||
     trackingPhase === "waiting_pickup"
   ) {
-    return buildDriverPhasePath(tripPath, "to_pickup");
+    return buildDriverPhasePath(tripPath, "to_pickup", {
+      currentPosition: driverPosition ?? null,
+    });
   }
 
   return tripPath;
@@ -108,6 +113,7 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
   const pathTotalRef = useRef(0);
   const displayMetersRef = useRef(0);
   const targetMetersRef = useRef(0);
+  const prevTrackingPhaseRef = useRef<RequestRideMapViewProps["trackingPhase"]>(trackingPhase);
   const animFrameRef = useRef<number | null>(null);
   const lastFrameMsRef = useRef<number | null>(null);
   const driverDisplayRef = useRef<RequestRideMapPoint | null>(null);
@@ -154,10 +160,15 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
 
   const refreshDriverPath = useCallback(() => {
     if (tripPathRef.current.length >= 2) {
-      driverPathRef.current = resolveDriverPath(tripPathRef.current, trackingPhase);
+      const driverPos = isValidPoint(driver) ? driver : null;
+      driverPathRef.current = resolveDriverPath(
+        tripPathRef.current,
+        trackingPhase,
+        driverPos
+      );
       pathTotalRef.current = pathTotalMeters(driverPathRef.current);
     }
-  }, [trackingPhase]);
+  }, [trackingPhase, driver]);
 
   const syncStaticLayers = useCallback(() => {
     const map = mapRef.current;
@@ -319,6 +330,8 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
     pathTotalRef.current = pathTotalMeters(path);
     const projected = projectPointOnPath(path, driver);
     const snappedTarget = projected.meters;
+    const phaseChanged = prevTrackingPhaseRef.current !== trackingPhase;
+    prevTrackingPhaseRef.current = trackingPhase;
 
     if (!layersRef.current.driver) {
       displayMetersRef.current = snappedTarget;
@@ -332,6 +345,14 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
       return;
     }
 
+    if (phaseChanged) {
+      stopDriverAnimation();
+      displayMetersRef.current = snappedTarget;
+      targetMetersRef.current = snappedTarget;
+      applyDisplayPosition(snappedTarget);
+      return;
+    }
+
     const prevTarget = targetMetersRef.current;
     if (Math.abs(snappedTarget - prevTarget) > 0.5) {
       targetMetersRef.current = snappedTarget;
@@ -340,7 +361,7 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
     if (Math.abs(displayMetersRef.current - targetMetersRef.current) > STOP_EPSILON_M) {
       startDriverAnimation();
     }
-  }, [driver, refreshDriverPath, fitVisibleBounds, startDriverAnimation, stopDriverAnimation]);
+  }, [driver, refreshDriverPath, fitVisibleBounds, startDriverAnimation, stopDriverAnimation, applyDisplayPosition, trackingPhase]);
 
   useEffect(() => {
     syncStaticLayers();

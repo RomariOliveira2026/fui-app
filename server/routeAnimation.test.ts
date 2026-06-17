@@ -55,6 +55,18 @@ describe("routeAnimation", () => {
       prev = p;
     }
   });
+
+  it("recorta path de destino a partir da posição atual (embarque)", () => {
+    const trip = densifyPath([ORIGIN, MID, DEST]);
+    const atPickup = pointAtPathProgress(trip, progressAtNearestPoint(trip, ORIGIN));
+    const destPath = buildDriverPhasePath(trip, "to_destination", {
+      currentPosition: atPickup,
+    });
+    expect(destPath.length).toBeGreaterThan(2);
+    expect(haversineLike(destPath[0]!, atPickup)).toBeLessThan(30);
+    expect(haversineLike(destPath[destPath.length - 1]!, DEST)).toBeLessThan(30);
+    expect(progressAtNearestPoint(destPath, ORIGIN)).toBeLessThan(0.15);
+  });
 });
 
 function haversineLike(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {

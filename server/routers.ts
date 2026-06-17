@@ -66,7 +66,7 @@ import {
 import { isDemoDriverSimulationAutoAcceptServer, isDemoDriverSimulationEnabledServer } from "@shared/demoSimulation";
 import { isDemoOperationalRidesEnabledServer } from "@shared/demoOperationalRides";
 import { buildDemoRideClientPayload } from "./_core/demoRideClientMeta";
-import { registerOperationalDemoRide } from "./_core/demoOperationalRide";
+import { registerOperationalDemoRide, ensureOperationalTripStarted } from "./_core/demoOperationalRide";
 import { ensureDemoFleetSeed, listDemoFleetForMap } from "./_core/demoFleet";
 import {
   createDemoDriverProfile,
@@ -852,6 +852,22 @@ export const appRouter = router({
           }
           if (ride.status !== "accepted") {
             throw new TRPCError({ code: "BAD_REQUEST", message: "Ride cannot be started in current status" });
+          }
+
+          if (isDemoOperationalRidesEnabledServer()) {
+            const updated = updateDemoRide(input.rideId, { status: "in_progress" });
+            if (updated) {
+              ensureOperationalTripStarted(input.rideId);
+              const fresh = getDemoRide(input.rideId);
+              if (fresh) syncDemoRideState(fresh);
+            }
+            return { success: true };
+          }
+
+          if (isDemoDriverSimulationEnabledServer()) {
+            const started = simulationStartRide(input.rideId);
+            if (started) syncDemoRideState(started);
+            return { success: true };
           }
 
           const updated = updateDemoRide(input.rideId, { status: "in_progress" });

@@ -50,11 +50,13 @@ const START_OFFSET_M = 850;
 function buildSegment(
   ride: Ride,
   phase: "to_pickup" | "to_destination",
-  target: MapCoord
+  target: MapCoord,
+  currentPosition?: MapCoord | null
 ): Segment {
   const tripPath = getDemoTripPath(ride);
   const path = buildDriverPhasePath(tripPath, phase, {
     pickupOffsetMeters: START_OFFSET_M,
+    currentPosition: phase === "to_destination" ? (currentPosition ?? null) : null,
   });
   const distanceM = Math.max(pathTotalMeters(path), 100);
   const durationMs = Math.max(
@@ -88,7 +90,17 @@ function positionAlongSegment(segment: Segment): MapCoord {
 }
 
 function segmentComplete(segment: Segment): boolean {
-  return Date.now() - segment.startedAtMs >= segment.durationMs;
+  const progress = Math.min(1, (Date.now() - segment.startedAtMs) / segment.durationMs);
+  if (progress < 1) return false;
+
+  const pos = pointAtPathProgress(segment.path, 1);
+  const pathEnd = segment.path[segment.path.length - 1]!;
+  const remaining = remainingMetersAlongPath(segment.path, pos);
+  return (
+    remaining <= DRIVER_ARRIVING_THRESHOLD_M ||
+    haversineMeters(pos, segment.target) <= DRIVER_ARRIVING_THRESHOLD_M ||
+    haversineMeters(pathEnd, segment.target) <= DRIVER_ARRIVING_THRESHOLD_M
+  );
 }
 
 /** Aceita corrida com Motorista Demo e inicia deslocamento ao embarque. */
@@ -132,23 +144,29 @@ export function simulationStartRide(rideId: number): Ride | undefined {
   if (!isDemoDriverSimulationEnabledServer()) return undefined;
 
   const ride = getDemoRide(rideId);
-  if (!ride || ride.status !== "accepted" || !isDemoSimulationDriverId(ride.driverId)) {
+  if (
+    !ride ||
+    (ride.status !== "accepted" && ride.status !== "in_progress") ||
+    !isDemoSimulationDriverId(ride.driverId)
+  ) {
     return undefined;
   }
 
   const state = states.get(rideId);
-  if (state?.phase !== "arrived_pickup") return undefined;
+  if (state?.phase !== "arrived_pickup" && state?.phase !== "in_trip") return undefined;
 
   const origin = parseMapPoint(ride.originLat, ride.originLng)!;
   const destination = parseMapPoint(ride.destinationLat, ride.destinationLng)!;
-  const segment = buildSegment(ride, "to_destination", destination);
+  const current =
+    parseMapPoint(ride.driverCurrentLat, ride.driverCurrentLng) ?? origin;
+  const segment = buildSegment(ride, "to_destination", destination, current);
 
   states.set(rideId, { phase: "in_trip", segment });
 
   return updateDemoRide(rideId, {
     status: "in_progress",
-    driverCurrentLat: origin.lat.toFixed(6),
-    driverCurrentLng: origin.lng.toFixed(6),
+    driverCurrentLat: current.lat.toFixed(6),
+    driverCurrentLng: current.lng.toFixed(6),
   });
 }
 
@@ -201,6 +219,11 @@ export function advanceDemoRideSimulation(ride: Ride): Ride {
 
   if (state.phase === "arrived_pickup") {
     return ride;
+  }
+
+  if (ride.status === "in_progress" && state.phase !== "in_trip" && state.phase !== "completed") {
+    const started = simulationStartRide(ride.id);
+    if (started && started !== ride) return started;
   }
 
   if (state.phase === "in_trip" && state.segment) {
@@ -288,7 +311,12 @@ function refreshSimulationSegmentPath(rideId: number): void {
     (Date.now() - state.segment.startedAtMs) / Math.max(state.segment.durationMs, 1)
   );
 
-  const newSegment = buildSegment(ride, phase, state.segment.target);
+  const current =
+    phase === "to_destination"
+      ? (parseMapPoint(ride.driverCurrentLat, ride.driverCurrentLng) ??
+        pointAtPathProgress(state.segment.path, progress))
+      : null;
+  const newSegment = buildSegment(ride, phase, state.segment.target, current);
   newSegment.startedAtMs = Date.now() - Math.round(progress * newSegment.durationMs);
   states.set(rideId, { ...state, segment: newSegment });
 }

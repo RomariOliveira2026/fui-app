@@ -186,6 +186,10 @@ export function buildDriverPhasePath(
   const densified = densifyPath(tripPath, APPROACH_STEP_METERS);
 
   if (phase === "to_destination") {
+    if (options?.currentPosition && densified.length >= 2) {
+      const { meters } = projectPointOnPath(densified, options.currentPosition);
+      return trimPathFromMeters(densified, Math.max(0, meters));
+    }
     return densified;
   }
 
