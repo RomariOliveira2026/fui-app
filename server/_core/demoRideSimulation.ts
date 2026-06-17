@@ -21,7 +21,7 @@ import {
   type RoutePoint,
 } from "@shared/routeAnimation";
 import { clearDemoDriverTrack, syncDemoDriverTracking } from "./demoDriverTracking";
-import { getDemoTripPath } from "./demoRoutePaths";
+import { getDemoTripPath, registerDemoRoutePathUpgradeHandler } from "./demoRoutePaths";
 import { getDemoRide, isDemoRideId, updateDemoRide } from "./demoRide";
 import {
   ensureDemoSimulationDriver,
@@ -275,3 +275,22 @@ export function syncDemoRideState(ride: Ride): Ride {
   }
   return syncDemoDriverTracking(ride);
 }
+
+function refreshSimulationSegmentPath(rideId: number): void {
+  const state = states.get(rideId);
+  const ride = getDemoRide(rideId);
+  if (!state?.segment || !ride) return;
+  if (state.phase !== "to_pickup" && state.phase !== "in_trip") return;
+
+  const phase = state.phase === "in_trip" ? "to_destination" : "to_pickup";
+  const progress = Math.min(
+    1,
+    (Date.now() - state.segment.startedAtMs) / Math.max(state.segment.durationMs, 1)
+  );
+
+  const newSegment = buildSegment(ride, phase, state.segment.target);
+  newSegment.startedAtMs = Date.now() - Math.round(progress * newSegment.durationMs);
+  states.set(rideId, { ...state, segment: newSegment });
+}
+
+registerDemoRoutePathUpgradeHandler(refreshSimulationSegmentPath);

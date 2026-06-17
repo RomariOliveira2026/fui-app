@@ -48,7 +48,7 @@ import {
 } from "./_core/demoRideOffers";
 import { isRideReadyForDispatch } from "@shared/rideDispatcher";
 import { createDemoRide, getDemoRide, getDemoRequestedRides, getDemoActiveRidesForUser, getAllDemoRides, getDemoPassengerRides, getDemoDriverRides, hydrateDemoRides, isDemoRideId, updateDemoRide } from "./_core/demoRide";
-import { prefetchDemoRoutePath } from "./_core/demoRoutePaths";
+import { ensureDemoRoutePath } from "./_core/demoRoutePaths";
 import {
   clearDemoDriverTrack,
   initDemoDriverTrack,
@@ -586,7 +586,7 @@ export const appRouter = router({
             passengerPremiumMeta,
           });
 
-          prefetchDemoRoutePath(ride);
+          await ensureDemoRoutePath(ride);
 
           if (isDemoOperationalRidesEnabledServer()) {
             registerOperationalDemoRide(
@@ -1822,7 +1822,7 @@ export const appRouter = router({
             passengerPremiumMeta,
           });
 
-          prefetchDemoRoutePath(ride);
+          await ensureDemoRoutePath(ride);
 
           if (isRideReadyForDispatch(ride)) {
             try {

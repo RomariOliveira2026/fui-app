@@ -278,6 +278,7 @@ export default function RideDetails() {
                 rideStatus={ride.status}
                 driverId={ride.driverId}
                 simulationPhase={simRide.simulationPhase}
+                tripPath={tripPath}
               />
 
               {!ride.driverId && tracking && ride.status === "requested" ? (

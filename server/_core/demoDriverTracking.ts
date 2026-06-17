@@ -13,8 +13,8 @@ import {
   projectPointOnPath,
   type RoutePoint,
 } from "@shared/routeAnimation";
-import { updateDemoRide } from "./demoRide";
-import { clearDemoRoutePath, getDemoTripPath } from "./demoRoutePaths";
+import { getDemoRide, updateDemoRide } from "./demoRide";
+import { getDemoTripPath, registerDemoRoutePathUpgradeHandler } from "./demoRoutePaths";
 
 type TrackPhase = "to_pickup" | "to_destination";
 
@@ -34,7 +34,17 @@ const START_OFFSET_M = 900;
 
 export function clearDemoDriverTrack(rideId: number): void {
   tracks.delete(rideId);
-  clearDemoRoutePath(rideId);
+}
+
+function rebuildTrackFromRouteUpgrade(rideId: number): void {
+  const track = tracks.get(rideId);
+  const ride = getDemoRide(rideId);
+  if (!track || !ride) return;
+
+  const progress = Math.min(1, (Date.now() - track.startedAtMs) / Math.max(track.durationMs, 1));
+  const rebuilt = buildTrack(ride, track.phase);
+  rebuilt.startedAtMs = Date.now() - Math.round(progress * rebuilt.durationMs);
+  tracks.set(rideId, rebuilt);
 }
 
 function buildTrack(ride: Ride, phase: TrackPhase): DemoTrack {
@@ -135,3 +145,5 @@ export function syncDemoDriverTracking(ride: Ride): Ride {
 
   return updated ?? ride;
 }
+
+registerDemoRoutePathUpgradeHandler(rebuildTrackFromRouteUpgrade);

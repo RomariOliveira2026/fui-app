@@ -26,7 +26,7 @@ import {
   releaseFleetDriver,
   setFleetDriverOnRide,
 } from "./demoFleet";
-import { getDemoTripPath } from "./demoRoutePaths";
+import { getDemoTripPath, registerDemoRoutePathUpgradeHandler } from "./demoRoutePaths";
 import { getDemoRide, isDemoRideId, updateDemoRide } from "./demoRide";
 import { updateDemoDriverLocation } from "./demoDriver";
 
@@ -307,3 +307,34 @@ export function isOperationalDriverNearPickup(ride: Ride): boolean {
     remainingMetersAlongPath(state.segment.path, pos) <= DRIVER_ARRIVING_THRESHOLD_M
   );
 }
+
+/** Recalcula segmento ativo quando a rota OSRM substitui fallback em linha reta. */
+export function refreshOperationalSegmentPath(rideId: number): void {
+  const state = states.get(rideId);
+  const ride = getDemoRide(rideId);
+  if (!state?.segment || !ride) return;
+  if (state.phase !== "to_pickup" && state.phase !== "in_trip") return;
+
+  const phase = state.phase === "in_trip" ? "to_destination" : "to_pickup";
+  const progress = Math.min(
+    1,
+    (Date.now() - state.segment.startedAtMs) / Math.max(state.segment.durationMs, 1)
+  );
+
+  const newSegment = buildSegment(ride, phase, state.segment.target);
+  newSegment.startedAtMs = Date.now() - Math.round(progress * newSegment.durationMs);
+
+  states.set(rideId, { ...state, segment: newSegment });
+
+  const pos = positionAlongSegment(newSegment);
+  const updated = updateDemoRide(rideId, {
+    driverCurrentLat: pos.lat.toFixed(6),
+    driverCurrentLng: pos.lng.toFixed(6),
+  });
+
+  if (updated?.driverId) {
+    updateDemoDriverLocation(updated.driverId, pos.lat.toFixed(6), pos.lng.toFixed(6));
+  }
+}
+
+registerDemoRoutePathUpgradeHandler(refreshOperationalSegmentPath);

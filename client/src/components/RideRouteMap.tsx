@@ -31,6 +31,8 @@ type RideRouteMapProps = {
   rideStatus?: string;
   driverId?: number | null;
   simulationPhase?: DemoSimulationPhase | null;
+  /** Rota OSRM do servidor — mesma geometria usada na simulação do motorista. */
+  tripPath?: MapPoint[] | null;
   className?: string;
 };
 
@@ -45,6 +47,7 @@ export default function RideRouteMap({
   rideStatus = "requested",
   driverId,
   simulationPhase,
+  tripPath: serverTripPath,
   className,
 }: RideRouteMapProps) {
   const utils = trpc.useUtils();
@@ -92,11 +95,19 @@ export default function RideRouteMap({
   const showDriver = shouldShowDriverOnMap(rideLike) && !!driver;
 
   const [encodedPolyline, setEncodedPolyline] = useState<string | null>(null);
-  const [routePath, setRoutePath] = useState<MapPoint[] | null>(null);
+  const [fetchedRoutePath, setFetchedRoutePath] = useState<MapPoint[] | null>(null);
+
+  const hasServerTripPath = !!serverTripPath && serverTripPath.length >= 2;
 
   useEffect(() => {
+    if (hasServerTripPath) {
+      setEncodedPolyline(null);
+      setFetchedRoutePath(null);
+      return;
+    }
+
     setEncodedPolyline(null);
-    setRoutePath(null);
+    setFetchedRoutePath(null);
     if (!origin || !destination) return;
 
     let active = true;
@@ -110,17 +121,19 @@ export default function RideRouteMap({
         setEncodedPolyline(route.overviewPolyline ?? null);
         const path = (route as { routePath?: MapPoint[] }).routePath;
         if (path && path.length >= 2) {
-          setRoutePath(path);
+          setFetchedRoutePath(path);
         }
       } catch {
-        // Linha direta A→B
+        // RequestRideMap desenha fallback A→B densificado
       }
     })();
 
     return () => {
       active = false;
     };
-  }, [origin, destination, utils]);
+  }, [origin, destination, hasServerTripPath, utils]);
+
+  const routePath = hasServerTripPath ? serverTripPath! : fetchedRoutePath;
 
   const tracking = getRideTrackingPresentation(rideLike, simulationPhase, null, routePath);
 
