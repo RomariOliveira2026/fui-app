@@ -3,6 +3,7 @@ import type { RideDispatchMeta } from "./rideDispatcher";
 import type { DemoSimulationPhase } from "./demoSimulation";
 import {
   DRIVER_ARRIVING_THRESHOLD_M,
+  formatEtaDisplay,
   getPassengerDriverEta,
   parseMapPoint,
   shouldShowDriverOnMap,
@@ -208,12 +209,13 @@ export function getRideTrackingPresentation(
   }
 
   if (phase === "in_trip" && eta) {
+    const display = formatEtaDisplay(eta.minutes, eta.distanceM);
     return {
       phase,
       variant: "brand",
       statusTitle: "Em corrida",
       statusBadge: "A caminho do destino",
-      etaHeadline: String(Math.max(1, eta.minutes)),
+      etaHeadline: display.headline,
       etaSubline: eta.label,
       showLivePulse: true,
       showDriverOnMap: onMap,
@@ -224,12 +226,13 @@ export function getRideTrackingPresentation(
 
   if (eta) {
     const isArriving = phase === "arriving" || eta.isArriving;
+    const display = formatEtaDisplay(eta.minutes, eta.distanceM);
     return {
       phase: isArriving ? "arriving" : "en_route",
       variant: isArriving ? "success" : "brand",
       statusTitle: eta.statusTitle,
       statusBadge: isArriving ? "Chegando" : "A caminho",
-      etaHeadline: String(Math.max(1, eta.minutes)),
+      etaHeadline: display.headline,
       etaSubline: eta.label,
       showLivePulse: true,
       showDriverOnMap: onMap,

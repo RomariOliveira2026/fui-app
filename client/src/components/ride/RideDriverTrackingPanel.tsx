@@ -1,3 +1,4 @@
+import type { RoutePoint } from "@shared/routeAnimation";
 import type { DemoSimulationPhase } from "@/lib/demoSimulation";
 import {
   getRideTrackingPresentation,
@@ -12,6 +13,7 @@ import type { Ride } from "../../../../drizzle/schema";
 type RideDriverTrackingPanelProps = {
   ride: Ride & { simulationPhase?: DemoSimulationPhase };
   driver: RideDriverInfo;
+  tripPath?: RoutePoint[] | null;
   onChat?: () => void;
   showChat?: boolean;
   className?: string;
@@ -20,11 +22,12 @@ type RideDriverTrackingPanelProps = {
 export default function RideDriverTrackingPanel({
   ride,
   driver,
+  tripPath,
   onChat,
   showChat,
   className,
 }: RideDriverTrackingPanelProps) {
-  const tracking = getRideTrackingPresentation(ride, ride.simulationPhase);
+  const tracking = getRideTrackingPresentation(ride, ride.simulationPhase, undefined, tripPath);
   const currentPhase = resolveRideTrackingPhase(ride, ride.simulationPhase);
   const sequence = getRideTrackingSequence();
   const currentIndex = sequence.findIndex((s) => s.phase === currentPhase);

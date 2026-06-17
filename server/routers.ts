@@ -65,6 +65,7 @@ import {
 } from "./_core/demoRideSimulation";
 import { isDemoDriverSimulationAutoAcceptServer, isDemoDriverSimulationEnabledServer } from "@shared/demoSimulation";
 import { isDemoOperationalRidesEnabledServer } from "@shared/demoOperationalRides";
+import { buildDemoRideClientPayload } from "./_core/demoRideClientMeta";
 import { registerOperationalDemoRide } from "./_core/demoOperationalRide";
 import { ensureDemoFleetSeed, listDemoFleetForMap } from "./_core/demoFleet";
 import {
@@ -560,6 +561,7 @@ export const appRouter = router({
         intermediateStops: intermediateStopsInputSchema,
       }))
       .mutation(async ({ ctx, input }) => {
+        try {
         const { bookedFor, intermediateStops, ...rideInput } = input;
         const passengerPremiumMeta = buildPremiumMeta({ bookedFor, intermediateStops });
 
@@ -718,6 +720,14 @@ export const appRouter = router({
         }
 
         return { success: true, rideId, pricePerPassenger };
+        } catch (error) {
+          console.error("[ride.request] Falha ao solicitar corrida:", error);
+          if (error instanceof TRPCError) throw error;
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Não foi possível solicitar a corrida. Verifique os dados e tente novamente.",
+          });
+        }
       }),
 
     accept: driverProcedure
@@ -1164,11 +1174,7 @@ export const appRouter = router({
           }
           processDispatchForDemoRide(input.rideId);
           ride = getDemoRide(input.rideId)!;
-          ride = syncDemoRideState(ride);
-          const demoDriver = getDemoRideDriverDetails(ride);
-          const withMeta = attachSimulationMeta(ride);
-          const withDispatch = attachDispatchMeta(withMeta);
-          return demoDriver ? { ...withDispatch, demoDriver } : withDispatch;
+          return buildDemoRideClientPayload(ride);
         }
 
         const ride = await db.getRideById(input.rideId);
@@ -1352,7 +1358,7 @@ export const appRouter = router({
       if (isDemoPassenger(ctx.user)) {
         const driverProfile = getDemoDriverProfileByUserId(ctx.user.id);
         return getDemoActiveRidesForUser(ctx.user.id, driverProfile?.id).map((ride) =>
-          attachSimulationMeta(syncDemoRideState(ride))
+          buildDemoRideClientPayload(ride)
         );
       }
 

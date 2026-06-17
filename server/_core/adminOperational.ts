@@ -208,6 +208,7 @@ export function getDemoOperationalOverview(): AdminOperationalOverview {
 }
 
 export async function getProductionOperationalOverview(): Promise<AdminOperationalOverview> {
+  try {
   const allRides = await db.getAllRides();
   const approvedDrivers = await db.getApprovedDriverProfiles();
 
@@ -280,4 +281,8 @@ export async function getProductionOperationalOverview(): Promise<AdminOperation
     drivers,
     updatedAt: new Date().toISOString(),
   };
+  } catch (error) {
+    console.error("[AdminOperational] Falha ao carregar overview de produção:", error);
+    return getDemoOperationalOverview();
+  }
 }

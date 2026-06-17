@@ -32,6 +32,8 @@ import RideSimulationPanel, { type RideWithSimulation } from "@/components/RideS
 import RideDriverTrackingPanel from "@/components/ride/RideDriverTrackingPanel";
 import RideETAStatusCard from "@/components/ride/RideETAStatusCard";
 import { isDemoDriverSimulationEnabled } from "@/lib/demoSimulation";
+import FlowErrorFallback from "@/components/fui/FlowErrorFallback";
+import type { RoutePoint } from "@shared/routeAnimation";
 import type { RideDispatchMeta } from "@shared/rideDispatcher";
 
 type DemoDriverInfo = {
@@ -81,19 +83,25 @@ export default function RideDetails() {
     onError: (error) => toast.error(error.message),
   });
   
-  const { data: ride, isLoading } = trpc.ride.getById.useQuery(
+  const { data: ride, isLoading, isError, error, refetch } = trpc.ride.getById.useQuery(
     { rideId },
     {
       enabled: !!rideId,
+      throwOnError: false,
       refetchInterval: (query) => {
         const data = query.state.data as RideWithSimulation | undefined;
-        if (simulationEnabled && data && data.status !== "completed" && data.status !== "cancelled") {
+        if (!data || data.status === "completed" || data.status === "cancelled") {
+          return false;
+        }
+        if (simulationEnabled || shouldShowDriverOnMap(data)) {
           return 2000;
         }
-        if (data && shouldShowDriverOnMap(data)) return 3000;
+        if (data.status === "requested" || data.status === "accepted") {
+          return 3000;
+        }
         return 5000;
       },
-      retry: false,
+      retry: 1,
     }
   );
 
@@ -143,6 +151,20 @@ export default function RideDetails() {
     );
   }
 
+  if (isError) {
+    return (
+      <div className="min-h-screen bg-background">
+        <AppHeader title="Detalhes da Corrida" />
+        <FlowErrorFallback
+          title="Não foi possível carregar a corrida"
+          error={error}
+          onRetry={() => void refetch()}
+          onGoHome={() => setLocation("/")}
+        />
+      </div>
+    );
+  }
+
   if (!ride) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
@@ -172,7 +194,13 @@ export default function RideDetails() {
   const showDriverOnMap = shouldShowDriverOnMap(ride);
   const showDriverEnRoute = shouldShowDriverEnRoute(ride);
   const dispatchMeta = (ride as { dispatchMeta?: RideDispatchMeta }).dispatchMeta;
-  const tracking = getRideTrackingPresentation(ride, simRide.simulationPhase, dispatchMeta);
+  const tripPath = (ride as { tripPath?: RoutePoint[] }).tripPath;
+  const tracking = getRideTrackingPresentation(
+    ride,
+    simRide.simulationPhase,
+    dispatchMeta,
+    tripPath
+  );
   const paymentPending =
     (ride.paymentMethod === "pix" || ride.paymentMethod === "card") &&
     ride.paymentStatus === "pending";
@@ -258,6 +286,7 @@ export default function RideDetails() {
             {ride.driverId ? (
               <RideDriverTrackingPanel
                 ride={simRide}
+                tripPath={tripPath}
                 driver={{
                   driverName: demoDriver?.driverName ?? driverDisplayName,
                   rating: demoDriver?.rating,

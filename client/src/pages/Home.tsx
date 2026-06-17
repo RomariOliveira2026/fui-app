@@ -45,7 +45,12 @@ import {
   loadAddressHistory,
   type AddressHistoryItem,
 } from "@/lib/addressHistory";
-import { persistRideAddressHistory, resolveLocalPlaceId, simulateLocalRideRequest } from "@/lib/requestRideLocal";
+import { getRideFlowErrorMessage } from "@/lib/rideFlowErrors";
+import {
+  persistRideAddressHistory,
+  resolveLocalPlaceId,
+  simulateLocalRideRequest,
+} from "@/lib/requestRideLocal";
 import { useSavedAddresses } from "@/lib/useSavedAddresses";
 import { getDemoPricingByVehicleType } from "@shared/demoPricing";
 import { toast } from "sonner";
@@ -303,14 +308,14 @@ function LoggedInHome() {
         setLocation(`/payment/${data.rideId}`);
       }
     } catch (error) {
-      if (!isLocalDemoDev()) {
-        toast.error(error instanceof Error ? error.message : "Erro ao solicitar corrida");
+      const message = getRideFlowErrorMessage(error);
+      if (isLocalDemoDev()) {
+        const rideId = simulateLocalRideRequest(payload);
+        toast.success("Corrida solicitada (demo local)!");
+        setLocation(`/ride/${rideId}`);
         return;
       }
-
-      const rideId = simulateLocalRideRequest(payload);
-      toast.success("Corrida solicitada (demo local)!");
-      setLocation(`/ride/${rideId}`);
+      toast.error(message);
     } finally {
       setRequesting(false);
     }

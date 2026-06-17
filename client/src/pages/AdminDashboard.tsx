@@ -33,6 +33,7 @@ import {
   type AdminFiltersState,
   type AdminSelection,
 } from "@/lib/adminOperationalUi";
+import FlowErrorFallback from "@/components/fui/FlowErrorFallback";
 import { cn } from "@/lib/utils";
 
 export default function AdminDashboard() {
@@ -62,10 +63,14 @@ export default function AdminDashboard() {
     data: overview,
     isLoading: overviewLoading,
     isFetching,
+    isError: overviewError,
+    error: overviewQueryError,
     refetch,
   } = trpc.admin.getOperationalOverview.useQuery(undefined, {
     enabled: allowed && adminView === "live",
     refetchInterval: adminView === "live" ? 8000 : false,
+    throwOnError: false,
+    retry: 1,
   });
 
   const cancelRideMutation = trpc.admin.cancelRide.useMutation({
@@ -171,6 +176,14 @@ export default function AdminDashboard() {
           </AdminPanelErrorBoundary>
         ) : (
           <div className="space-y-5">
+            {overviewError ? (
+              <FlowErrorFallback
+                title="Central operacional indisponível"
+                error={overviewQueryError}
+                onRetry={() => void refetch()}
+                onGoHome={() => setLocation("/")}
+              />
+            ) : null}
             {overview ? <AdminStatsCards metrics={overview.metrics} /> : null}
 
             <AdminFilters filters={filters} onChange={setFilters} areas={areas} />

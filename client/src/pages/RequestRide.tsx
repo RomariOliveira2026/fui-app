@@ -29,6 +29,7 @@ import { isLocalDemoDev } from "@/lib/demoMode";
 import { usePassengerCurrentLocation } from "@/lib/usePassengerCurrentLocation";
 import { useDemoFleetDrivers } from "@/lib/useDemoFleetDrivers";
 import { fetchRouteWithDemoFallback } from "@/lib/demoRoute";
+import { getRideFlowErrorMessage } from "@/lib/rideFlowErrors";
 import {
   persistRideAddressHistory,
   resolveLocalPlaceId,
@@ -527,20 +528,13 @@ export default function RequestRide() {
         setLocation(`/payment/${data.rideId}`);
       }
     } catch (error) {
-      if (!isLocalDemoDev()) {
-        const message =
-          error instanceof Error && error.message === "Failed to fetch"
-            ? "Não foi possível contactar o servidor. Verifique se o backend está rodando."
-            : error instanceof Error
-              ? error.message
-              : "Erro ao solicitar corrida";
-        toast.error(message);
+      if (isLocalDemoDev()) {
+        const rideId = simulateLocalRideRequest(payload);
+        toast.success("Corrida solicitada (demo local)!");
+        setLocation(`/ride/${rideId}`);
         return;
       }
-
-      const rideId = simulateLocalRideRequest(payload);
-      toast.success("Corrida solicitada (demo local)!");
-      setLocation(`/ride/${rideId}`);
+      toast.error(getRideFlowErrorMessage(error));
     }
   };
 

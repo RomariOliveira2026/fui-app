@@ -10,6 +10,8 @@ import {
 
 export type MapCoord = { lat: number; lng: number };
 
+export const DRIVER_ARRIVING_THRESHOLD_M = 180;
+
 export function parseCoord(value: string | number | null | undefined): number | null {
   const n = typeof value === "number" ? value : Number.parseFloat(String(value ?? ""));
   return Number.isFinite(n) ? n : null;
@@ -33,14 +35,43 @@ export function lerpCoord(from: MapCoord, to: MapCoord, t: number): MapCoord {
   };
 }
 
+/** Velocidade média para ETA (km/h). Demo operacional usa ~36 km/h no servidor. */
+export const DEFAULT_DRIVER_SPEED_KMH = 32;
+export const DEMO_DRIVER_SPEED_KMH = 36;
+
 /** Estima minutos de viagem a partir da distância (m) e velocidade média. */
-export function estimateTravelMinutes(distanceMeters: number, speedKmh = 30): number {
+export function estimateTravelMinutes(
+  distanceMeters: number,
+  speedKmh = DEFAULT_DRIVER_SPEED_KMH
+): number {
+  if (distanceMeters <= DRIVER_ARRIVING_THRESHOLD_M) return 0;
   if (distanceMeters <= 0) return 0;
-  const hours = distanceMeters / 1000 / speedKmh;
-  return Math.max(1, Math.round(hours * 60));
+  const minutesRaw = (distanceMeters / 1000 / speedKmh) * 60;
+  return Math.max(1, Math.ceil(minutesRaw));
 }
 
-export const DRIVER_ARRIVING_THRESHOLD_M = 180;
+/** Texto de ETA para UI — evita ficar preso em “2 min” sem contexto. */
+export function formatEtaDisplay(
+  minutes: number,
+  distanceM?: number
+): { headline: string; label: string } {
+  if (distanceM != null && distanceM <= DRIVER_ARRIVING_THRESHOLD_M) {
+    return { headline: "0", label: "Chegando agora" };
+  }
+  if (minutes <= 0) {
+    return { headline: "<1", label: "Menos de 1 minuto" };
+  }
+  if (distanceM != null && distanceM < 600) {
+    return {
+      headline: String(minutes),
+      label: `~${Math.round(distanceM)} m · ${minutes} min`,
+    };
+  }
+  return {
+    headline: String(minutes),
+    label: minutes === 1 ? "~1 minuto" : `~${minutes} minutos`,
+  };
+}
 
 export function isDriverArriving(distanceMeters: number): boolean {
   return distanceMeters <= DRIVER_ARRIVING_THRESHOLD_M;
@@ -130,7 +161,12 @@ export function getPassengerDriverEta(
     simulationPhase,
     resolvedPath
   );
-  const minutes = estimateTravelMinutes(distanceM);
+  const speedKmh =
+    simulationPhase && simulationPhase !== "completed"
+      ? DEMO_DRIVER_SPEED_KMH
+      : DEFAULT_DRIVER_SPEED_KMH;
+  const minutes = estimateTravelMinutes(distanceM, speedKmh);
+  const etaText = formatEtaDisplay(minutes, distanceM);
   const arriving = ride.status === "accepted" && isDriverArriving(distanceM);
 
   if (ride.status === "in_progress") {
@@ -138,17 +174,17 @@ export function getPassengerDriverEta(
       minutes,
       isArriving: false,
       distanceM,
-      label: `${minutes} min até o destino`,
+      label: `${etaText.label} até o destino`,
       statusTitle: "Corrida em andamento",
     };
   }
 
   if (arriving) {
     return {
-      minutes: Math.max(1, minutes),
+      minutes,
       isArriving: true,
       distanceM,
-      label: `Chegando em ${Math.max(1, minutes)} min`,
+      label: etaText.label,
       statusTitle: "Motorista chegando",
     };
   }
@@ -157,7 +193,7 @@ export function getPassengerDriverEta(
     minutes,
     isArriving: false,
     distanceM,
-    label: `Motorista a ${minutes} min`,
+    label: `Motorista a ${etaText.label}`,
     statusTitle: "Motorista a caminho",
   };
 }

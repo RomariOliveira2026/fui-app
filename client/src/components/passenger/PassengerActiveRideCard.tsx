@@ -8,12 +8,13 @@ import {
   isDemoPaymentApproved,
   shouldShowDriverEnRoute,
 } from "@/lib/demoRidePayment";
+import type { RoutePoint } from "@shared/routeAnimation";
 import { getPassengerDriverEta, shouldShowDriverOnMap } from "@shared/driverTracking";
 import type { DemoSimulationPhase } from "@/lib/demoSimulation";
 import { ArrowRight, Car, Clock, CreditCard } from "lucide-react";
 
 type PassengerActiveRideCardProps = {
-  ride: Ride & { simulationPhase?: DemoSimulationPhase };
+  ride: Ride & { simulationPhase?: DemoSimulationPhase; tripPath?: RoutePoint[] };
   onViewDetails: () => void;
 };
 
@@ -27,7 +28,7 @@ export default function PassengerActiveRideCard({
     !isDemoPaymentApproved(ride) &&
     (ride.paymentMethod === "pix" || ride.paymentMethod === "card");
   const showOnMap = shouldShowDriverOnMap(ride);
-  const driverTracking = getPassengerDriverEta(ride, ride.simulationPhase);
+  const driverTracking = getPassengerDriverEta(ride, ride.simulationPhase, ride.tripPath);
   const driverEnRoute = shouldShowDriverEnRoute(ride) || showOnMap;
 
   return (
