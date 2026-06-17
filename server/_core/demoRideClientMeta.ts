@@ -4,7 +4,7 @@ import { getDemoRideDriverDetails } from "./demoDriver";
 import { attachDispatchMeta } from "./dispatchEngine";
 import { getDemoTripPath } from "./demoRoutePaths";
 import { getOperationalEtaSeconds } from "./demoOperationalRide";
-import { attachSimulationMeta, syncDemoRideState } from "./demoRideSimulation";
+import { attachSimulationMeta, getSimulationEtaSeconds, syncDemoRideState } from "./demoRideSimulation";
 
 export type DemoRideClientPayload = Ride & {
   simulationPhase?: string;
@@ -27,7 +27,8 @@ export function buildDemoRideClientPayload(ride: Ride): DemoRideClientPayload {
     base.tripPath = tripPath;
   }
 
-  const etaSeconds = getOperationalEtaSeconds(synced.id);
+  const etaSeconds =
+    getOperationalEtaSeconds(synced.id) ?? getSimulationEtaSeconds(synced.id);
   if (etaSeconds != null) {
     base.etaSecondsRemaining = etaSeconds;
   }

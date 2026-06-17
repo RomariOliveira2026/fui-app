@@ -47,9 +47,12 @@ vi.mock("./_core/demoRide", () => ({
 
 import {
   advanceOperationalDemoRide,
+  getOperationalEtaSeconds,
   getOperationalPhase,
   registerOperationalDemoRide,
+  restoreOperationalStateFromRide,
 } from "./_core/demoOperationalRide";
+import { getDemoTripPath } from "./_core/demoRoutePaths";
 
 function makeRide(overrides: Partial<Ride> = {}): Ride {
   return {
@@ -107,6 +110,39 @@ describe("demoOperationalRide", () => {
     const endLng = Number.parseFloat(ride.driverCurrentLng ?? "");
     expect(Math.abs(endLat - -10.688)).toBeLessThan(0.01);
     expect(Math.abs(endLng - -37.422)).toBeLessThan(0.01);
+
+    vi.useRealTimers();
+  });
+
+  it("restaura estado após perda de memória e continua viagem longa", () => {
+    const longPath = Array.from({ length: 120 }, (_, i) => ({
+      lat: -10.685 + i * 0.002,
+      lng: -37.425 + i * 0.003,
+    }));
+    vi.mocked(getDemoTripPath).mockReturnValue(longPath);
+
+    rideStore.set(-42, makeRide({ status: "in_progress" }));
+    restoreOperationalStateFromRide(rideStore.get(-42)!);
+
+    expect(getOperationalPhase(-42)).toBe("in_trip");
+
+    const etaStart = getOperationalEtaSeconds(-42);
+    expect(etaStart).not.toBeNull();
+
+    vi.advanceTimersByTime(5_000);
+    let ride = advanceOperationalDemoRide(getDemoRideFromStore());
+    const latAfter5s = Number.parseFloat(ride.driverCurrentLat ?? "");
+    expect(latAfter5s).toBeGreaterThan(-10.685);
+
+    const etaMid = getOperationalEtaSeconds(-42);
+    expect(etaMid).not.toBeNull();
+    if (etaStart != null && etaMid != null) {
+      expect(etaMid).toBeLessThan(etaStart);
+    }
+
+    vi.advanceTimersByTime((etaStart ?? 60) * 1000 + 2_000);
+    ride = advanceOperationalDemoRide(getDemoRideFromStore());
+    expect(ride.status).toBe("completed");
 
     vi.useRealTimers();
   });

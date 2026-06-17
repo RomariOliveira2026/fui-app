@@ -18,6 +18,7 @@ import {
   projectPointOnPath,
   type RoutePoint,
 } from "@shared/routeAnimation";
+import { adaptiveDriverCatchUpSpeedMps } from "@shared/demoRideProgression";
 import {
   REQUEST_RIDE_MAP_DEFAULT_CENTER,
   REQUEST_RIDE_MAP_DEFAULT_ZOOM,
@@ -282,7 +283,8 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
 
     if (Math.abs(diff) > STOP_EPSILON_M) {
       const remaining = pathTotalRef.current - display;
-      const speed = linearSpeedAtMeters(remaining);
+      const baseSpeed = linearSpeedAtMeters(remaining);
+      const speed = adaptiveDriverCatchUpSpeedMps(diff, baseSpeed);
       const step = speed * deltaSec;
 
       if (diff > 0) {

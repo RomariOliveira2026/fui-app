@@ -59,6 +59,7 @@ import {
   attachSimulationMeta,
   clearSimulationState,
   registerDemoRideForSimulation,
+  restoreSimulationStateFromRide,
   simulationAcceptRide,
   simulationStartRide,
   syncDemoRideState,
@@ -66,7 +67,7 @@ import {
 import { isDemoDriverSimulationAutoAcceptServer, isDemoDriverSimulationEnabledServer } from "@shared/demoSimulation";
 import { isDemoOperationalRidesEnabledServer } from "@shared/demoOperationalRides";
 import { buildDemoRideClientPayload } from "./_core/demoRideClientMeta";
-import { registerOperationalDemoRide, ensureOperationalTripStarted } from "./_core/demoOperationalRide";
+import { registerOperationalDemoRide, ensureOperationalTripStarted, restoreOperationalStateFromRide } from "./_core/demoOperationalRide";
 import { ensureDemoFleetSeed, listDemoFleetForMap } from "./_core/demoFleet";
 import {
   createDemoDriverProfile,
@@ -1232,9 +1233,16 @@ export const appRouter = router({
                 ride.originLat,
                 ride.originLng
               );
+            } else if (ride.status === "accepted" || ride.status === "in_progress") {
+              restoreOperationalStateFromRide(ride);
             }
           }
         } else {
+          for (const ride of getAllDemoRides()) {
+            if (ride.status === "accepted" || ride.status === "in_progress") {
+              restoreSimulationStateFromRide(ride);
+            }
+          }
           for (const ride of getDemoRequestedRides()) {
             if (isRideReadyForDispatch(ride)) {
               processDispatchForDemoRide(ride.id);

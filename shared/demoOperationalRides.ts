@@ -43,3 +43,9 @@ export const DEMO_OPERATIONAL_PICKUP_WAIT_MS = 2_500;
 
 /** Duração mínima de cada trecho animado (ms). */
 export const DEMO_OPERATIONAL_SEGMENT_MS = 22_000;
+
+/**
+ * Multiplicador de velocidade da simulação (rotas longas em modo demo).
+ * Env: DEMO_RIDE_SPEED_MULTIPLIER — padrão 10× quando BETA_DEMO=true.
+ */
+export { getDemoRideSpeedMultiplier } from "./demoRideProgression";
