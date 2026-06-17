@@ -49,7 +49,7 @@ function FuiAppScreen() {
         </div>
       </div>
 
-      <div className="flex flex-col flex-1 min-h-0 px-3 pt-1.5 pb-2 sm:pt-2 sm:pb-3 gap-1.5 sm:gap-2.5">
+      <div className="flex flex-col flex-1 min-h-0 px-3 pt-1.5 pb-1 sm:pt-2 sm:pb-1.5 gap-1.5 sm:gap-2.5">
         {/* Map + search */}
         <div className="relative h-[6.25rem] sm:h-[7.5rem] lg:h-[8.25rem] shrink-0 rounded-2xl overflow-hidden border border-primary/20 bg-gradient-to-br from-primary/30 via-primary/10 to-background">
           <div
@@ -140,10 +140,10 @@ function FuiAppScreen() {
           ))}
         </div>
 
-        {/* Main CTA — fixo no rodapé da tela (evita corte no mobile) */}
-        <div className="shrink-0 mt-auto pt-0.5 sm:pt-1">
-          <div className="rounded-full bg-gradient-to-r from-primary to-primary/85 py-1.5 sm:py-2 text-center shadow-sm shadow-primary/12">
-            <span className="text-[9px] sm:text-[10px] font-semibold text-primary-foreground tracking-wide">
+        {/* Main CTA — acima do rodapé para não ficar colado na borda */}
+        <div className="shrink-0 mt-auto mb-2.5 sm:mb-3 pt-1 sm:pt-1.5">
+          <div className="rounded-full bg-gradient-to-r from-primary to-primary/85 py-2 sm:py-2.5 px-3 text-center shadow-md shadow-primary/15">
+            <span className="text-[11px] sm:text-xs font-bold text-primary-foreground tracking-wide">
               Solicitar agora
             </span>
           </div>

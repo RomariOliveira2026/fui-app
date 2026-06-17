@@ -78,6 +78,15 @@ export function getOperationalPhase(rideId: number): DemoSimulationPhase | null 
   return states.get(rideId)?.phase ?? null;
 }
 
+/** Segundos restantes no segmento ativo (demo operacional) — ETA autoritativo do servidor. */
+export function getOperationalEtaSeconds(rideId: number): number | null {
+  const state = states.get(rideId);
+  if (!state?.segment) return null;
+  const remainingMs = state.segment.durationMs - (Date.now() - state.segment.startedAtMs);
+  if (remainingMs <= 0) return 0;
+  return Math.ceil(remainingMs / 1000);
+}
+
 export function clearOperationalState(rideId: number): void {
   const ride = getDemoRide(rideId);
   if (ride?.driverId) releaseFleetDriver(ride.driverId);

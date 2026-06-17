@@ -3,7 +3,6 @@ import type { RideDispatchMeta } from "./rideDispatcher";
 import type { DemoSimulationPhase } from "./demoSimulation";
 import {
   DRIVER_ARRIVING_THRESHOLD_M,
-  formatEtaDisplay,
   getPassengerDriverEta,
   parseMapPoint,
   shouldShowDriverOnMap,
@@ -28,10 +27,12 @@ export type RideTrackingPresentation = {
   statusTitle: string;
   statusBadge: string;
   etaHeadline: string;
+  etaUnit: string;
   etaSubline: string;
   showLivePulse: boolean;
   showDriverOnMap: boolean;
   minutes: number;
+  seconds: number;
   distanceM: number;
 };
 
@@ -133,11 +134,17 @@ export function getRideTrackingPresentation(
   ride: RideLike,
   simulationPhase?: DemoSimulationPhase | null,
   dispatchMeta?: RideDispatchMeta | null,
-  tripPath?: RoutePoint[] | null
+  tripPath?: RoutePoint[] | null,
+  etaSecondsRemaining?: number | null
 ): RideTrackingPresentation | null {
   const phase = resolveRideTrackingPhase(ride, simulationPhase);
   const onMap = shouldShowDriverOnMap(ride);
-  const eta = getPassengerDriverEta(ride, simulationPhase, tripPath);
+  const eta = getPassengerDriverEta(
+    ride,
+    simulationPhase,
+    tripPath,
+    etaSecondsRemaining
+  );
 
   if (phase === "searching") {
     const roundBadge = dispatchMeta?.isScheduledWaiting
@@ -155,10 +162,12 @@ export function getRideTrackingPresentation(
         : "Procurando motorista",
       statusBadge: roundBadge,
       etaHeadline: "—",
+      etaUnit: "",
       etaSubline: searchingSubline(dispatchMeta),
       showLivePulse: true,
       showDriverOnMap: false,
       minutes: 0,
+      seconds: 0,
       distanceM: 0,
     };
   }
@@ -170,10 +179,12 @@ export function getRideTrackingPresentation(
       statusTitle: "Corrida finalizada",
       statusBadge: "Concluída",
       etaHeadline: "✓",
+      etaUnit: "",
       etaSubline: "Obrigado por viajar com o Fui!",
       showLivePulse: false,
       showDriverOnMap: false,
       minutes: 0,
+      seconds: 0,
       distanceM: 0,
     };
   }
@@ -185,10 +196,12 @@ export function getRideTrackingPresentation(
       statusTitle: "Motorista encontrado",
       statusBadge: "Confirmado",
       etaHeadline: "—",
+      etaUnit: "",
       etaSubline: "Preparando deslocamento até o embarque",
       showLivePulse: true,
       showDriverOnMap: false,
       minutes: 0,
+      seconds: 0,
       distanceM: 0,
     };
   }
@@ -200,43 +213,47 @@ export function getRideTrackingPresentation(
       statusTitle: "Motorista chegou",
       statusBadge: "No local",
       etaHeadline: "0",
+      etaUnit: "min",
       etaSubline: "Aguardando embarque",
       showLivePulse: true,
       showDriverOnMap: onMap,
       minutes: 0,
+      seconds: 0,
       distanceM: 0,
     };
   }
 
   if (phase === "in_trip" && eta) {
-    const display = formatEtaDisplay(eta.minutes, eta.distanceM);
     return {
       phase,
       variant: "brand",
       statusTitle: "Em corrida",
       statusBadge: "A caminho do destino",
-      etaHeadline: display.headline,
+      etaHeadline: eta.headline,
+      etaUnit: eta.unit,
       etaSubline: eta.label,
       showLivePulse: true,
       showDriverOnMap: onMap,
       minutes: eta.minutes,
+      seconds: eta.seconds,
       distanceM: eta.distanceM,
     };
   }
 
   if (eta) {
     const isArriving = phase === "arriving" || eta.isArriving;
-    const display = formatEtaDisplay(eta.minutes, eta.distanceM);
     return {
       phase: isArriving ? "arriving" : "en_route",
       variant: isArriving ? "success" : "brand",
       statusTitle: eta.statusTitle,
       statusBadge: isArriving ? "Chegando" : "A caminho",
-      etaHeadline: display.headline,
+      etaHeadline: eta.headline,
+      etaUnit: eta.unit,
       etaSubline: eta.label,
       showLivePulse: true,
       showDriverOnMap: onMap,
       minutes: eta.minutes,
+      seconds: eta.seconds,
       distanceM: eta.distanceM,
     };
   }

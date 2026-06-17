@@ -14,7 +14,11 @@ import type { DemoSimulationPhase } from "@/lib/demoSimulation";
 import { ArrowRight, Car, Clock, CreditCard } from "lucide-react";
 
 type PassengerActiveRideCardProps = {
-  ride: Ride & { simulationPhase?: DemoSimulationPhase; tripPath?: RoutePoint[] };
+  ride: Ride & {
+    simulationPhase?: DemoSimulationPhase;
+    tripPath?: RoutePoint[];
+    etaSecondsRemaining?: number;
+  };
   onViewDetails: () => void;
 };
 
@@ -28,7 +32,12 @@ export default function PassengerActiveRideCard({
     !isDemoPaymentApproved(ride) &&
     (ride.paymentMethod === "pix" || ride.paymentMethod === "card");
   const showOnMap = shouldShowDriverOnMap(ride);
-  const driverTracking = getPassengerDriverEta(ride, ride.simulationPhase, ride.tripPath);
+  const driverTracking = getPassengerDriverEta(
+    ride,
+    ride.simulationPhase,
+    ride.tripPath,
+    ride.etaSecondsRemaining
+  );
   const driverEnRoute = shouldShowDriverEnRoute(ride) || showOnMap;
 
   return (

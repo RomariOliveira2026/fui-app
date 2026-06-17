@@ -39,38 +39,88 @@ export function lerpCoord(from: MapCoord, to: MapCoord, t: number): MapCoord {
 export const DEFAULT_DRIVER_SPEED_KMH = 32;
 export const DEMO_DRIVER_SPEED_KMH = 36;
 
-/** Estima minutos de viagem a partir da distância (m) e velocidade média. */
+/** Estima segundos de viagem a partir da distância (m) e velocidade média. */
+export function estimateTravelSeconds(
+  distanceMeters: number,
+  speedKmh = DEFAULT_DRIVER_SPEED_KMH
+): number {
+  if (distanceMeters <= 0 || distanceMeters <= DRIVER_ARRIVING_THRESHOLD_M) return 0;
+  const speedMps = (speedKmh * 1000) / 3600;
+  return Math.max(1, Math.ceil(distanceMeters / speedMps));
+}
+
+/** Estima minutos de viagem (arredondado para cima). */
 export function estimateTravelMinutes(
   distanceMeters: number,
   speedKmh = DEFAULT_DRIVER_SPEED_KMH
 ): number {
-  if (distanceMeters <= DRIVER_ARRIVING_THRESHOLD_M) return 0;
-  if (distanceMeters <= 0) return 0;
-  const minutesRaw = (distanceMeters / 1000 / speedKmh) * 60;
-  return Math.max(1, Math.ceil(minutesRaw));
+  const seconds = estimateTravelSeconds(distanceMeters, speedKmh);
+  if (seconds <= 0) return 0;
+  return Math.ceil(seconds / 60);
 }
 
-/** Texto de ETA para UI — evita ficar preso em “2 min” sem contexto. */
+export type EtaDisplay = {
+  headline: string;
+  unit: string;
+  label: string;
+  seconds: number;
+  minutes: number;
+};
+
+/** Formata ETA para UI — abaixo de 10 min usa M:SS para contagem perceptível. */
+export function formatEtaFromSeconds(seconds: number, distanceM?: number): EtaDisplay {
+  const safeSeconds = Math.max(0, Math.round(seconds));
+
+  if (distanceM != null && distanceM <= DRIVER_ARRIVING_THRESHOLD_M) {
+    return {
+      headline: "0",
+      unit: "min",
+      label: "Chegando agora",
+      seconds: 0,
+      minutes: 0,
+    };
+  }
+  if (safeSeconds <= 0) {
+    return {
+      headline: "<1",
+      unit: "min",
+      label: "Menos de 1 minuto",
+      seconds: 0,
+      minutes: 0,
+    };
+  }
+
+  if (safeSeconds < 600) {
+    const m = Math.floor(safeSeconds / 60);
+    const s = safeSeconds % 60;
+    const timeStr = `${m}:${s.toString().padStart(2, "0")}`;
+    const distanceBit = distanceM != null ? `~${Math.round(distanceM)} m · ` : "";
+    return {
+      headline: timeStr,
+      unit: "",
+      label: `${distanceBit}chegada em ${timeStr}`,
+      seconds: safeSeconds,
+      minutes: Math.ceil(safeSeconds / 60),
+    };
+  }
+
+  const minutes = Math.ceil(safeSeconds / 60);
+  return {
+    headline: String(minutes),
+    unit: "min",
+    label: minutes === 1 ? "~1 minuto" : `~${minutes} minutos`,
+    seconds: safeSeconds,
+    minutes,
+  };
+}
+
+/** @deprecated Prefira formatEtaFromSeconds — mantido para chamadas legadas. */
 export function formatEtaDisplay(
   minutes: number,
   distanceM?: number
 ): { headline: string; label: string } {
-  if (distanceM != null && distanceM <= DRIVER_ARRIVING_THRESHOLD_M) {
-    return { headline: "0", label: "Chegando agora" };
-  }
-  if (minutes <= 0) {
-    return { headline: "<1", label: "Menos de 1 minuto" };
-  }
-  if (distanceM != null && distanceM < 600) {
-    return {
-      headline: String(minutes),
-      label: `~${Math.round(distanceM)} m · ${minutes} min`,
-    };
-  }
-  return {
-    headline: String(minutes),
-    label: minutes === 1 ? "~1 minuto" : `~${minutes} minutos`,
-  };
+  const display = formatEtaFromSeconds(Math.max(0, minutes * 60), distanceM);
+  return { headline: display.headline, label: display.label };
 }
 
 export function isDriverArriving(distanceMeters: number): boolean {
@@ -129,9 +179,13 @@ function estimateDistanceAlongRoute(
 export function getPassengerDriverEta(
   ride: RideLike,
   simulationPhase?: DemoSimulationPhase | null,
-  tripPath?: RoutePoint[] | null
+  tripPath?: RoutePoint[] | null,
+  serverEtaSeconds?: number | null
 ): {
   minutes: number;
+  seconds: number;
+  headline: string;
+  unit: string;
   isArriving: boolean;
   distanceM: number;
   label: string;
@@ -140,6 +194,9 @@ export function getPassengerDriverEta(
   if (simulationPhase === "arrived_pickup" && shouldShowDriverOnMap(ride)) {
     return {
       minutes: 0,
+      seconds: 0,
+      headline: "0",
+      unit: "min",
       isArriving: true,
       distanceM: 0,
       label: "Aguardando início da corrida",
@@ -165,13 +222,20 @@ export function getPassengerDriverEta(
     simulationPhase && simulationPhase !== "completed"
       ? DEMO_DRIVER_SPEED_KMH
       : DEFAULT_DRIVER_SPEED_KMH;
-  const minutes = estimateTravelMinutes(distanceM, speedKmh);
-  const etaText = formatEtaDisplay(minutes, distanceM);
+  const secondsFromDistance = estimateTravelSeconds(distanceM, speedKmh);
+  const seconds =
+    serverEtaSeconds != null && Number.isFinite(serverEtaSeconds)
+      ? Math.max(0, Math.round(serverEtaSeconds))
+      : secondsFromDistance;
+  const etaText = formatEtaFromSeconds(seconds, distanceM);
   const arriving = ride.status === "accepted" && isDriverArriving(distanceM);
 
   if (ride.status === "in_progress") {
     return {
-      minutes,
+      minutes: etaText.minutes,
+      seconds: etaText.seconds,
+      headline: etaText.headline,
+      unit: etaText.unit,
       isArriving: false,
       distanceM,
       label: `${etaText.label} até o destino`,
@@ -181,7 +245,10 @@ export function getPassengerDriverEta(
 
   if (arriving) {
     return {
-      minutes,
+      minutes: etaText.minutes,
+      seconds: etaText.seconds,
+      headline: etaText.headline,
+      unit: etaText.unit,
       isArriving: true,
       distanceM,
       label: etaText.label,
@@ -190,7 +257,10 @@ export function getPassengerDriverEta(
   }
 
   return {
-    minutes,
+    minutes: etaText.minutes,
+    seconds: etaText.seconds,
+    headline: etaText.headline,
+    unit: etaText.unit,
     isArriving: false,
     distanceM,
     label: `Motorista a ${etaText.label}`,

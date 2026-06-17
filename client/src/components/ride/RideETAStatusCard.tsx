@@ -1,5 +1,6 @@
 import { StatusBadge } from "@/components/fui/StatusBadge";
 import { fuiBrand, fuiSemantic, type FuiSemantic } from "@/lib/fuiTheme";
+import { useLiveEtaPresentation } from "@/lib/useLiveEtaSeconds";
 import type { RideTrackingPresentation } from "@/lib/rideTracking";
 import { cn } from "@/lib/utils";
 import { Clock, Navigation } from "lucide-react";
@@ -19,11 +20,31 @@ const variantMap: Record<RideTrackingPresentation["variant"], FuiSemantic> = {
 
 export default function RideETAStatusCard({ tracking, className }: RideETAStatusCardProps) {
   const semantic = fuiSemantic(variantMap[tracking.variant] ?? "brand");
-  const showMinutes =
+  const showEta =
     tracking.phase !== "searching" &&
     tracking.phase !== "completed" &&
     tracking.phase !== "waiting_pickup" &&
     tracking.etaHeadline !== "—";
+
+  const liveEta = useLiveEtaPresentation(
+    tracking.seconds > 0 ? tracking.seconds : undefined,
+    tracking.distanceM,
+    showEta && tracking.seconds > 0
+  );
+
+  const headline = liveEta?.headline ?? tracking.etaHeadline;
+  const unit = liveEta?.unit ?? tracking.etaUnit;
+
+  let etaSubline = tracking.etaSubline;
+  if (liveEta && tracking.seconds > 0) {
+    if (tracking.phase === "in_trip") {
+      etaSubline = `${liveEta.label} até o destino`;
+    } else if (tracking.phase === "arriving") {
+      etaSubline = liveEta.label;
+    } else {
+      etaSubline = `Motorista a ${liveEta.label}`;
+    }
+  }
 
   return (
     <div
@@ -35,14 +56,16 @@ export default function RideETAStatusCard({ tracking, className }: RideETAStatus
     >
       <div className="flex items-stretch gap-0 p-4">
         <div className="flex min-w-[4.5rem] flex-col items-center justify-center border-r border-border pr-4">
-          {showMinutes ? (
+          {showEta ? (
             <>
               <span className={cn("text-3xl font-bold tabular-nums leading-none", fuiBrand.text)}>
-                {tracking.etaHeadline}
+                {headline}
               </span>
-              <span className="mt-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                min
-              </span>
+              {unit ? (
+                <span className="mt-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                  {unit}
+                </span>
+              ) : null}
             </>
           ) : (
             <div className={cn("flex h-12 w-12 items-center justify-center rounded-full", semantic.icon)}>
@@ -68,7 +91,7 @@ export default function RideETAStatusCard({ tracking, className }: RideETAStatus
               </span>
             ) : null}
           </div>
-          <p className="text-xs text-muted-foreground">{tracking.etaSubline}</p>
+          <p className="text-xs text-muted-foreground">{etaSubline}</p>
         </div>
       </div>
     </div>

@@ -11,7 +11,7 @@ import RideETAStatusCard from "@/components/ride/RideETAStatusCard";
 import type { Ride } from "../../../../drizzle/schema";
 
 type RideDriverTrackingPanelProps = {
-  ride: Ride & { simulationPhase?: DemoSimulationPhase };
+  ride: Ride & { simulationPhase?: DemoSimulationPhase; etaSecondsRemaining?: number };
   driver: RideDriverInfo;
   tripPath?: RoutePoint[] | null;
   onChat?: () => void;
@@ -27,7 +27,13 @@ export default function RideDriverTrackingPanel({
   showChat,
   className,
 }: RideDriverTrackingPanelProps) {
-  const tracking = getRideTrackingPresentation(ride, ride.simulationPhase, undefined, tripPath);
+  const tracking = getRideTrackingPresentation(
+    ride,
+    ride.simulationPhase,
+    undefined,
+    tripPath,
+    ride.etaSecondsRemaining
+  );
   const currentPhase = resolveRideTrackingPhase(ride, ride.simulationPhase);
   const sequence = getRideTrackingSequence();
   const currentIndex = sequence.findIndex((s) => s.phase === currentPhase);

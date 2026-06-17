@@ -94,7 +94,7 @@ export default function RideDetails() {
           return false;
         }
         if (simulationEnabled || shouldShowDriverOnMap(data)) {
-          return 2000;
+          return 1000;
         }
         if (data.status === "requested" || data.status === "accepted") {
           return 3000;
@@ -195,11 +195,13 @@ export default function RideDetails() {
   const showDriverEnRoute = shouldShowDriverEnRoute(ride);
   const dispatchMeta = (ride as { dispatchMeta?: RideDispatchMeta }).dispatchMeta;
   const tripPath = (ride as { tripPath?: RoutePoint[] }).tripPath;
+  const etaSecondsRemaining = (ride as { etaSecondsRemaining?: number }).etaSecondsRemaining;
   const tracking = getRideTrackingPresentation(
     ride,
     simRide.simulationPhase,
     dispatchMeta,
-    tripPath
+    tripPath,
+    etaSecondsRemaining
   );
   const paymentPending =
     (ride.paymentMethod === "pix" || ride.paymentMethod === "card") &&

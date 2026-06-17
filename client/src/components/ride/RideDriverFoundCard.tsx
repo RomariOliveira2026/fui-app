@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { fuiBrand, fuiIconRingClass } from "@/lib/fuiTheme";
+import { useLiveEtaPresentation } from "@/lib/useLiveEtaSeconds";
 import type { RideTrackingPresentation } from "@/lib/rideTracking";
 import { cn } from "@/lib/utils";
 import { Car, MessageCircle, Star, User } from "lucide-react";
@@ -29,10 +30,20 @@ export default function RideDriverFoundCard({
   showChat,
   className,
 }: RideDriverFoundCardProps) {
-  const etaLine =
-    tracking && tracking.minutes > 0
-      ? `Chegada estimada: ~${tracking.minutes} min`
-      : tracking?.etaSubline;
+  const liveEta = useLiveEtaPresentation(
+    tracking?.seconds && tracking.seconds > 0 ? tracking.seconds : undefined,
+    tracking?.distanceM ?? 0,
+    !!tracking && tracking.seconds > 0
+  );
+
+  const headline = liveEta?.headline ?? tracking?.etaHeadline;
+  const unit = liveEta?.unit ?? tracking?.etaUnit;
+  const etaDisplay =
+    tracking && tracking.seconds > 0 && headline
+      ? `${headline}${unit ? ` ${unit}` : ""}`
+      : null;
+
+  const etaLine = etaDisplay ? `Chegada estimada: ${etaDisplay}` : tracking?.etaSubline;
 
   return (
     <div className={cn("rounded-xl border border-border bg-card overflow-hidden", className)}>
@@ -89,9 +100,7 @@ export default function RideDriverFoundCard({
           <div>
             <p className="text-[11px] text-muted-foreground">ETA</p>
             <p className={cn("font-semibold", fuiBrand.text)}>
-              {tracking?.minutes && tracking.minutes > 0
-                ? `~${tracking.minutes} min`
-                : etaLine ?? "—"}
+              {etaDisplay ?? etaLine ?? "—"}
             </p>
           </div>
         </div>
