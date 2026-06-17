@@ -3,6 +3,7 @@ import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useLocation } from "wouter";
 import AppHeader from "@/components/AppHeader";
+import FlowErrorFallback from "@/components/fui/FlowErrorFallback";
 import { canAccessAdminPanel } from "@/lib/adminAccess";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -71,13 +72,20 @@ export default function AdminNotifications() {
   const [userRole, setUserRole] = useState<string>("all");
 
   // Queries
-  const { data: stats } = trpc.notification.adminGetStats.useQuery(undefined, {
+  const {
+    data: stats,
+    isError: statsError,
+    error: statsQueryError,
+    refetch: refetchStats,
+  } = trpc.notification.adminGetStats.useQuery(undefined, {
     enabled: allowed && (activeTab === "stats" || activeTab === "broadcast"),
+    throwOnError: false,
+    retry: 1,
   });
 
   const { data: broadcastHistory } = trpc.notification.adminGetBroadcastHistory.useQuery(
     { limit: 20 },
-    { enabled: allowed && activeTab === "history" }
+    { enabled: allowed && activeTab === "history", throwOnError: false, retry: 1 }
   );
 
   const searchInput = useMemo(() => userSearch, [userSearch]);
@@ -85,7 +93,7 @@ export default function AdminNotifications() {
 
   const { data: usersList } = trpc.notification.adminListUsers.useQuery(
     { search: searchInput, role: roleInput, limit: 50 },
-    { enabled: allowed && activeTab === "individual" }
+    { enabled: allowed && activeTab === "individual", throwOnError: false, retry: 1 }
   );
 
   // Mutations
@@ -170,6 +178,15 @@ export default function AdminNotifications() {
             Central Operacional
           </Button>
         </div>
+
+        {statsError ? (
+          <FlowErrorFallback
+            title="Não foi possível carregar as estatísticas"
+            error={statsQueryError}
+            onRetry={() => void refetchStats()}
+            onGoHome={() => setLocation("/admin")}
+          />
+        ) : null}
 
         {/* Stats Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

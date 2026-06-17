@@ -4,7 +4,7 @@ import { eq, desc, and, inArray, ne, sql } from "drizzle-orm";
 import { notifications, users, fcmTokens } from "../../drizzle/schema";
 import { getDb } from "../db";
 import { TRPCError } from "@trpc/server";
-import { isDemoPassenger } from "../_core/demoUser";
+import { canDemoPassengerUseAdminModules } from "../_core/demoUser";
 import { ENV } from "../_core/env";
 
 // Helper: create in-app notification + push for a single user
@@ -44,12 +44,23 @@ async function createNotificationWithPush(
   }
 }
 
-// Admin guard middleware (admin real ou demo local em DEV)
+// Admin guard — alinhado com módulos operacionais (beta demo em produção).
 const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
   if (ctx.user.role === "admin") return next({ ctx });
-  if (!ENV.isProduction && isDemoPassenger(ctx.user)) return next({ ctx });
+  if (canDemoPassengerUseAdminModules(ctx.user)) return next({ ctx });
   throw new TRPCError({ code: "FORBIDDEN", message: "Acesso restrito a administradores" });
 });
+
+const DEMO_ADMIN_STATS = {
+  total: 0,
+  unread: 0,
+  today: 0,
+  byType: [] as Array<{ type: string; count: number }>,
+};
+
+function canUseDemoAdminData(user: { role: string; openId: string }): boolean {
+  return canDemoPassengerUseAdminModules(user) || ENV.betaDemo;
+}
 
 export const notificationRouter = router({
   /**
@@ -209,9 +220,14 @@ export const notificationRouter = router({
         segment: z.enum(["all", "passengers", "drivers", "active_last_30d"]).default("all"),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       const db = await getDb();
-      if (!db) throw new Error("Database not available");
+      if (!db) {
+        if (canUseDemoAdminData(ctx.user)) {
+          return { success: true, sentCount: 0 };
+        }
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+      }
 
       // Build user query based on segment
       let targetUsers: { id: number }[];
@@ -295,9 +311,14 @@ export const notificationRouter = router({
         actionLabel: z.string().optional(),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       const db = await getDb();
-      if (!db) throw new Error("Database not available");
+      if (!db) {
+        if (canUseDemoAdminData(ctx.user)) {
+          return { success: true };
+        }
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+      }
 
       await createNotificationWithPush(db, input.userId, {
         type: input.type,
@@ -313,9 +334,14 @@ export const notificationRouter = router({
   /**
    * Admin: Get notification stats
    */
-  adminGetStats: adminProcedure.query(async () => {
+  adminGetStats: adminProcedure.query(async ({ ctx }) => {
     const db = await getDb();
-    if (!db) throw new Error("Database not available");
+    if (!db) {
+      if (canUseDemoAdminData(ctx.user)) {
+        return DEMO_ADMIN_STATS;
+      }
+      throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+    }
 
     const [totalResult] = await db
       .select({ count: sql<number>`count(*)` })
@@ -359,9 +385,14 @@ export const notificationRouter = router({
         limit: z.number().min(1).max(100).default(50),
       })
     )
-    .query(async ({ input }) => {
+    .query(async ({ ctx, input }) => {
       const db = await getDb();
-      if (!db) throw new Error("Database not available");
+      if (!db) {
+        if (canUseDemoAdminData(ctx.user)) {
+          return [];
+        }
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+      }
 
       const conditions: any[] = [];
       
@@ -396,9 +427,14 @@ export const notificationRouter = router({
    */
   adminGetBroadcastHistory: adminProcedure
     .input(z.object({ limit: z.number().min(1).max(50).default(20) }))
-    .query(async ({ input }) => {
+    .query(async ({ ctx, input }) => {
       const db = await getDb();
-      if (!db) throw new Error("Database not available");
+      if (!db) {
+        if (canUseDemoAdminData(ctx.user)) {
+          return [];
+        }
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+      }
 
       // Get distinct recent notifications by title+message (broadcasts)
       const result = await db

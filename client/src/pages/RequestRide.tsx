@@ -784,6 +784,7 @@ export default function RequestRide() {
                 clearRouteCalculation();
               }}
               onStopsCleared={clearRouteCalculation}
+              locationBias={passengerLocation.coords ?? originCoords}
             />
 
             <ThirdPartyRideFields

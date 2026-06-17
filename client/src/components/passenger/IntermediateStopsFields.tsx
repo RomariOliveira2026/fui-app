@@ -10,12 +10,14 @@ type IntermediateStopsFieldsProps = {
   stops: IntermediateStopInput[];
   onChange: (stops: IntermediateStopInput[]) => void;
   onStopsCleared?: () => void;
+  locationBias?: { lat: number; lng: number } | null;
 };
 
 export default function IntermediateStopsFields({
   stops,
   onChange,
   onStopsCleared,
+  locationBias = null,
 }: IntermediateStopsFieldsProps) {
   const addStop = () => {
     if (stops.length >= MAX_STOPS) return;
@@ -70,6 +72,7 @@ export default function IntermediateStopsFields({
                   }
                   placeholder="Endereço da parada"
                   icon={<MapPin className="h-4 w-4 text-amber-400" />}
+                  locationBias={locationBias}
                 />
               </div>
               <Button

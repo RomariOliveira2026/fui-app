@@ -9,7 +9,13 @@ import {
   findDemoPlaceByText,
 } from "@shared/demoMaps";
 import type { GeocodingResult, DirectionsResult } from "../_core/map";
-import { geocodeAddressWithNominatim, reverseGeocodeWithNominatim, searchPlacesWithNominatim, sleepMs } from "../_core/nominatim";
+import {
+  geocodeAddressWithNominatim,
+  reverseGeocodeWithNominatim,
+  searchPlacesWithNominatim,
+  sleepMs,
+} from "../_core/nominatim";
+import { DEFAULT_OPERATION_CENTER, rankByLocality } from "@shared/mapDefaults";
 import { calculateDrivingRouteWithOsrm } from "../_core/osrmRoute";
 import { calculatePassengerRoute } from "../_core/passengerRoute";
 
@@ -172,11 +178,18 @@ export const mapsRouter = router({
     .input(z.object({
       input: z.string().min(2),
       location: z.string().optional(), // "lat,lng" to bias results
-      radius: z.number().optional().default(50000), // 50km default
+      radius: z.number().optional(),
       language: z.string().optional().default("pt-BR"),
-      components: z.string().optional().default("country:br"),
+      components: z.string().optional(),
     }))
     .query(async ({ input: params }) => {
+      const city = ENV.appCity;
+      const hasLocalOperation = city.length > 0;
+      const defaultLocation = `${DEFAULT_OPERATION_CENTER.lat},${DEFAULT_OPERATION_CENTER.lng}`;
+      const location = params.location ?? (hasLocalOperation ? defaultLocation : undefined);
+      const radius = params.radius ?? (hasLocalOperation ? 25000 : 50000);
+      const components = params.components ?? "country:br";
+
       if (!isMapsConfigured()) {
         const demo = filterDemoPlaces(params.input);
         if (demo.length > 0) {
@@ -192,18 +205,22 @@ export const mapsRouter = router({
         }
 
         await sleepMs(300);
-        const nominatim = await searchPlacesWithNominatim(params.input, 5);
-        return nominatimToAutocompletePredictions(nominatim);
+        const nominatim = await searchPlacesWithNominatim(params.input, 8, {
+          city: city || undefined,
+          useViewbox: hasLocalOperation,
+        });
+        const predictions = nominatimToAutocompletePredictions(nominatim);
+        return hasLocalOperation ? rankByLocality(predictions, city) : predictions;
       }
 
       const autocompleteParams: Record<string, unknown> = {
         input: params.input,
-        radius: params.radius,
+        radius,
         language: params.language,
-        components: params.components,
+        components,
       };
-      if (params.location) {
-        autocompleteParams.location = params.location;
+      if (location) {
+        autocompleteParams.location = location;
       }
 
       const result = await makeRequest<{
@@ -220,7 +237,11 @@ export const mapsRouter = router({
       }>("/maps/api/place/autocomplete/json", autocompleteParams);
 
       if (result.status === "OK" || result.status === "ZERO_RESULTS") {
-        return result.predictions || [];
+        const predictions = result.predictions || [];
+        if (hasLocalOperation && predictions.length > 1) {
+          return rankByLocality(predictions, city);
+        }
+        return predictions;
       }
 
       return [];

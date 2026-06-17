@@ -8,6 +8,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { filterDemoPlaces, findDemoPlaceByPlaceId, findDemoPlaceByText } from "@shared/demoMaps";
+import { DEFAULT_OPERATION_CENTER, rankByLocality } from "@shared/mapDefaults";
 import { WL } from "@/whitelabel";
 import type { AddressHistoryItem } from "@/lib/addressHistory";
 import {
@@ -127,15 +128,25 @@ export function AddressAutocomplete({
     refetchOnWindowFocus: false,
   });
 
-  const locationBiasParam =
+  const effectiveBias =
     locationBias && Number.isFinite(locationBias.lat) && Number.isFinite(locationBias.lng)
-      ? `${locationBias.lat},${locationBias.lng}`
-      : undefined;
+      ? locationBias
+      : WL.city
+        ? DEFAULT_OPERATION_CENTER
+        : null;
+
+  const locationBiasParam = effectiveBias
+    ? `${effectiveBias.lat},${effectiveBias.lng}`
+    : undefined;
 
   const useDemoPlacesCatalog = mapsConfigured === false;
 
   const { data: suggestions, isLoading: isLoadingApi } = trpc.maps.autocomplete.useQuery(
-    { input: debouncedQuery, location: locationBiasParam },
+    {
+      input: debouncedQuery,
+      location: locationBiasParam,
+      radius: WL.city ? 25000 : undefined,
+    },
     {
       enabled: !useDemoPlacesCatalog && debouncedQuery.trim().length >= 3,
       staleTime: 30000,
@@ -146,13 +157,18 @@ export function AddressAutocomplete({
 
   const isLoading = useDemoPlacesCatalog ? false : isLoadingApi;
 
-  const apiResults: AddressResult[] = (suggestions || []).map((s: any) => ({
-    description: s.description,
-    placeId: s.place_id,
-    mainText: s.structured_formatting?.main_text || s.description.split(",")[0],
-    secondaryText:
-      s.structured_formatting?.secondary_text || s.description.split(",").slice(1).join(","),
-  }));
+  const apiResults: AddressResult[] = useMemo(() => {
+    const mapped = (suggestions || []).map((s: any) => ({
+      description: s.description,
+      placeId: s.place_id,
+      mainText: s.structured_formatting?.main_text || s.description.split(",")[0],
+      secondaryText:
+        s.structured_formatting?.secondary_text ||
+        s.description.split(",").slice(1).join(",").trim() ||
+        s.description,
+    }));
+    return WL.city && mapped.length > 1 ? rankByLocality(mapped, WL.city) : mapped;
+  }, [suggestions]);
 
   const useDemoPlaces = useDemoPlacesCatalog;
 
@@ -165,11 +181,31 @@ export function AddressAutocomplete({
       }))
     : [];
 
-  const placeResults: AddressResult[] = useDemoPlacesCatalog
-    ? demoResults
-    : apiResults.length > 0
-      ? apiResults
-      : demoResults;
+  const localDemoMatches: AddressResult[] =
+    WL.city && debouncedQuery.trim().length >= 2
+      ? filterDemoPlaces(debouncedQuery).map((p) => ({
+          description: p.description,
+          placeId: p.placeId,
+          mainText: p.mainText,
+          secondaryText: p.secondaryText,
+        }))
+      : [];
+
+  const placeResults: AddressResult[] = useMemo(() => {
+    if (useDemoPlacesCatalog) return demoResults;
+
+    const merged: AddressResult[] = [];
+    const seen = new Set<string>();
+
+    for (const item of [...localDemoMatches, ...(apiResults.length > 0 ? apiResults : demoResults)]) {
+      const key = item.description.trim().toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      merged.push(item);
+    }
+
+    return merged;
+  }, [useDemoPlacesCatalog, demoResults, localDemoMatches, apiResults]);
 
   const trimmedQuery = query.trim();
   const filteredSaved = useMemo(
@@ -428,8 +464,8 @@ export function AddressAutocomplete({
                     ) : (
                       <>
                         <p className="text-sm font-medium truncate">{item.result.mainText}</p>
-                        <p className="text-xs text-muted-foreground truncate">
-                          {item.result.secondaryText}
+                        <p className="text-xs text-muted-foreground line-clamp-2">
+                          {item.result.secondaryText || item.result.description}
                         </p>
                       </>
                     )}

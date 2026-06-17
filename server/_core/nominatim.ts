@@ -1,3 +1,5 @@
+import { formatAddressForGeocoding, SERGIPE_VIEWBOX } from "@shared/mapDefaults";
+
 const NOMINATIM_BASE = "https://nominatim.openstreetmap.org";
 const USER_AGENT = "FuiApp/1.0 (passenger-route; contact@contentfy.com.br)";
 const TIMEOUT_MS = 12_000;
@@ -25,15 +27,23 @@ function buildPlaceId(row: NominatimSearchRow): string {
   return `nominatim:${row.place_id}`;
 }
 
-function normalizeQuery(address: string): string {
+function normalizeQuery(address: string, city?: string): string {
   const trimmed = address.trim();
   if (!trimmed) return trimmed;
+  if (city?.trim()) {
+    return formatAddressForGeocoding(trimmed, city);
+  }
   const lower = trimmed.toLowerCase();
   if (lower.includes("brasil") || lower.includes("brazil")) {
     return trimmed;
   }
   return `${trimmed}, Brasil`;
 }
+
+export type NominatimSearchOptions = {
+  city?: string;
+  useViewbox?: boolean;
+};
 
 async function fetchNominatimSearch(query: string): Promise<NominatimSearchRow[]> {
   const params = new URLSearchParams({
@@ -97,18 +107,26 @@ function rowToGeocodeResult(row: NominatimSearchRow | NominatimReverseRow): Nomi
 /** Busca múltiplos endereços (autocomplete sem Google Maps). */
 export async function searchPlacesWithNominatim(
   address: string,
-  limit = 5
+  limit = 5,
+  options?: NominatimSearchOptions
 ): Promise<NominatimGeocodeResult[]> {
-  const query = normalizeQuery(address);
+  const city = options?.city?.trim();
+  const query = normalizeQuery(address, city);
   if (query.length < 2) return [];
 
   const params = new URLSearchParams({
     format: "json",
     q: query,
-    limit: String(Math.min(Math.max(limit, 1), 8)),
+    limit: String(Math.min(Math.max(limit, 1), 10)),
     countrycodes: "br",
     addressdetails: "0",
   });
+
+  if (options?.useViewbox) {
+    const { west, south, east, north } = SERGIPE_VIEWBOX;
+    params.set("viewbox", `${west},${north},${east},${south}`);
+    params.set("bounded", "0");
+  }
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
@@ -181,9 +199,10 @@ export async function reverseGeocodeWithNominatim(
 
 /** Geocodifica texto de endereço/cidade via Nominatim (OpenStreetMap). */
 export async function geocodeAddressWithNominatim(
-  address: string
+  address: string,
+  city?: string
 ): Promise<NominatimGeocodeResult | null> {
-  const query = normalizeQuery(address);
+  const query = normalizeQuery(address, city);
   if (query.length < 2) return null;
 
   const rows = await fetchNominatimSearch(query);
