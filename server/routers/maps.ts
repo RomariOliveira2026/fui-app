@@ -123,6 +123,7 @@ async function geocodeWithoutGoogle(params: {
   lng: number;
   formattedAddress: string;
   placeId: string;
+  isCoarse?: boolean;
 } | null> {
   if (params.placeId) {
     const demo = findDemoPlaceByPlaceId(params.placeId);
@@ -150,10 +151,11 @@ async function geocodeWithoutGoogle(params: {
       const reversed = await reverseGeocodeWithNominatim(parsed.lat, parsed.lng);
       if (reversed) {
         return {
-          lat: reversed.lat,
-          lng: reversed.lng,
+          lat: parsed.lat,
+          lng: parsed.lng,
           formattedAddress: reversed.displayName,
           placeId: reversed.placeId,
+          isCoarse: reversed.isCoarse ?? false,
         };
       }
       return {
@@ -161,6 +163,7 @@ async function geocodeWithoutGoogle(params: {
         lng: parsed.lng,
         formattedAddress: params.latlng,
         placeId: `coord:${parsed.lat},${parsed.lng}`,
+        isCoarse: true,
       };
     }
   }
@@ -259,6 +262,29 @@ export const mapsRouter = router({
       language: z.string().optional().default("pt-BR"),
     }))
     .query(async ({ input: params }) => {
+      if (params.latlng) {
+        const parsed = parseLatLngPair(params.latlng);
+        if (parsed) {
+          const reversed = await reverseGeocodeWithNominatim(parsed.lat, parsed.lng);
+          if (reversed) {
+            return {
+              lat: parsed.lat,
+              lng: parsed.lng,
+              formattedAddress: reversed.displayName,
+              placeId: reversed.placeId,
+              isCoarse: reversed.isCoarse ?? false,
+            };
+          }
+          return {
+            lat: parsed.lat,
+            lng: parsed.lng,
+            formattedAddress: params.latlng,
+            placeId: `coord:${parsed.lat},${parsed.lng}`,
+            isCoarse: true,
+          };
+        }
+      }
+
       if (!isMapsConfigured()) {
         return geocodeWithoutGoogle(params);
       }
@@ -430,6 +456,10 @@ export const mapsRouter = router({
         vehicleType: demoVehicleTypeSchema,
         originPlaceId: z.string().optional(),
         destinationPlaceId: z.string().optional(),
+        originLat: z.string().optional(),
+        originLng: z.string().optional(),
+        destinationLat: z.string().optional(),
+        destinationLng: z.string().optional(),
         intermediateStops: z
           .array(
             z.object({

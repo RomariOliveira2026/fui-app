@@ -8,6 +8,11 @@ import {
   scoreAddressLocality,
   SERGIPE_VIEWBOX,
 } from "@shared/mapDefaults";
+import {
+  formatNominatimAddress,
+  isCoarseNominatimAddress,
+  type NominatimAddressParts,
+} from "@shared/formatNominatimAddress";
 import { lookupViaCep } from "./viacep";
 
 const NOMINATIM_BASE = "https://nominatim.openstreetmap.org";
@@ -19,6 +24,8 @@ export type NominatimGeocodeResult = {
   lng: number;
   displayName: string;
   placeId: string;
+  /** Sem logradouro — centroide ou localização imprecisa. */
+  isCoarse?: boolean;
 };
 
 type NominatimSearchRow = {
@@ -99,7 +106,25 @@ type NominatimReverseRow = {
   place_id: number;
   osm_type?: string;
   osm_id?: number;
+  address?: NominatimAddressParts;
 };
+
+function rowToReverseGeocodeResult(row: NominatimReverseRow): NominatimGeocodeResult | null {
+  const lat = Number.parseFloat(row.lat);
+  const lng = Number.parseFloat(row.lon);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+
+  const formatted = formatNominatimAddress(row.address, row.display_name);
+  const coarse = isCoarseNominatimAddress(row.address);
+
+  return {
+    lat,
+    lng,
+    displayName: formatted || row.display_name,
+    placeId: buildPlaceId(row),
+    isCoarse: coarse,
+  };
+}
 
 function rowToGeocodeResult(row: NominatimSearchRow | NominatimReverseRow): NominatimGeocodeResult | null {
   const lat = Number.parseFloat(row.lat);
@@ -179,7 +204,7 @@ export async function reverseGeocodeWithNominatim(
     lat: String(lat),
     lon: String(lng),
     zoom: "18",
-    addressdetails: "0",
+    addressdetails: "1",
   });
 
   const controller = new AbortController();
@@ -198,7 +223,17 @@ export async function reverseGeocodeWithNominatim(
     if (!response.ok) return null;
 
     const data = (await response.json()) as NominatimReverseRow;
-    return rowToGeocodeResult(data);
+    const result = rowToReverseGeocodeResult(data);
+    if (result) {
+      console.info("[nominatim:reverse]", {
+        lat,
+        lng,
+        displayName: result.displayName,
+        isCoarse: result.isCoarse,
+        raw: data.display_name,
+      });
+    }
+    return result;
   } catch (error) {
     console.warn("[nominatim] reverse failed:", lat, lng, error);
     return null;

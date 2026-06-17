@@ -8,7 +8,7 @@ import {
   type DemoVehicleType,
 } from "@shared/demoPricing";
 import { DEFAULT_GEOCODING_CITY } from "@shared/mapDefaults";
-import { geocodeAddressWithNominatim, sleepMs } from "./nominatim";
+import { geocodeAddressWithNominatim, reverseGeocodeWithNominatim, sleepMs } from "./nominatim";
 import { ENV } from "./env";
 import {
   calculateDrivingRouteWithOsrm,
@@ -58,12 +58,59 @@ function computeEstimatedPrice(
   return Math.round(Math.max(raw, pricing.minimumPrice));
 }
 
+function parseCoordPlaceId(placeId: string): { lat: number; lng: number } | null {
+  if (!placeId.startsWith("coord:")) return null;
+  const pair = placeId.slice("coord:".length);
+  const match = pair.trim().match(/^(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)$/);
+  if (!match) return null;
+  const lat = Number.parseFloat(match[1]);
+  const lng = Number.parseFloat(match[2]);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  return { lat, lng };
+}
+
+function parseLatLngStrings(
+  lat?: string,
+  lng?: string
+): { lat: number; lng: number } | null {
+  if (lat == null || lng == null) return null;
+  const parsedLat = Number.parseFloat(lat);
+  const parsedLng = Number.parseFloat(lng);
+  if (!Number.isFinite(parsedLat) || !Number.isFinite(parsedLng)) return null;
+  return { lat: parsedLat, lng: parsedLng };
+}
+
 async function resolveLocation(
   address: string,
   placeId: string | undefined,
-  allowDemoFallback: boolean
+  allowDemoFallback: boolean,
+  coords?: { lat: number; lng: number } | null
 ): Promise<ResolvedLocation | null> {
   const trimmed = address.trim();
+
+  const coordFromPlaceId = placeId ? parseCoordPlaceId(placeId) : null;
+  const pinnedCoords = coords ?? coordFromPlaceId;
+  if (pinnedCoords) {
+    const reversed = await reverseGeocodeWithNominatim(pinnedCoords.lat, pinnedCoords.lng);
+    if (reversed && !reversed.isCoarse) {
+      return {
+        lat: pinnedCoords.lat,
+        lng: pinnedCoords.lng,
+        displayName: reversed.displayName,
+        placeId: placeId ?? reversed.placeId,
+        source: "nominatim",
+      };
+    }
+    if (trimmed.length >= 2) {
+      return {
+        lat: pinnedCoords.lat,
+        lng: pinnedCoords.lng,
+        displayName: trimmed,
+        placeId: placeId ?? `coord:${pinnedCoords.lat},${pinnedCoords.lng}`,
+        source: "nominatim",
+      };
+    }
+  }
 
   if (placeId?.startsWith("demo-")) {
     const demo = findDemoPlaceByPlaceId(placeId);
@@ -147,15 +194,21 @@ export async function calculatePassengerRoute(input: {
   vehicleType: DemoVehicleType;
   originPlaceId?: string;
   destinationPlaceId?: string;
+  originLat?: string;
+  originLng?: string;
+  destinationLat?: string;
+  destinationLng?: string;
   intermediateStops?: IntermediateStopInput[];
   allowDemoFallback?: boolean;
 }): Promise<PassengerRouteCalculation> {
   const allowDemoFallback = input.allowDemoFallback ?? false;
+  const originCoords = parseLatLngStrings(input.originLat, input.originLng);
 
   const origin = await resolveLocation(
     input.originAddress,
     input.originPlaceId,
-    allowDemoFallback
+    allowDemoFallback,
+    originCoords
   );
   if (!origin) {
     throw new Error("Não foi possível localizar a origem. Verifique o endereço.");
@@ -169,10 +222,13 @@ export async function calculatePassengerRoute(input: {
     await sleepMs(1100);
   }
 
+  const destinationCoords = parseLatLngStrings(input.destinationLat, input.destinationLng);
+
   const destination = await resolveLocation(
     input.destinationAddress,
     input.destinationPlaceId,
-    allowDemoFallback
+    allowDemoFallback,
+    destinationCoords
   );
   if (!destination) {
     throw new Error("Não foi possível localizar o destino. Verifique o endereço.");

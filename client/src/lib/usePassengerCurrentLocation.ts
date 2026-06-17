@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { trpc } from "@/lib/trpc";
+import { acquireBestGeolocationPosition } from "@/lib/acquireGeolocation";
+import { isNearOperationalCenter } from "@shared/mapDefaults";
+import { isGenericCityCentroidLabel } from "@shared/formatNominatimAddress";
 
 export type PassengerLocationStatus =
   | "idle"
@@ -22,6 +25,21 @@ type RequestLocationOptions = {
   forceFresh?: boolean;
 };
 
+const PRECISE_ACCURACY_M = 80;
+
+function isImpreciseCentroid(coords: Coords, accuracyMeters: number | null): boolean {
+  if (!isNearOperationalCenter(coords.lat, coords.lng)) return false;
+  if (accuracyMeters == null) return true;
+  return accuracyMeters > PRECISE_ACCURACY_M;
+}
+
+function shouldRejectGpsAddress(
+  formattedAddress: string | null | undefined,
+  isCoarse: boolean
+): boolean {
+  return isCoarse || isGenericCityCentroidLabel(formattedAddress);
+}
+
 export function usePassengerCurrentLocation(options: UsePassengerCurrentLocationOptions = {}) {
   const autoEnabled = options.enabled ?? false;
   const utils = trpc.useUtils();
@@ -34,7 +52,7 @@ export function usePassengerCurrentLocation(options: UsePassengerCurrentLocation
   const runIdRef = useRef(0);
 
   const requestLocation = useCallback(
-    async (requestOptions?: RequestLocationOptions) => {
+    async (_requestOptions?: RequestLocationOptions) => {
       const runId = ++runIdRef.current;
       setErrorMessage(null);
       setAddress(null);
@@ -51,33 +69,62 @@ export function usePassengerCurrentLocation(options: UsePassengerCurrentLocation
       setStatus("locating");
 
       try {
-        const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-          navigator.geolocation.getCurrentPosition(resolve, reject, {
-            enableHighAccuracy: true,
-            timeout: 15_000,
-            maximumAge: 0,
-          });
+        const acquired = await acquireBestGeolocationPosition({
+          timeoutMs: 12_000,
+          targetAccuracyMeters: 60,
         });
 
         if (runId !== runIdRef.current) return;
 
-        const nextCoords = {
-          lat: position.coords.latitude,
-          lng: position.coords.longitude,
-        };
-        const accuracy = Number.isFinite(position.coords.accuracy)
-          ? position.coords.accuracy
-          : null;
+        const nextCoords = { lat: acquired.lat, lng: acquired.lng };
+        const accuracy = acquired.accuracyMeters;
+
+        console.info("[Fui:location] gps", {
+          lat: nextCoords.lat,
+          lng: nextCoords.lng,
+          accuracyMeters: accuracy,
+          samples: acquired.samples,
+          nearOperationalCenter: isNearOperationalCenter(nextCoords.lat, nextCoords.lng),
+        });
+
+        if (isImpreciseCentroid(nextCoords, accuracy)) {
+          setStatus("error");
+          setErrorMessage(
+            "Localização imprecisa (centro da cidade). Ative o GPS no celular e tente novamente ao ar livre."
+          );
+          return;
+        }
 
         setCoords(nextCoords);
         setAccuracyMeters(accuracy);
         setStatus("geocoding");
 
-        const geocoded = await utils.maps.geocode.fetch({
-          latlng: `${nextCoords.lat},${nextCoords.lng}`,
-        });
+        const geocoded = await utils.maps.geocode.fetch(
+          { latlng: `${nextCoords.lat},${nextCoords.lng}` },
+          { staleTime: 0 }
+        );
 
         if (runId !== runIdRef.current) return;
+
+        const isCoarse = Boolean((geocoded as { isCoarse?: boolean } | null)?.isCoarse);
+
+        console.info("[Fui:location] reverse", {
+          lat: nextCoords.lat,
+          lng: nextCoords.lng,
+          formattedAddress: geocoded?.formattedAddress,
+          isCoarse,
+        });
+
+        if (
+          geocoded &&
+          shouldRejectGpsAddress(geocoded.formattedAddress, isCoarse)
+        ) {
+          setStatus("error");
+          setErrorMessage(
+            "Não foi possível identificar seu endereço com precisão. Ative o GPS no celular ou digite a origem."
+          );
+          return;
+        }
 
         if (geocoded) {
           setAddress(geocoded.formattedAddress);
@@ -106,11 +153,7 @@ export function usePassengerCurrentLocation(options: UsePassengerCurrentLocation
   );
 
   useEffect(() => {
-    if (!autoEnabled) {
-      runIdRef.current += 1;
-      return;
-    }
-
+    if (!autoEnabled) return;
     void requestLocation({ forceFresh: true });
   }, [autoEnabled, requestLocation]);
 
@@ -123,7 +166,6 @@ export function usePassengerCurrentLocation(options: UsePassengerCurrentLocation
     errorMessage,
     isLocating: status === "locating" || status === "geocoding",
     requestLocation,
-    /** @deprecated use requestLocation */
     retry: () => requestLocation({ forceFresh: true }),
   };
 }

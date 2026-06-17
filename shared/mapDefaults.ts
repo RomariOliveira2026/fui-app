@@ -13,6 +13,24 @@ export const DEFAULT_OPERATION_CENTER = {
 /** Cidade padrão para geocoding quando o whitelabel não define VITE_APP_CITY. */
 export const DEFAULT_GEOCODING_CITY = "Itabaiana";
 
+/** Distância em metros até o centro operacional padrão. */
+export function distanceToOperationalCenterMeters(lat: number, lng: number): number {
+  const dLat = (lat - DEFAULT_OPERATION_CENTER.lat) * 111_320;
+  const dLng =
+    (lng - DEFAULT_OPERATION_CENTER.lng) *
+    111_320 *
+    Math.cos((DEFAULT_OPERATION_CENTER.lat * Math.PI) / 180);
+  return Math.hypot(dLat, dLng);
+}
+
+export function isNearOperationalCenter(
+  lat: number,
+  lng: number,
+  radiusMeters = 450
+): boolean {
+  return distanceToOperationalCenterMeters(lat, lng) <= radiusMeters;
+}
+
 /** Viewbox aproximado de Sergipe para viés regional no Nominatim. */
 export const SERGIPE_VIEWBOX = {
   west: -38.0,

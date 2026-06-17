@@ -215,7 +215,7 @@ export default function RequestRide() {
   }, [passengerLocation.status, passengerLocation.accuracyMeters]);
 
   useEffect(() => {
-    if (passengerLocation.status !== "denied") return;
+    if (passengerLocation.status !== "denied" && passengerLocation.status !== "error") return;
     toast.error(
       passengerLocation.errorMessage ??
         "Permissão de localização negada. Digite sua origem manualmente."
@@ -401,6 +401,14 @@ export default function RequestRide() {
           vehicleType,
           originPlaceId: originPlaceIdRef.current || undefined,
           destinationPlaceId: destPlaceIdRef.current || undefined,
+          originLat:
+            originFromGpsRef.current && originCoordsRef.current
+              ? String(originCoordsRef.current.lat)
+              : undefined,
+          originLng:
+            originFromGpsRef.current && originCoordsRef.current
+              ? String(originCoordsRef.current.lng)
+              : undefined,
           intermediateStops: activeIntermediateStops.length ? activeIntermediateStops : undefined,
         });
         applyPassengerRouteResult(result);

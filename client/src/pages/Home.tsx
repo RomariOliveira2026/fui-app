@@ -191,7 +191,9 @@ function LoggedInHome() {
   }, [passengerLocation.status, passengerLocation.accuracyMeters]);
 
   useEffect(() => {
-    if (!requestMode || passengerLocation.status !== "denied") return;
+    if (!requestMode || (passengerLocation.status !== "denied" && passengerLocation.status !== "error")) {
+      return;
+    }
     toast.error(
       passengerLocation.errorMessage ??
         "Permissão de localização negada. Digite sua origem manualmente."
@@ -249,6 +251,14 @@ function LoggedInHome() {
         vehicleType,
         originPlaceId: originPlaceId || undefined,
         destinationPlaceId: destPlaceId || undefined,
+        originLat:
+          originFromGpsRef.current && originCoordsRef.current
+            ? String(originCoordsRef.current.lat)
+            : undefined,
+        originLng:
+          originFromGpsRef.current && originCoordsRef.current
+            ? String(originCoordsRef.current.lng)
+            : undefined,
       });
 
       if (result.origin.placeId) setOriginPlaceId(result.origin.placeId);
