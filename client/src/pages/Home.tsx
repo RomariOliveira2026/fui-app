@@ -126,9 +126,20 @@ function LoggedInHome() {
   // Store coordinates for ride request (refs stay in sync for mutations)
   const originCoordsRef = useRef<{ lat: number; lng: number } | null>(null);
   const destCoordsRef = useRef<{ lat: number; lng: number } | null>(null);
+  const originFromGpsRef = useRef(false);
+  const lowAccuracyWarnedRef = useRef(false);
 
   const shouldAutoLocate = requestMode && !originAddress.trim();
   const passengerLocation = usePassengerCurrentLocation({ enabled: shouldAutoLocate });
+
+  const handleUseCurrentLocation = () => {
+    originFromGpsRef.current = true;
+    lowAccuracyWarnedRef.current = false;
+    clearRoute();
+    setOriginAddress("");
+    setOriginPlaceId("");
+    void passengerLocation.requestLocation({ forceFresh: true });
+  };
   
   // Requesting state
   const [requesting, setRequesting] = useState(false);
@@ -148,16 +159,36 @@ function LoggedInHome() {
   }, []);
 
   useEffect(() => {
-    if (!shouldAutoLocate || !passengerLocation.address) return;
+    if (!requestMode || passengerLocation.status !== "ready") return;
+    if (!passengerLocation.address || !passengerLocation.coords) return;
+
     setOriginAddress(passengerLocation.address);
     if (passengerLocation.placeId) setOriginPlaceId(passengerLocation.placeId);
-  }, [shouldAutoLocate, passengerLocation.address, passengerLocation.placeId]);
+    originFromGpsRef.current = true;
+  }, [
+    requestMode,
+    passengerLocation.status,
+    passengerLocation.address,
+    passengerLocation.placeId,
+    passengerLocation.coords,
+  ]);
 
   useEffect(() => {
-    if (!shouldAutoLocate || !passengerLocation.coords) return;
+    if (!requestMode || passengerLocation.status !== "ready" || !passengerLocation.coords) {
+      return;
+    }
     originCoordsRef.current = passengerLocation.coords;
     setOriginCoords(passengerLocation.coords);
-  }, [shouldAutoLocate, passengerLocation.coords]);
+  }, [requestMode, passengerLocation.status, passengerLocation.coords]);
+
+  useEffect(() => {
+    if (passengerLocation.status !== "ready" || lowAccuracyWarnedRef.current) return;
+    const accuracy = passengerLocation.accuracyMeters;
+    if (accuracy != null && accuracy > 800) {
+      lowAccuracyWarnedRef.current = true;
+      toast.warning("Localização aproximada — confira o endereço exibido.");
+    }
+  }, [passengerLocation.status, passengerLocation.accuracyMeters]);
 
   useEffect(() => {
     if (!requestMode || passengerLocation.status !== "denied") return;
@@ -449,13 +480,24 @@ function LoggedInHome() {
               <div className="relative">
                 <AddressAutocomplete
                   value={originAddress}
-                  onChange={(val) => { setOriginAddress(val); setOriginPlaceId(""); if (routeCalculated) clearRoute(); }}
+                  onChange={(val) => {
+                    originFromGpsRef.current = false;
+                    setOriginAddress(val);
+                    setOriginPlaceId("");
+                    if (routeCalculated) clearRoute();
+                  }}
                   onSelect={(result) => {
+                    originFromGpsRef.current = false;
                     setOriginAddress(result.address);
                     setOriginPlaceId(result.placeId);
                     if (routeCalculated) clearRoute();
                   }}
                   onConfirm={(address) => {
+                    if (originFromGpsRef.current && originPlaceId) {
+                      addAddressHistory(FUI_HISTORY_ORIGIN_KEY, { address, placeId: originPlaceId });
+                      setOriginHistory(loadAddressHistory(FUI_HISTORY_ORIGIN_KEY));
+                      return;
+                    }
                     const placeId = resolveLocalPlaceId(address, originPlaceId || undefined);
                     if (placeId) setOriginPlaceId(placeId);
                     addAddressHistory(FUI_HISTORY_ORIGIN_KEY, { address, placeId });
@@ -466,16 +508,23 @@ function LoggedInHome() {
                   historyItems={originHistory}
                   savedAddresses={savedAddresses}
                   locationBias={locationBias}
+                  disabled={passengerLocation.isLocating}
                 />
-                {(passengerLocation.status === "denied" || passengerLocation.status === "error") && (
+                {!passengerLocation.isLocating && (
                   <button
                     type="button"
-                    onClick={() => void passengerLocation.retry()}
-                    className="absolute right-12 top-1/2 -translate-y-1/2 text-[#F39200] hover:text-[#F39200]/80"
+                    onClick={handleUseCurrentLocation}
+                    className="absolute right-10 top-1/2 -translate-y-1/2 text-[#F39200] hover:text-[#F39200]/80 z-10"
                     aria-label="Usar minha localização"
+                    title="Usar minha localização"
                   >
                     <Navigation className="w-4 h-4" />
                   </button>
+                )}
+                {passengerLocation.isLocating && (
+                  <div className="absolute right-10 top-1/2 -translate-y-1/2 pointer-events-none z-10">
+                    <Loader2 className="w-4 h-4 animate-spin text-[#F39200]" />
+                  </div>
                 )}
               </div>
 

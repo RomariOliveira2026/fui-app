@@ -77,6 +77,8 @@ export default function RequestRide() {
   const [thirdPartyEnabled, setThirdPartyEnabled] = useState(false);
   const [bookedFor, setBookedFor] = useState<BookedForThirdParty>({ name: "", phone: "" });
   const prefillAppliedRef = useRef(false);
+  const originFromGpsRef = useRef(false);
+  const lowAccuracyWarnedRef = useRef(false);
   const [autoLocateOrigin, setAutoLocateOrigin] = useState(true);
   
   // Carpool fields
@@ -160,6 +162,17 @@ export default function RequestRide() {
   const fleetMapCenter = passengerLocation.coords ?? originCoords;
   const nearbyDemoDrivers = useDemoFleetDrivers(fleetMapCenter);
 
+  const handleUseCurrentLocation = () => {
+    setAutoLocateOrigin(true);
+    originFromGpsRef.current = true;
+    lowAccuracyWarnedRef.current = false;
+    clearRouteCalculation();
+    setOriginAddress("");
+    setOriginPlaceId("");
+    originPlaceIdRef.current = "";
+    void passengerLocation.requestLocation({ forceFresh: true });
+  };
+
   const utils = trpc.useUtils();
 
   useEffect(() => {
@@ -167,19 +180,39 @@ export default function RequestRide() {
   }, []);
 
   useEffect(() => {
-    if (!shouldAutoLocate || !passengerLocation.address) return;
+    if (!autoLocateOrigin || passengerLocation.status !== "ready") return;
+    if (!passengerLocation.address || !passengerLocation.coords) return;
+
     setOriginAddress(passengerLocation.address);
     if (passengerLocation.placeId) {
       setOriginPlaceId(passengerLocation.placeId);
       originPlaceIdRef.current = passengerLocation.placeId;
     }
-  }, [shouldAutoLocate, passengerLocation.address, passengerLocation.placeId]);
+    originFromGpsRef.current = true;
+  }, [
+    autoLocateOrigin,
+    passengerLocation.status,
+    passengerLocation.address,
+    passengerLocation.placeId,
+    passengerLocation.coords,
+  ]);
 
   useEffect(() => {
-    if (!shouldAutoLocate || !passengerLocation.coords) return;
+    if (!autoLocateOrigin || passengerLocation.status !== "ready" || !passengerLocation.coords) {
+      return;
+    }
     originCoordsRef.current = passengerLocation.coords;
     setOriginCoords(passengerLocation.coords);
-  }, [shouldAutoLocate, passengerLocation.coords]);
+  }, [autoLocateOrigin, passengerLocation.status, passengerLocation.coords]);
+
+  useEffect(() => {
+    if (passengerLocation.status !== "ready" || lowAccuracyWarnedRef.current) return;
+    const accuracy = passengerLocation.accuracyMeters;
+    if (accuracy != null && accuracy > 800) {
+      lowAccuracyWarnedRef.current = true;
+      toast.warning("Localização aproximada — confira o endereço exibido.");
+    }
+  }, [passengerLocation.status, passengerLocation.accuracyMeters]);
 
   useEffect(() => {
     if (passengerLocation.status !== "denied") return;
@@ -693,12 +726,16 @@ export default function RequestRide() {
                 <AddressAutocomplete
                   value={originAddress}
                   onChange={(val) => {
+                    originFromGpsRef.current = false;
+                    setAutoLocateOrigin(false);
                     setOriginAddress(val);
                     setOriginPlaceId("");
                     originPlaceIdRef.current = "";
                     clearRouteCalculation();
                   }}
                   onSelect={(result) => {
+                    originFromGpsRef.current = false;
+                    setAutoLocateOrigin(false);
                     clearRouteCalculation();
                     setOriginAddress(result.address);
                     setOriginPlaceId(result.placeId);
@@ -706,6 +743,10 @@ export default function RequestRide() {
                     recordOriginHistory(result.address, result.placeId);
                   }}
                   onConfirm={(address) => {
+                    if (originFromGpsRef.current && originPlaceIdRef.current) {
+                      recordOriginHistory(address, originPlaceIdRef.current);
+                      return;
+                    }
                     const placeId = resolveDemoPlaceIdForHistory(
                       address,
                       originPlaceIdRef.current || undefined
@@ -716,21 +757,32 @@ export default function RequestRide() {
                     }
                     recordOriginHistory(address, placeId);
                   }}
-                  placeholder={passengerLocation.isLocating ? "Obtendo sua localização..." : "De onde você está?"}
+                  placeholder={
+                    passengerLocation.isLocating
+                      ? "Obtendo sua localização..."
+                      : "De onde você está?"
+                  }
                   icon={<MapPin className={`w-4 h-4 ${fuiRoute.originIcon}`} />}
                   historyItems={originHistory}
                   savedAddresses={savedAddresses}
                   locationBias={passengerLocation.coords ?? originCoords}
+                  disabled={passengerLocation.isLocating}
                 />
-                {(passengerLocation.status === "denied" || passengerLocation.status === "error") && (
+                {!passengerLocation.isLocating && (
                   <button
                     type="button"
-                    onClick={() => void passengerLocation.retry()}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-primary hover:text-primary/80"
+                    onClick={handleUseCurrentLocation}
+                    className="absolute right-10 top-1/2 -translate-y-1/2 text-primary hover:text-primary/80 z-10"
                     aria-label="Usar minha localização"
+                    title="Usar minha localização"
                   >
                     <Navigation className="w-4 h-4" />
                   </button>
+                )}
+                {passengerLocation.isLocating && (
+                  <div className="absolute right-10 top-1/2 -translate-y-1/2 pointer-events-none z-10">
+                    <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                  </div>
                 )}
               </div>
             </div>

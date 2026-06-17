@@ -14,6 +14,7 @@ import {
   findDemoPlaceByPlaceId,
   findDemoPlaceByText,
 } from "@shared/demoMaps";
+import { isRealGeocodePlaceId } from "@shared/geocodePlaceId";
 import { type DemoVehicleType } from "@shared/demoPricing";
 
 export type { DemoVehicleType };
@@ -22,9 +23,14 @@ export function resolveLocalPlaceId(
   address: string,
   currentPlaceId?: string
 ): string | undefined {
+  if (isRealGeocodePlaceId(currentPlaceId)) {
+    return currentPlaceId;
+  }
+
   if (currentPlaceId && findDemoPlaceByPlaceId(currentPlaceId)) {
     return currentPlaceId;
   }
+
   const trimmed = address.trim();
   if (trimmed.length < 2) return currentPlaceId;
 
