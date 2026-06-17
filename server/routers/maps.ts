@@ -15,7 +15,7 @@ import {
   searchPlacesWithNominatim,
   sleepMs,
 } from "../_core/nominatim";
-import { DEFAULT_OPERATION_CENTER, rankByLocality } from "@shared/mapDefaults";
+import { DEFAULT_GEOCODING_CITY, DEFAULT_OPERATION_CENTER, rankByLocality } from "@shared/mapDefaults";
 import { calculateDrivingRouteWithOsrm } from "../_core/osrmRoute";
 import { calculatePassengerRoute } from "../_core/passengerRoute";
 
@@ -43,7 +43,8 @@ async function geocodeWithOsmOrDemo(params: {
   }
 
   if (params.address && params.address.trim().length >= 2) {
-    const nominatim = await geocodeAddressWithNominatim(params.address);
+    const geoCity = ENV.appCity || DEFAULT_GEOCODING_CITY;
+    const nominatim = await geocodeAddressWithNominatim(params.address, geoCity);
     if (nominatim) {
       return {
         lat: nominatim.lat,

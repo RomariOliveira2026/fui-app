@@ -3,6 +3,14 @@
 export const FUI_DEMO_SAVED_ADDRESSES_KEY = "fui_demo_saved_addresses";
 const FUI_DEMO_SAVED_ADDRESS_ID_KEY = "fui_demo_saved_address_next_id";
 
+/** Casa padrão do demo — Av. Eduardo Paixão Rocha, 800 (CEP 49511-390). */
+export const DEFAULT_DEMO_HOME_ADDRESS = {
+  label: "home" as const,
+  address: "Avenida Eduardo Paixão Rocha, 800 - Queimada, Itabaiana/SE",
+  lat: "-10.682228",
+  lng: "-37.441134",
+};
+
 export type DemoSavedAddress = {
   id: number;
   userId: number;
@@ -86,4 +94,18 @@ export function deleteDemoSavedAddress(id: number): DemoSavedAddress[] {
   const next = loadDemoSavedAddresses().filter((a) => a.id !== id);
   persistDemoSavedAddresses(next);
   return next;
+}
+
+/** Garante endereço Casa no demo quando ainda não houver um cadastrado. */
+export function ensureDemoHomeAddressSeed(): DemoSavedAddress[] {
+  const list = loadDemoSavedAddresses();
+  if (list.some((a) => a.label === "home")) return list;
+
+  return saveDemoSavedAddress({
+    label: DEFAULT_DEMO_HOME_ADDRESS.label,
+    address: DEFAULT_DEMO_HOME_ADDRESS.address,
+    lat: DEFAULT_DEMO_HOME_ADDRESS.lat,
+    lng: DEFAULT_DEMO_HOME_ADDRESS.lng,
+    userId: 0,
+  });
 }

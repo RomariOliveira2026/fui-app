@@ -1,4 +1,14 @@
-import { formatAddressForGeocoding, SERGIPE_VIEWBOX } from "@shared/mapDefaults";
+import {
+  buildGeocodingQueryVariants,
+  DEFAULT_GEOCODING_CITY,
+  extractBrazilianPostalCode,
+  extractStreetNumber,
+  fixCommonStreetNameArticles,
+  formatAddressForGeocoding,
+  scoreAddressLocality,
+  SERGIPE_VIEWBOX,
+} from "@shared/mapDefaults";
+import { lookupViaCep } from "./viacep";
 
 const NOMINATIM_BASE = "https://nominatim.openstreetmap.org";
 const USER_AGENT = "FuiApp/1.0 (passenger-route; contact@contentfy.com.br)";
@@ -198,18 +208,66 @@ export async function reverseGeocodeWithNominatim(
 }
 
 /** Geocodifica texto de endereço/cidade via Nominatim (OpenStreetMap). */
+function pickBestGeocodeResult(
+  places: NominatimGeocodeResult[],
+  city: string
+): NominatimGeocodeResult | null {
+  if (!places.length) return null;
+
+  const ranked = [...places].sort(
+    (a, b) => scoreAddressLocality(b.displayName, city) - scoreAddressLocality(a.displayName, city)
+  );
+  const best = ranked[0]!;
+  if (scoreAddressLocality(best.displayName, city) < -40) return null;
+  return best;
+}
+
+async function buildViaCepGeocodingQueries(address: string): Promise<string[]> {
+  const cep = extractBrazilianPostalCode(address);
+  if (!cep) return [];
+
+  const via = await lookupViaCep(cep);
+  if (!via?.localidade) return [];
+
+  const number = extractStreetNumber(address);
+  const street = fixCommonStreetNameArticles(via.logradouro);
+  const queries: string[] = [];
+
+  if (number) {
+    queries.push(`${street}, ${number}, ${via.localidade}, Sergipe, Brasil`);
+    queries.push(`${street}, ${number}, ${via.localidade}, ${via.uf}, Brasil`);
+  }
+  queries.push(`${street}, ${via.localidade}, Sergipe, Brasil`);
+
+  return queries;
+}
+
 export async function geocodeAddressWithNominatim(
   address: string,
   city?: string
 ): Promise<NominatimGeocodeResult | null> {
-  const query = normalizeQuery(address, city);
-  if (query.length < 2) return null;
+  const geoCity = city?.trim() || DEFAULT_GEOCODING_CITY;
+  const queries = [...buildGeocodingQueryVariants(address, geoCity)];
 
-  const rows = await fetchNominatimSearch(query);
-  const first = rows[0];
-  if (!first) return null;
+  const viaCepQueries = await buildViaCepGeocodingQueries(address);
+  for (const q of viaCepQueries) {
+    if (!queries.includes(q)) queries.push(q);
+  }
 
-  return rowToGeocodeResult(first);
+  const uniqueQueries = Array.from(new Set(queries));
+
+  for (let i = 0; i < uniqueQueries.length; i++) {
+    if (i > 0) await sleepMs(1100);
+
+    const places = await searchPlacesWithNominatim(uniqueQueries[i]!, 5, {
+      city: geoCity,
+      useViewbox: true,
+    });
+    const best = pickBestGeocodeResult(places, geoCity);
+    if (best) return best;
+  }
+
+  return null;
 }
 
 export function sleepMs(ms: number): Promise<void> {

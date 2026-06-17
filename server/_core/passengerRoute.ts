@@ -7,7 +7,9 @@ import {
   getDemoPricingByVehicleType,
   type DemoVehicleType,
 } from "@shared/demoPricing";
+import { DEFAULT_GEOCODING_CITY } from "@shared/mapDefaults";
 import { geocodeAddressWithNominatim, sleepMs } from "./nominatim";
+import { ENV } from "./env";
 import {
   calculateDrivingRouteWithOsrm,
   calculateDrivingRouteWithWaypoints,
@@ -91,7 +93,8 @@ async function resolveLocation(
   }
 
   if (trimmed.length >= 2) {
-    const geocoded = await geocodeAddressWithNominatim(trimmed);
+    const geoCity = ENV.appCity || DEFAULT_GEOCODING_CITY;
+    const geocoded = await geocodeAddressWithNominatim(trimmed, geoCity);
     if (geocoded) {
       return {
         lat: geocoded.lat,

@@ -3,6 +3,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { isLocalDemoDev } from "@/lib/demoMode";
 import {
+  ensureDemoHomeAddressSeed,
   loadDemoSavedAddresses,
   type DemoSavedAddress,
 } from "@/lib/demoSavedAddresses";
@@ -19,7 +20,7 @@ export function useSavedAddresses() {
   });
 
   const [localAddresses, setLocalAddresses] = useState<DemoSavedAddress[]>(() =>
-    isDemo ? loadDemoSavedAddresses() : []
+    isDemo ? ensureDemoHomeAddressSeed() : []
   );
 
   const syncLocalCache = useCallback(
@@ -32,7 +33,7 @@ export function useSavedAddresses() {
 
   useEffect(() => {
     if (!isDemo) return;
-    syncLocalCache(loadDemoSavedAddresses());
+    syncLocalCache(ensureDemoHomeAddressSeed());
   }, [isDemo, syncLocalCache]);
 
   return {
