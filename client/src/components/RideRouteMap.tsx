@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { RequestRideMap } from "@/components/RequestRideMap";
 import { trpc } from "@/lib/trpc";
 import {
@@ -8,6 +8,13 @@ import {
 } from "@/lib/rideTracking";
 import type { DemoSimulationPhase } from "@/lib/demoSimulation";
 import { cn } from "@/lib/utils";
+import {
+  linearSpeedAtMeters,
+  pathTotalMeters,
+  pointAtPathMeters,
+  projectPointOnPath,
+} from "@shared/routeAnimation";
+import { haversineMeters } from "@shared/demoMaps";
 
 type MapPoint = { lat: number; lng: number };
 
@@ -135,6 +142,58 @@ export default function RideRouteMap({
 
   const routePath = hasServerTripPath ? serverTripPath! : fetchedRoutePath;
 
+  const [liveDriver, setLiveDriver] = useState<MapPoint | null>(driver);
+  const liveMetersRef = useRef(0);
+  const animRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!showDriver || !driver || !routePath || routePath.length < 2) {
+      setLiveDriver(driver);
+      return;
+    }
+
+    const onRoute = projectPointOnPath(routePath, driver);
+    const serverMeters = onRoute.meters;
+    if (liveMetersRef.current < serverMeters - 5) {
+      liveMetersRef.current = serverMeters;
+    } else if (haversineMeters(liveDriver ?? driver, driver) > 80) {
+      liveMetersRef.current = serverMeters;
+    }
+
+    setLiveDriver(pointAtPathMeters(routePath, liveMetersRef.current));
+
+    const shouldAnimate =
+      trackingPhase === "in_trip" ||
+      trackingPhase === "en_route" ||
+      trackingPhase === "arriving";
+
+    if (!shouldAnimate) {
+      liveMetersRef.current = serverMeters;
+      setLiveDriver(driver);
+      return;
+    }
+
+    let last = performance.now();
+    const tick = (now: number) => {
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
+      const total = pathTotalMeters(routePath);
+      const remaining = total - liveMetersRef.current;
+      const speed = linearSpeedAtMeters(remaining);
+      liveMetersRef.current = Math.min(total, liveMetersRef.current + speed * dt);
+      setLiveDriver(pointAtPathMeters(routePath, liveMetersRef.current));
+      animRef.current = requestAnimationFrame(tick);
+    };
+
+    animRef.current = requestAnimationFrame(tick);
+    return () => {
+      if (animRef.current != null) cancelAnimationFrame(animRef.current);
+      animRef.current = null;
+    };
+  }, [driver, routePath, showDriver, trackingPhase]);
+
+  const mapDriver = showDriver ? (liveDriver ?? driver) : null;
+
   const tracking = getRideTrackingPresentation(rideLike, simulationPhase, null, routePath);
 
   return (
@@ -144,7 +203,7 @@ export default function RideRouteMap({
           className={cn("w-full h-[420px] rounded-none border-0", className)}
           origin={origin}
           destination={destination}
-          driver={showDriver ? driver : null}
+          driver={mapDriver}
           encodedPolyline={encodedPolyline}
           routePath={routePath}
           trackingPhase={trackingPhase}

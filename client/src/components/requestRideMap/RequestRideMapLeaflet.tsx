@@ -18,6 +18,7 @@ import {
   projectPointOnPath,
   type RoutePoint,
 } from "@shared/routeAnimation";
+import { haversineMeters } from "@shared/demoMaps";
 import { adaptiveDriverCatchUpSpeedMps } from "@shared/demoRideProgression";
 import {
   REQUEST_RIDE_MAP_DEFAULT_CENTER,
@@ -352,7 +353,25 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
       displayMetersRef.current = snappedTarget;
       targetMetersRef.current = snappedTarget;
       applyDisplayPosition(snappedTarget);
+      driverDisplayRef.current = projected.point;
       return;
+    }
+
+    const driverMoved =
+      driverDisplayRef.current != null &&
+      haversineMeters(driverDisplayRef.current, driver) > 1.5;
+
+    // Rota recortada no trecho atual: metros no path ficam ~0 mesmo com motorista em movimento.
+    if (driverMoved) {
+      targetMetersRef.current = snappedTarget;
+      const metersJump = Math.abs(snappedTarget - displayMetersRef.current);
+      if (metersJump < 1) {
+        stopDriverAnimation();
+        displayMetersRef.current = snappedTarget;
+        applyDisplayPosition(snappedTarget);
+        driverDisplayRef.current = projected.point;
+        return;
+      }
     }
 
     const prevTarget = targetMetersRef.current;
@@ -362,6 +381,8 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
 
     if (Math.abs(displayMetersRef.current - targetMetersRef.current) > STOP_EPSILON_M) {
       startDriverAnimation();
+    } else if (!driverMoved) {
+      driverDisplayRef.current = projected.point;
     }
   }, [driver, refreshDriverPath, fitVisibleBounds, startDriverAnimation, stopDriverAnimation, applyDisplayPosition, trackingPhase]);
 
