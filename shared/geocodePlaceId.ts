@@ -6,6 +6,7 @@ export function isRealGeocodePlaceId(placeId: string | null | undefined): boolea
     placeId.startsWith("osm:") ||
     placeId.startsWith("nominatim:") ||
     placeId.startsWith("coord:") ||
+    placeId.startsWith("sergipe:") ||
     placeId.startsWith("ChI")
   );
 }

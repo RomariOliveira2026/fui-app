@@ -88,7 +88,7 @@ describe("calculatePassengerRoute", () => {
             {
               lat: "-10.6850",
               lon: "-37.4250",
-              display_name: "Origem demo",
+              display_name: "Centro, Itabaiana, Sergipe, Brasil",
               place_id: 1,
             },
           ]),

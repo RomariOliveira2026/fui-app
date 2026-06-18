@@ -11,11 +11,13 @@ import {
 import type { GeocodingResult, DirectionsResult } from "../_core/map";
 import {
   geocodeAddressWithNominatim,
+  lookupPlaceIdWithNominatim,
   reverseGeocodeWithNominatim,
   searchPlacesWithNominatim,
   sleepMs,
 } from "../_core/nominatim";
-import { DEFAULT_GEOCODING_CITY, DEFAULT_OPERATION_CENTER, rankByLocality } from "@shared/mapDefaults";
+import { DEFAULT_OPERATION_CENTER, extractCityFromAddress, rankByLocality, resolveGeocodingScope, resolveHintCity } from "@shared/mapDefaults";
+import { findSergipeKnownPlace, findSergipeKnownPlaceByPlaceId, searchSergipeKnownPlaces } from "@shared/sergipeKnownPlaces";
 import { calculateDrivingRouteWithOsrm } from "../_core/osrmRoute";
 import { calculatePassengerRoute } from "../_core/passengerRoute";
 
@@ -40,11 +42,43 @@ async function geocodeWithOsmOrDemo(params: {
         placeId: demo.placeId,
       };
     }
+
+    const sergipe = findSergipeKnownPlaceByPlaceId(params.placeId);
+    if (sergipe) {
+      return {
+        lat: sergipe.lat,
+        lng: sergipe.lng,
+        formattedAddress: sergipe.displayName,
+        placeId: sergipe.placeId,
+      };
+    }
+
+    const byPlaceId = await lookupPlaceIdWithNominatim(params.placeId);
+    if (byPlaceId) {
+      return {
+        lat: byPlaceId.lat,
+        lng: byPlaceId.lng,
+        formattedAddress: byPlaceId.displayName,
+        placeId: byPlaceId.placeId,
+      };
+    }
   }
 
   if (params.address && params.address.trim().length >= 2) {
-    const geoCity = ENV.appCity || DEFAULT_GEOCODING_CITY;
-    const nominatim = await geocodeAddressWithNominatim(params.address, geoCity);
+    const trimmed = params.address.trim();
+    const known = findSergipeKnownPlace(trimmed);
+    if (known) {
+      return {
+        lat: known.lat,
+        lng: known.lng,
+        formattedAddress: known.displayName,
+        placeId: known.placeId,
+      };
+    }
+
+    const scope = resolveGeocodingScope(ENV.appCity);
+    const hintCity = resolveHintCity(trimmed, scope);
+    const nominatim = await geocodeAddressWithNominatim(trimmed, scope.operationalCity);
     if (nominatim) {
       return {
         lat: nominatim.lat,
@@ -187,34 +221,54 @@ export const mapsRouter = router({
       components: z.string().optional(),
     }))
     .query(async ({ input: params }) => {
-      const city = ENV.appCity;
-      const hasLocalOperation = city.length > 0;
-      const defaultLocation = `${DEFAULT_OPERATION_CENTER.lat},${DEFAULT_OPERATION_CENTER.lng}`;
-      const location = params.location ?? (hasLocalOperation ? defaultLocation : undefined);
+      const scope = resolveGeocodingScope(ENV.appCity);
+      const city = scope.operationalCity ?? "";
+      const hasLocalOperation = scope.useRegionalViewbox;
+      const defaultLocation = hasLocalOperation
+        ? `${DEFAULT_OPERATION_CENTER.lat},${DEFAULT_OPERATION_CENTER.lng}`
+        : undefined;
+      const location = params.location ?? defaultLocation;
       const radius = params.radius ?? (hasLocalOperation ? 25000 : 50000);
       const components = params.components ?? "country:br";
 
       if (!isMapsConfigured()) {
-        const demo = filterDemoPlaces(params.input);
-        if (demo.length > 0) {
-          return demo.map((p) => ({
-            description: p.description,
-            place_id: p.placeId,
-            structured_formatting: {
-              main_text: p.mainText,
-              secondary_text: p.secondaryText,
-            },
-            types: ["geocode"],
-          }));
-        }
+        const hintCity = extractCityFromAddress(params.input) ?? resolveHintCity(params.input, scope);
+        const demoPredictions = filterDemoPlaces(params.input).map((p) => ({
+          description: p.description,
+          place_id: p.placeId,
+          structured_formatting: {
+            main_text: p.mainText,
+            secondary_text: p.secondaryText,
+          },
+          types: ["geocode"] as string[],
+        }));
 
         await sleepMs(300);
         const nominatim = await searchPlacesWithNominatim(params.input, 8, {
-          city: city || undefined,
+          city: hintCity || undefined,
           useViewbox: hasLocalOperation,
         });
-        const predictions = nominatimToAutocompletePredictions(nominatim);
-        return hasLocalOperation ? rankByLocality(predictions, city) : predictions;
+        const nominatimPredictions = nominatimToAutocompletePredictions(nominatim);
+        const catalogPredictions = searchSergipeKnownPlaces(params.input).map((p) => ({
+          description: p.displayName,
+          place_id: p.placeId,
+          structured_formatting: {
+            main_text: p.displayName.split(",")[0]?.trim() || p.displayName,
+            secondary_text: p.displayName.split(",").slice(1).join(",").trim(),
+          },
+          types: ["geocode"] as string[],
+        }));
+
+        const seen = new Set<string>();
+        const merged: typeof demoPredictions = [];
+        for (const prediction of [...demoPredictions, ...catalogPredictions, ...nominatimPredictions]) {
+          const key = prediction.description.trim().toLowerCase();
+          if (seen.has(key)) continue;
+          seen.add(key);
+          merged.push(prediction);
+        }
+
+        return hasLocalOperation ? rankByLocality(merged, hintCity || city) : merged;
       }
 
       const autocompleteParams: Record<string, unknown> = {

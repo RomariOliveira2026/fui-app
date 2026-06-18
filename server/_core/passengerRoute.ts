@@ -7,8 +7,11 @@ import {
   getDemoPricingByVehicleType,
   type DemoVehicleType,
 } from "@shared/demoPricing";
-import { DEFAULT_GEOCODING_CITY } from "@shared/mapDefaults";
-import { geocodeAddressWithNominatim, reverseGeocodeWithNominatim, sleepMs } from "./nominatim";
+import { resolveGeocodingScope, resolveHintCity } from "@shared/mapDefaults";
+import { extractCityFromAddress } from "@shared/addressGeocoding";
+import { findSergipeKnownPlace, findSergipeKnownPlaceByPlaceId } from "@shared/sergipeKnownPlaces";
+import { isRealGeocodePlaceId } from "@shared/geocodePlaceId";
+import { geocodeAddressWithNominatim, lookupPlaceIdWithNominatim, reverseGeocodeWithNominatim, sleepMs } from "./nominatim";
 import { ENV } from "./env";
 import {
   calculateDrivingRouteWithOsrm,
@@ -22,7 +25,7 @@ export type ResolvedLocation = {
   lng: number;
   displayName: string;
   placeId?: string;
-  source: "demo_catalog" | "nominatim" | "demo_fallback";
+  source: "demo_catalog" | "nominatim" | "demo_fallback" | "sergipe_catalog";
 };
 
 export type PassengerRouteCalculation = {
@@ -126,6 +129,51 @@ async function resolveLocation(
     }
   }
 
+  if (placeId) {
+    const sergipeById = findSergipeKnownPlaceByPlaceId(placeId);
+    if (sergipeById) {
+      return {
+        lat: sergipeById.lat,
+        lng: sergipeById.lng,
+        displayName: sergipeById.displayName,
+        placeId: sergipeById.placeId,
+        source: "sergipe_catalog",
+      };
+    }
+
+    if (isRealGeocodePlaceId(placeId)) {
+      const byPlaceId = await lookupPlaceIdWithNominatim(placeId);
+      if (byPlaceId) {
+        return {
+          lat: byPlaceId.lat,
+          lng: byPlaceId.lng,
+          displayName: trimmed.length >= 2 ? trimmed : byPlaceId.displayName,
+          placeId: byPlaceId.placeId,
+          source: "nominatim",
+        };
+      }
+    }
+  }
+
+  if (trimmed.length >= 2) {
+    const knownEarly = findSergipeKnownPlace(trimmed);
+    if (knownEarly) {
+      console.info("[geocode:sergipe-catalog] hit", {
+        original: trimmed,
+        displayName: knownEarly.displayName,
+        lat: knownEarly.lat,
+        lng: knownEarly.lng,
+      });
+      return {
+        lat: knownEarly.lat,
+        lng: knownEarly.lng,
+        displayName: knownEarly.displayName,
+        placeId: knownEarly.placeId,
+        source: "sergipe_catalog",
+      };
+    }
+  }
+
   if (trimmed.length >= 2) {
     const exactDemo = findDemoPlaceByText(trimmed);
     if (exactDemo) {
@@ -140,8 +188,8 @@ async function resolveLocation(
   }
 
   if (trimmed.length >= 2) {
-    const geoCity = ENV.appCity || DEFAULT_GEOCODING_CITY;
-    const geocoded = await geocodeAddressWithNominatim(trimmed, geoCity);
+    const scope = resolveGeocodingScope(ENV.appCity);
+    const geocoded = await geocodeAddressWithNominatim(trimmed, scope.operationalCity);
     if (geocoded) {
       return {
         lat: geocoded.lat,
@@ -151,6 +199,23 @@ async function resolveLocation(
         source: "nominatim",
       };
     }
+  }
+
+  const known = findSergipeKnownPlace(trimmed);
+  if (known) {
+    console.info("[geocode:sergipe-catalog] hit", {
+      original: trimmed,
+      displayName: known.displayName,
+      lat: known.lat,
+      lng: known.lng,
+    });
+    return {
+      lat: known.lat,
+      lng: known.lng,
+      displayName: known.displayName,
+      placeId: known.placeId,
+      source: "sergipe_catalog",
+    };
   }
 
   if (allowDemoFallback && trimmed.length >= 2) {
@@ -167,6 +232,15 @@ async function resolveLocation(
     }
   }
 
+  if (trimmed.length >= 2) {
+    console.warn("[geocode:resolve] failed", {
+      address: trimmed,
+      hintCity: extractCityFromAddress(trimmed),
+      placeId: placeId ?? null,
+      provider: "nominatim+sergipe-catalog",
+    });
+  }
+
   return null;
 }
 
@@ -178,7 +252,7 @@ async function resolveStops(
   if (!stops?.length) return resolved;
 
   for (const stop of stops) {
-    await sleepMs(1100);
+    await sleepMs(350);
     const location = await resolveLocation(stop.address, stop.placeId, allowDemoFallback);
     if (!location) {
       throw new Error(`Não foi possível localizar a parada: ${stop.address}`);
@@ -214,12 +288,12 @@ export async function calculatePassengerRoute(input: {
     throw new Error("Não foi possível localizar a origem. Verifique o endereço.");
   }
 
-  await sleepMs(1100);
+  await sleepMs(350);
 
   const intermediateStops = await resolveStops(input.intermediateStops, allowDemoFallback);
 
   if (intermediateStops.length > 0) {
-    await sleepMs(1100);
+    await sleepMs(350);
   }
 
   const destinationCoords = parseLatLngStrings(input.destinationLat, input.destinationLng);

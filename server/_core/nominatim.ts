@@ -1,13 +1,17 @@
 import {
   buildGeocodingQueryVariants,
-  DEFAULT_GEOCODING_CITY,
   extractBrazilianPostalCode,
+  extractCityFromAddress,
   extractStreetNumber,
-  fixCommonStreetNameArticles,
+  fixCommonSergipeStreetTypos,
   formatAddressForGeocoding,
+  normalizeBrazilianAddressText,
+  resolveGeocodingScope,
+  resolveHintCity,
   scoreAddressLocality,
   SERGIPE_VIEWBOX,
 } from "@shared/mapDefaults";
+import { stripAccents } from "@shared/addressGeocoding";
 import {
   formatNominatimAddress,
   isCoarseNominatimAddress,
@@ -245,16 +249,129 @@ export async function reverseGeocodeWithNominatim(
 /** Geocodifica texto de endereço/cidade via Nominatim (OpenStreetMap). */
 function pickBestGeocodeResult(
   places: NominatimGeocodeResult[],
-  city: string
+  originalAddress: string,
+  defaultCity: string
 ): NominatimGeocodeResult | null {
   if (!places.length) return null;
 
+  const hintCity = extractCityFromAddress(originalAddress) ?? (defaultCity || undefined);
   const ranked = [...places].sort(
-    (a, b) => scoreAddressLocality(b.displayName, city) - scoreAddressLocality(a.displayName, city)
+    (a, b) =>
+      scoreAddressLocality(b.displayName, hintCity, originalAddress) -
+      scoreAddressLocality(a.displayName, hintCity, originalAddress)
   );
   const best = ranked[0]!;
-  if (scoreAddressLocality(best.displayName, city) < -40) return null;
-  return best;
+  const bestScore = scoreAddressLocality(best.displayName, hintCity, originalAddress);
+
+  if (!hintCity && places.length > 0) {
+    const inBrazil = ranked.find((p) => {
+      const l = p.displayName.toLowerCase();
+      return l.includes("brasil") || l.includes("brazil");
+    });
+    return inBrazil ?? best;
+  }
+
+  if (bestScore >= -40) return best;
+
+  const lower = best.displayName.toLowerCase();
+  const originalCity = extractCityFromAddress(originalAddress);
+  const inSergipe =
+    lower.includes("sergipe") ||
+    lower.includes("aracaju") ||
+    lower.includes("itabaiana") ||
+    lower.includes("estancia") ||
+    lower.includes("estância") ||
+    lower.includes("lagarto") ||
+    lower.includes("socorro");
+
+  if (originalCity && inSergipe) {
+    const cityNorm = stripAccents(originalCity).toLowerCase();
+    if (lower.includes(cityNorm)) return best;
+  }
+
+  // Destino intermunicipal: aceita melhor resultado em Sergipe se o texto cita a cidade.
+  if (originalCity) {
+    const cityNorm = stripAccents(originalCity).toLowerCase();
+    const inCity = ranked.find((p) =>
+      stripAccents(p.displayName).toLowerCase().includes(cityNorm)
+    );
+    if (inCity) return inCity;
+  }
+
+  if (inSergipe && !originalCity) return best;
+
+  // Último recurso: qualquer resultado dentro do viewbox de Sergipe.
+  if (places.length > 0 && originalCity) return best;
+
+  return null;
+}
+
+const OSM_TYPE_PREFIX: Record<string, string> = {
+  node: "N",
+  way: "W",
+  relation: "R",
+};
+
+function parseOsmPlaceIdParam(placeId: string): string | null {
+  const match = placeId.match(/^osm:(node|way|relation):(\d+)$/i);
+  if (!match) return null;
+  const prefix = OSM_TYPE_PREFIX[match[1]!.toLowerCase()];
+  if (!prefix) return null;
+  return `${prefix}${match[2]}`;
+}
+
+/** Resolve placeId OSM/Nominatim diretamente (autocomplete → rota). */
+export async function lookupPlaceIdWithNominatim(
+  placeId: string
+): Promise<NominatimGeocodeResult | null> {
+  const trimmed = placeId.trim();
+  if (!trimmed) return null;
+
+  let lookupParam: { key: "osm_ids" | "place_ids"; value: string } | null = null;
+
+  const osmIds = parseOsmPlaceIdParam(trimmed);
+  if (osmIds) {
+    lookupParam = { key: "osm_ids", value: osmIds };
+  } else if (trimmed.startsWith("nominatim:")) {
+    const id = trimmed.slice("nominatim:".length).trim();
+    if (/^\d+$/.test(id)) {
+      lookupParam = { key: "place_ids", value: id };
+    }
+  }
+
+  if (!lookupParam) return null;
+
+  const params = new URLSearchParams({
+    format: "json",
+    [lookupParam.key]: lookupParam.value,
+    addressdetails: "0",
+  });
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+
+  try {
+    const response = await fetch(`${NOMINATIM_BASE}/lookup?${params}`, {
+      signal: controller.signal,
+      headers: {
+        Accept: "application/json",
+        "Accept-Language": "pt-BR",
+        "User-Agent": USER_AGENT,
+      },
+    });
+
+    if (!response.ok) return null;
+
+    const data = (await response.json()) as NominatimSearchRow[];
+    if (!Array.isArray(data) || data.length === 0) return null;
+
+    return rowToGeocodeResult(data[0]!);
+  } catch (error) {
+    console.warn("[nominatim] lookup place_id failed:", trimmed, error);
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 async function buildViaCepGeocodingQueries(address: string): Promise<string[]> {
@@ -265,7 +382,7 @@ async function buildViaCepGeocodingQueries(address: string): Promise<string[]> {
   if (!via?.localidade) return [];
 
   const number = extractStreetNumber(address);
-  const street = fixCommonStreetNameArticles(via.logradouro);
+  const street = fixCommonSergipeStreetTypos(via.logradouro);
   const queries: string[] = [];
 
   if (number) {
@@ -281,26 +398,81 @@ export async function geocodeAddressWithNominatim(
   address: string,
   city?: string
 ): Promise<NominatimGeocodeResult | null> {
-  const geoCity = city?.trim() || DEFAULT_GEOCODING_CITY;
-  const queries = [...buildGeocodingQueryVariants(address, geoCity)];
+  const scope = resolveGeocodingScope(city);
+  const operationalCity = scope.operationalCity;
+  const hintCity = resolveHintCity(address, scope) ?? extractCityFromAddress(address) ?? undefined;
+  const normalized = normalizeBrazilianAddressText(address);
+  const primaryQuery = formatAddressForGeocoding(normalized, operationalCity);
 
+  const primaryPlaces = await searchPlacesWithNominatim(primaryQuery, 8, {
+    city: hintCity,
+    useViewbox: scope.useRegionalViewbox,
+  });
+  const primaryBest = pickBestGeocodeResult(
+    primaryPlaces,
+    address,
+    operationalCity ?? ""
+  );
+  if (primaryBest) {
+    console.info("[geocode:nominatim] ok", {
+      original: address,
+      query: primaryQuery,
+      hintCity,
+      result: primaryBest.displayName,
+      lat: primaryBest.lat,
+      lng: primaryBest.lng,
+    });
+    return primaryBest;
+  }
+
+  const queries = [...buildGeocodingQueryVariants(address, operationalCity)];
   const viaCepQueries = await buildViaCepGeocodingQueries(address);
   for (const q of viaCepQueries) {
     if (!queries.includes(q)) queries.push(q);
   }
 
-  const uniqueQueries = Array.from(new Set(queries));
+  const uniqueQueries = Array.from(new Set(queries)).filter((q) => q !== primaryQuery);
+  const maxExtraAttempts = 5;
 
-  for (let i = 0; i < uniqueQueries.length; i++) {
-    if (i > 0) await sleepMs(1100);
+  for (let i = 0; i < Math.min(maxExtraAttempts, uniqueQueries.length); i++) {
+    if (i > 0) await sleepMs(400);
 
-    const places = await searchPlacesWithNominatim(uniqueQueries[i]!, 5, {
-      city: geoCity,
-      useViewbox: true,
+    const query = uniqueQueries[i]!;
+    const places = await searchPlacesWithNominatim(query, 5, {
+      city: hintCity,
+      useViewbox: scope.useRegionalViewbox,
     });
-    const best = pickBestGeocodeResult(places, geoCity);
-    if (best) return best;
+    const best = pickBestGeocodeResult(places, address, operationalCity ?? "");
+
+    if (best) {
+      console.info("[geocode:nominatim] ok", {
+        original: address,
+        query,
+        hintCity,
+        result: best.displayName,
+        lat: best.lat,
+        lng: best.lng,
+      });
+      return best;
+    }
+
+    console.info("[geocode:nominatim] miss", {
+      original: address,
+      query,
+      hintCity,
+      results: places.length,
+      top: places[0]?.displayName ?? null,
+    });
   }
+
+  console.warn("[geocode:nominatim] failed", {
+    original: address,
+    normalized: formatAddressForGeocoding(address, operationalCity),
+    queriesTried: 1 + Math.min(maxExtraAttempts, uniqueQueries.length),
+    hintCity,
+    nationalScope: scope.isNationalScope,
+    provider: "nominatim",
+  });
 
   return null;
 }

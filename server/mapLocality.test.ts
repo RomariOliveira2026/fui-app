@@ -1,10 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   buildGeocodingQueryVariants,
-  fixCommonStreetNameArticles,
+  fixCommonSergipeStreetTypos,
   normalizeBrazilianAddressText,
   rankByLocality,
-  stripNeighborhoodBeforeCity,
 } from "@shared/mapDefaults";
 
 describe("rankByLocality", () => {
@@ -26,15 +25,24 @@ describe("rankByLocality", () => {
 });
 
 describe("normalizeBrazilianAddressText", () => {
-  it("normaliza Itabaiana/SE e remove bairro após hífen no número", () => {
+  it("normaliza Itabaiana/SE e preserva bairro para geocoding", () => {
     const input = "Avenida Eduardo Paixão Rocha, 800 - Queimada, Itabaiana/SE";
     expect(normalizeBrazilianAddressText(input)).toBe(
-      "Avenida Eduardo Paixão Rocha, 800, Itabaiana, Sergipe"
+      "Avenida Eduardo da Paixão Rocha, 800, Queimada, Itabaiana, Sergipe"
     );
   });
 
+  it("normaliza Aracaju/SE e corrige Macah para Machado", () => {
+    const input =
+      "Rua Paulo Henrique Macah Pimentel, 170 - Inácio Barbosa - Aracaju/SE";
+    const normalized = normalizeBrazilianAddressText(input);
+    expect(normalized).toContain("Machado");
+    expect(normalized).toContain("Aracaju");
+    expect(normalized).toContain("Inácio Barbosa");
+  });
+
   it("corrige artigo da em Eduardo Paixão Rocha", () => {
-    expect(fixCommonStreetNameArticles("Avenida Eduardo Paixão Rocha, 800")).toContain(
+    expect(fixCommonSergipeStreetTypos("Avenida Eduardo Paixão Rocha, 800")).toContain(
       "Eduardo da Paixão Rocha"
     );
   });
@@ -46,6 +54,20 @@ describe("normalizeBrazilianAddressText", () => {
     expect(
       variants.some((v) => v.includes("Eduardo da Paixão Rocha") && v.includes("800"))
     ).toBe(true);
-    expect(variants.some((v) => v.includes("Queimada"))).toBe(false);
+    expect(variants.some((v) => v.toLowerCase().includes("itabaiana"))).toBe(true);
+    expect(variants.some((v) => v.toLowerCase().includes("aracaju"))).toBe(false);
+  });
+
+  it("não anexa Itabaiana a endereços de Aracaju nas variantes", () => {
+    const variants = buildGeocodingQueryVariants(
+      "Rua Paulo Henrique Macah Pimentel, 170 - Inácio Barbosa - Aracaju/SE",
+      "Itabaiana"
+    );
+    expect(variants.some((v) => v.toLowerCase().includes("aracaju"))).toBe(true);
+    expect(
+      variants.every(
+        (v) => !/\bitabaiana\b/i.test(v) || v.toLowerCase().includes("aracaju")
+      )
+    ).toBe(true);
   });
 });

@@ -8,7 +8,9 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { filterDemoPlaces, findDemoPlaceByPlaceId, findDemoPlaceByText } from "@shared/demoMaps";
-import { DEFAULT_OPERATION_CENTER, rankByLocality } from "@shared/mapDefaults";
+import { BRAZIL_MAP_CENTER, DEFAULT_OPERATION_CENTER, rankByLocality } from "@shared/mapDefaults";
+
+const MIN_QUERY_LENGTH = 2;
 import { WL } from "@/whitelabel";
 import type { AddressHistoryItem } from "@/lib/addressHistory";
 import {
@@ -112,7 +114,7 @@ export function AddressAutocomplete({
         clearTimeout(debounceRef.current);
       }
 
-      if (newValue.trim().length >= 3) {
+      if (newValue.trim().length >= MIN_QUERY_LENGTH) {
         debounceRef.current = setTimeout(() => {
           setDebouncedQuery(newValue);
         }, 300);
@@ -133,29 +135,27 @@ export function AddressAutocomplete({
       ? locationBias
       : WL.city
         ? DEFAULT_OPERATION_CENTER
-        : null;
+        : BRAZIL_MAP_CENTER;
 
   const locationBiasParam = effectiveBias
     ? `${effectiveBias.lat},${effectiveBias.lng}`
     : undefined;
 
-  const useDemoPlacesCatalog = mapsConfigured === false;
-
   const { data: suggestions, isLoading: isLoadingApi } = trpc.maps.autocomplete.useQuery(
     {
       input: debouncedQuery,
       location: locationBiasParam,
-      radius: WL.city ? 25000 : undefined,
+      radius: WL.city ? 25000 : 200000,
     },
     {
-      enabled: !useDemoPlacesCatalog && debouncedQuery.trim().length >= 3,
+      enabled: debouncedQuery.trim().length >= MIN_QUERY_LENGTH,
       staleTime: 30000,
       refetchOnWindowFocus: false,
       retry: false,
     }
   );
 
-  const isLoading = useDemoPlacesCatalog ? false : isLoadingApi;
+  const isLoading = isLoadingApi;
 
   const apiResults: AddressResult[] = useMemo(() => {
     const mapped = (suggestions || []).map((s: any) => ({
@@ -170,34 +170,21 @@ export function AddressAutocomplete({
     return WL.city && mapped.length > 1 ? rankByLocality(mapped, WL.city) : mapped;
   }, [suggestions]);
 
-  const useDemoPlaces = useDemoPlacesCatalog;
-
-  const demoResults: AddressResult[] = useDemoPlaces
-    ? filterDemoPlaces(debouncedQuery).map((p) => ({
-        description: p.description,
-        placeId: p.placeId,
-        mainText: p.mainText,
-        secondaryText: p.secondaryText,
-      }))
-    : [];
-
-  const localDemoMatches: AddressResult[] =
-    WL.city && debouncedQuery.trim().length >= 2
-      ? filterDemoPlaces(debouncedQuery).map((p) => ({
-          description: p.description,
-          placeId: p.placeId,
-          mainText: p.mainText,
-          secondaryText: p.secondaryText,
-        }))
-      : [];
+  const localDemoMatches: AddressResult[] = useMemo(() => {
+    if (!WL.city || debouncedQuery.trim().length < MIN_QUERY_LENGTH) return [];
+    return filterDemoPlaces(debouncedQuery).map((p) => ({
+      description: p.description,
+      placeId: p.placeId,
+      mainText: p.mainText,
+      secondaryText: p.secondaryText,
+    }));
+  }, [debouncedQuery]);
 
   const placeResults: AddressResult[] = useMemo(() => {
-    if (useDemoPlacesCatalog) return demoResults;
-
     const merged: AddressResult[] = [];
     const seen = new Set<string>();
 
-    for (const item of [...localDemoMatches, ...(apiResults.length > 0 ? apiResults : demoResults)]) {
+    for (const item of [...localDemoMatches, ...apiResults]) {
       const key = item.description.trim().toLowerCase();
       if (seen.has(key)) continue;
       seen.add(key);
@@ -205,7 +192,7 @@ export function AddressAutocomplete({
     }
 
     return merged;
-  }, [useDemoPlacesCatalog, demoResults, localDemoMatches, apiResults]);
+  }, [localDemoMatches, apiResults]);
 
   const trimmedQuery = query.trim();
   const filteredSaved = useMemo(
@@ -246,7 +233,7 @@ export function AddressAutocomplete({
       });
     }
 
-    if (debouncedQuery.trim().length >= 3) {
+    if (debouncedQuery.trim().length >= MIN_QUERY_LENGTH) {
       for (const result of placeResults) {
         const key = result.description.trim().toLowerCase();
         if (seen.has(key)) continue;
@@ -261,12 +248,12 @@ export function AddressAutocomplete({
   const showDropdown =
     isFocused &&
     trimmedQuery.length > 0 &&
-    (flatSuggestions.length > 0 || (debouncedQuery.trim().length >= 3 && isLoading));
+    (flatSuggestions.length > 0 || (debouncedQuery.trim().length >= MIN_QUERY_LENGTH && isLoading));
 
   const showEmptyState =
     isFocused &&
     trimmedQuery.length > 0 &&
-    debouncedQuery.trim().length >= 3 &&
+    debouncedQuery.trim().length >= MIN_QUERY_LENGTH &&
     !isLoading &&
     flatSuggestions.length === 0;
 
@@ -406,87 +393,96 @@ export function AddressAutocomplete({
             <X className="w-4 h-4" />
           </button>
         )}
-        {isLoading && debouncedQuery.trim().length >= 3 && (
+        {isLoading && debouncedQuery.trim().length >= MIN_QUERY_LENGTH && (
           <div className="absolute right-10 top-1/2 -translate-y-1/2">
             <Loader2 className="w-4 h-4 animate-spin text-[#F39200]" />
           </div>
         )}
       </div>
 
-      {showDropdown && flatSuggestions.length > 0 && (
+      {showDropdown && (
         <div
           ref={dropdownRef}
           className="absolute top-full left-0 right-0 mt-1 bg-card border border-border rounded-xl shadow-2xl z-50 overflow-hidden max-h-[300px] overflow-y-auto"
         >
-          {flatSuggestions.map((item, index) => {
-            const prev = flatSuggestions[index - 1];
-            const showHeader = !prev || prev.type !== item.type;
-            const sectionLabel =
-              item.type === "saved"
-                ? "Salvos"
-                : item.type === "history"
-                  ? "Recentes"
-                  : "Sugestões";
-
-            return (
-              <div key={item.key}>
-                {showHeader ? (
-                  <p className="px-4 pt-2 pb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                    {sectionLabel}
-                  </p>
-                ) : null}
-                <button
-                  type="button"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => handleSelectFlat(item)}
-                  className={cn(
-                    "w-full flex items-start gap-3 px-4 py-3 text-left transition-colors",
-                    index === selectedIndex
-                      ? "bg-[#F39200]/10 text-foreground"
-                      : "text-muted-foreground hover:bg-accent"
-                  )}
-                >
-                  {item.type === "saved" ? (
-                    savedIcon(item.label)
-                  ) : item.type === "history" ? (
-                    <History className="w-4 h-4 mt-0.5 text-[#F39200] shrink-0" />
-                  ) : (
-                    <MapPin className="w-4 h-4 mt-0.5 text-[#F39200] shrink-0" />
-                  )}
-                  <div className="min-w-0">
-                    {item.type === "saved" ? (
-                      <>
-                        <p className="text-sm font-medium truncate">{item.title}</p>
-                        <p className="text-xs text-muted-foreground truncate">{item.address}</p>
-                      </>
-                    ) : item.type === "history" ? (
-                      <p className="text-sm font-medium truncate">{item.address}</p>
-                    ) : (
-                      <>
-                        <p className="text-sm font-medium truncate">{item.result.mainText}</p>
-                        <p className="text-xs text-muted-foreground line-clamp-2">
-                          {item.result.secondaryText || item.result.description}
-                        </p>
-                      </>
-                    )}
-                  </div>
-                </button>
-              </div>
-            );
-          })}
-          {debouncedQuery.trim().length >= 3 ? (
-            <div className="px-4 py-2 border-t border-border">
-              <p className="text-[10px] text-muted-foreground/50 text-right">
-                {useDemoPlacesCatalog || (demoResults.length > 0 && apiResults.length === 0)
-                  ? mapsConfigured === false
-                    ? "Sugestões via OpenStreetMap"
-                    : WL.city
-                      ? `Sugestões locais — ${WL.city}`
-                      : "Sugestões locais"
-                  : "Powered by Google"}
-              </p>
+          {isLoading && flatSuggestions.length === 0 ? (
+            <div className="flex items-center justify-center gap-2 px-4 py-5 text-sm text-muted-foreground">
+              <Loader2 className="w-4 h-4 animate-spin text-[#F39200]" />
+              Buscando endereços...
             </div>
-          ) : null}
+          ) : (
+            <>
+              {flatSuggestions.map((item, index) => {
+                const prev = flatSuggestions[index - 1];
+                const showHeader = !prev || prev.type !== item.type;
+                const sectionLabel =
+                  item.type === "saved"
+                    ? "Salvos"
+                    : item.type === "history"
+                      ? "Recentes"
+                      : "Sugestões";
+
+                return (
+                  <div key={item.key}>
+                    {showHeader ? (
+                      <p className="px-4 pt-2 pb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                        {sectionLabel}
+                      </p>
+                    ) : null}
+                    <button
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => handleSelectFlat(item)}
+                      className={cn(
+                        "w-full flex items-start gap-3 px-4 py-3 text-left transition-colors",
+                        index === selectedIndex
+                          ? "bg-[#F39200]/10 text-foreground"
+                          : "text-muted-foreground hover:bg-accent"
+                      )}
+                    >
+                      {item.type === "saved" ? (
+                        savedIcon(item.label)
+                      ) : item.type === "history" ? (
+                        <History className="w-4 h-4 mt-0.5 text-[#F39200] shrink-0" />
+                      ) : (
+                        <MapPin className="w-4 h-4 mt-0.5 text-[#F39200] shrink-0" />
+                      )}
+                      <div className="min-w-0">
+                        {item.type === "saved" ? (
+                          <>
+                            <p className="text-sm font-medium truncate">{item.title}</p>
+                            <p className="text-xs text-muted-foreground truncate">{item.address}</p>
+                          </>
+                        ) : item.type === "history" ? (
+                          <p className="text-sm font-medium truncate">{item.address}</p>
+                        ) : (
+                          <>
+                            <p className="text-sm font-medium truncate">{item.result.mainText}</p>
+                            <p className="text-xs text-muted-foreground line-clamp-2">
+                              {item.result.secondaryText || item.result.description}
+                            </p>
+                          </>
+                        )}
+                      </div>
+                    </button>
+                  </div>
+                );
+              })}
+              {debouncedQuery.trim().length >= MIN_QUERY_LENGTH && flatSuggestions.length > 0 ? (
+                <div className="px-4 py-2 border-t border-border">
+                  <p className="text-[10px] text-muted-foreground/50 text-right">
+                    {mapsConfigured === false
+                      ? "Sugestões via OpenStreetMap"
+                      : mapsConfigured
+                        ? "Powered by Google"
+                        : WL.city
+                          ? `Sugestões locais — ${WL.city}`
+                          : "Sugestões locais"}
+                  </p>
+                </div>
+              ) : null}
+            </>
+          )}
         </div>
       )}
 
