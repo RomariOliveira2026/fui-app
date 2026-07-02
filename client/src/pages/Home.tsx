@@ -35,7 +35,7 @@ import {
   Navigation
 } from "lucide-react";
 import { useLocation } from "wouter";
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { RequestRideMap } from "@/components/RequestRideMap";
 import { AddressAutocomplete } from "@/components/AddressAutocomplete";
 import {
@@ -72,6 +72,14 @@ import PassengerSummaryCards from "@/components/passenger/PassengerSummaryCards"
 import { cn } from "@/lib/utils";
 import { fuiBrand, fuiSelectedTile, fuiSurface } from "@/lib/fuiTheme";
 import { usePassengerDashboardData } from "@/lib/usePassengerDashboardData";
+import { resolveDriverLandingPath } from "@shared/driverLanding";
+import {
+  consumePostAuthRedirect,
+  hasDriverSignupIntent,
+  peekPostAuthRedirect,
+  setDriverSignupIntent,
+  startDriverRegistrationFlow,
+} from "@/lib/postAuthRedirect";
 
 // ============================================
 // LOGGED-IN HOME: Fullscreen Map + Ride Request
@@ -857,7 +865,7 @@ function LoggedInHome() {
               <div className="border-t border-border my-2" />
 
               <button
-                onClick={() => { setSidebarOpen(false); setLocation("/driver/register"); }}
+                onClick={() => { setSidebarOpen(false); startDriverRegistrationFlow(setLocation); }}
                 className={sidebarNavClass(isSidebarPathActive("/driver/register"))}
                 aria-current={isSidebarPathActive("/driver/register") ? "page" : undefined}
               >
@@ -977,7 +985,7 @@ function VisitorHome() {
                   size="lg" 
                   variant="outline"
                   className="text-lg px-8 py-6 border-primary/30 hover:bg-primary/10"
-                  onClick={() => setLocation("/driver/register")}
+                  onClick={() => startDriverRegistrationFlow(setLocation)}
                 >
                   Quero Ser Motorista
                   <ChevronRight className="ml-2 w-5 h-5" />
@@ -1132,7 +1140,7 @@ function VisitorHome() {
                   size="lg" 
                   variant="outline"
                   className="text-lg px-8 py-6 border-white/30 text-white hover:bg-white/10"
-                  onClick={() => setLocation("/driver/register")}
+                  onClick={() => startDriverRegistrationFlow(setLocation)}
                 >
                   Seja um Motorista
                 </Button>
@@ -1167,7 +1175,7 @@ function VisitorHome() {
             <div>
               <h4 className="font-bold text-foreground mb-4">Motoristas</h4>
               <ul className="space-y-2 text-muted-foreground">
-                <li><a href="/driver/register" className="hover:text-primary transition-colors">Seja Motorista</a></li>
+                <li><a href="/driver/register" onClick={() => setDriverSignupIntent()} className="hover:text-primary transition-colors">Seja Motorista</a></li>
                 <li><a href="/driver-dashboard" className="hover:text-primary transition-colors">Dashboard</a></li>
               </ul>
             </div>
@@ -1189,6 +1197,57 @@ function VisitorHome() {
 }
 
 // ============================================
+// AUTHENTICATED HOME ROUTER
+// ============================================
+
+function AuthenticatedHomeRouter() {
+  const { user } = useAuth();
+  const [, setLocation] = useLocation();
+
+  const { data: driverProfile, isLoading: profileLoading } = trpc.driver.getMyProfile.useQuery(
+    undefined,
+    { enabled: !!user, retry: false, refetchOnWindowFocus: false }
+  );
+  const { data: application, isLoading: applicationLoading } =
+    trpc.driverRegistration.getMyApplication.useQuery(undefined, {
+      enabled: !!user,
+      retry: false,
+      refetchOnWindowFocus: false,
+    });
+
+  const redirectPath = useMemo(
+    () =>
+      resolveDriverLandingPath({
+        role: user?.role,
+        driverProfile: driverProfile ?? null,
+        application: application ?? null,
+        hasDriverSignupIntent: hasDriverSignupIntent(),
+        postAuthRedirect: peekPostAuthRedirect(),
+      }),
+    [user?.role, driverProfile, application]
+  );
+
+  useEffect(() => {
+    if (!redirectPath) return;
+    consumePostAuthRedirect();
+    setLocation(redirectPath);
+  }, [redirectPath, setLocation]);
+
+  if (profileLoading || applicationLoading || redirectPath) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center">
+          <Loader2 className="w-10 h-10 animate-spin text-primary mx-auto" />
+          <p className="mt-4 text-muted-foreground">Carregando...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return <LoggedInHome />;
+}
+
+// ============================================
 // MAIN HOME COMPONENT
 // ============================================
 
@@ -1207,7 +1266,7 @@ export default function Home() {
   }
 
   if (isAuthenticated) {
-    return <LoggedInHome />;
+    return <AuthenticatedHomeRouter />;
   }
 
   return <VisitorHome />;

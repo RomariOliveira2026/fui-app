@@ -1,4 +1,4 @@
-import { getLoginUrl } from "@/const";
+import { buildLoginUrl, redirectToLogin } from "@/const";
 import {
   canUsePrivateUserApi,
   DEMO_PASSENGER_USER,
@@ -18,8 +18,7 @@ type UseAuthOptions = {
 };
 
 export function useAuth(options?: UseAuthOptions) {
-  const { redirectOnUnauthenticated = false, redirectPath = getLoginUrl() } =
-    options ?? {};
+  const { redirectOnUnauthenticated = false, redirectPath } = options ?? {};
   const utils = trpc.useUtils();
 
   const onLanding =
@@ -103,9 +102,13 @@ export function useAuth(options?: UseAuthOptions) {
     if (state.loading || logoutMutation.isPending) return;
     if (state.user) return;
     if (typeof window === "undefined") return;
-    if (window.location.pathname === redirectPath) return;
 
-    window.location.href = redirectPath
+    if (redirectPath) {
+      window.location.href = redirectPath;
+      return;
+    }
+
+    redirectToLogin();
   }, [
     redirectOnUnauthenticated,
     redirectPath,

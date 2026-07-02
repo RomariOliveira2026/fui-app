@@ -36,9 +36,7 @@ export const WL = {
 
   // Derived helpers
   get pageTitle() {
-    return this.city
-      ? `${this.appName} - Transporte e Mobilidade Urbana em ${this.city}`
-      : `${this.appName} - Transporte e Mobilidade Urbana`;
+    return `${this.appName} - Transporte e Mobilidade Urbana`;
   },
   get supportWhatsAppUrl() {
     if (!this.supportWhatsApp) return null;

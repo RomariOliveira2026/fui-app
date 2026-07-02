@@ -12,7 +12,7 @@ import {
   Calendar, Clock, Car, ArrowRight
 } from "lucide-react";
 import { useLocation } from "wouter";
-import { getLoginUrl } from "@/const";
+import { buildLoginUrl, rememberLoginReturnTo } from "@/const";
 import AppHeader from "@/components/AppHeader";
 import { isLocalDemoDev } from "@/lib/demoMode";
 import { mergeDemoUserProfile, saveDemoUserProfile } from "@/lib/demoUserProfile";
@@ -196,7 +196,12 @@ export default function Profile() {
           </CardHeader>
           <CardContent>
             <Button asChild className="w-full">
-              <a href={getLoginUrl()}>Fazer Login</a>
+              <a
+                href={buildLoginUrl()}
+                onClick={() => rememberLoginReturnTo()}
+              >
+                Fazer Login
+              </a>
             </Button>
           </CardContent>
         </Card>

@@ -1,12 +1,14 @@
 import { useEffect } from "react";
 import { useLocation } from "wouter";
 import { Loader2 } from "lucide-react";
+import { setDriverSignupIntent } from "@/lib/postAuthRedirect";
 
 /** Legado: redireciona para o fluxo completo de pré-cadastro. */
 export default function BecomeDriver() {
   const [, setLocation] = useLocation();
 
   useEffect(() => {
+    setDriverSignupIntent();
     setLocation("/driver/register");
   }, [setLocation]);
 

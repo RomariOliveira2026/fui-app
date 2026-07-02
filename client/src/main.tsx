@@ -6,7 +6,7 @@ import { createRoot } from "react-dom/client";
 import superjson from "superjson";
 import App from "./App";
 import { isLandingRoutePathname } from "./components/landing/landingRoutes";
-import { getLoginUrl } from "./const";
+import { redirectToLogin } from "./const";
 import "./index.css";
 
 function registerPwaServiceWorker() {
@@ -60,7 +60,7 @@ const redirectToLoginIfUnauthorized = (error: unknown) => {
   // Demo local: OAuth desativado — nunca redirecionar para /app-auth em dev.
   if (import.meta.env.DEV) return;
 
-  window.location.href = getLoginUrl();
+  redirectToLogin();
 };
 
 function shouldSuppressDevQueryLog(queryKey: unknown): boolean {

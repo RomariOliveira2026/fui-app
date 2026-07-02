@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { Toaster } from "@/components/ui/sonner";
 import { isLandingRoute } from "@/components/landing/landingRoutes";
 import { navigateAdminNav } from "@/lib/adminNav";
+import { WL } from "@/whitelabel";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
 import { Route, Switch } from "wouter";
@@ -123,6 +124,17 @@ function Router() {
   );
 }
 
+function AppDocumentTitle() {
+  const [location] = useLocation();
+
+  useEffect(() => {
+    if (isLandingRoute(location)) return;
+    document.title = WL.pageTitle;
+  }, [location]);
+
+  return null;
+}
+
 function GlobalAppOverlays() {
   const [location] = useLocation();
   if (isLandingRoute(location)) return null;
@@ -142,6 +154,7 @@ function App() {
       <ThemeProvider defaultTheme="dark">
         <TooltipProvider>
           <Toaster />
+          <AppDocumentTitle />
           <GlobalAppOverlays />
           <ScrollToTopButton />
           <Router />

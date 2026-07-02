@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { redirectToLogin } from "@/const";
 import { trpc } from "@/lib/trpc";
 import { useLocation } from "wouter";
 import AppHeader from "@/components/AppHeader";
@@ -12,6 +13,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { fuiBrand, fuiSurface } from "@/lib/fuiTheme";
 import { cn } from "@/lib/utils";
+import {
+  clearDriverSignupIntent,
+  setDriverSignupIntent,
+} from "@/lib/postAuthRedirect";
 import {
   DRIVER_APPLICATION_STATUS_LABELS,
   DRIVER_VEHICLE_TYPES,
@@ -64,9 +69,20 @@ function formatPhone(value: string) {
 export default function DriverRegistration() {
   const { user, loading: authLoading } = useAuth();
   const [, setLocation] = useLocation();
+  const utils = trpc.useUtils();
   const [step, setStep] = useState(1);
   const [form, setForm] = useState<DriverApplicationFormState>(EMPTY_DRIVER_REGISTRATION);
   const [submitted, setSubmitted] = useState(false);
+
+  useEffect(() => {
+    setDriverSignupIntent();
+  }, []);
+
+  useEffect(() => {
+    if (user) {
+      clearDriverSignupIntent();
+    }
+  }, [user]);
 
   const { data: existing, isLoading } = trpc.driverRegistration.getMyApplication.useQuery(
     undefined,
@@ -75,8 +91,9 @@ export default function DriverRegistration() {
 
   const saveDraft = trpc.driverRegistration.saveDraft.useMutation();
   const submitMutation = trpc.driverRegistration.submit.useMutation({
-    onSuccess: () => {
+    onSuccess: async () => {
       setSubmitted(true);
+      await utils.auth.me.invalidate();
       toast.success("Cadastro enviado com sucesso!");
     },
     onError: (err) => toast.error(err.message),
@@ -199,8 +216,8 @@ export default function DriverRegistration() {
         <AppHeader title="Cadastro de Motorista" />
         <div className="container max-w-lg mx-auto py-12 px-4 text-center space-y-4">
           <p className="text-muted-foreground">Faça login para iniciar seu cadastro como motorista.</p>
-          <Button className={fuiBrand.btn} onClick={() => setLocation("/")}>
-            Ir para o início
+          <Button className={fuiBrand.btn} onClick={() => redirectToLogin("/driver/register")}>
+            Fazer login
           </Button>
         </div>
       </div>
