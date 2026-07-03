@@ -53,6 +53,11 @@ import {
 } from "@/lib/requestRideLocal";
 import { useSavedAddresses } from "@/lib/useSavedAddresses";
 import { getDemoPricingByVehicleType } from "@shared/demoPricing";
+import {
+  hasCityConflictBetweenAddresses,
+  pickResolvedAddressLabel,
+} from "@shared/addressGeocoding";
+import { findSergipeKnownPlaceByPlaceId } from "@shared/sergipeKnownPlaces";
 import { toast } from "sonner";
 import { isLocalDemoDev } from "@/lib/demoMode";
 import { usePassengerCurrentLocation } from "@/lib/usePassengerCurrentLocation";
@@ -253,12 +258,31 @@ function LoggedInHome() {
     clearRoute();
 
     try {
+      const safeOriginPlaceId = (() => {
+        const id = originPlaceId || undefined;
+        if (!id) return undefined;
+        const sergipe = findSergipeKnownPlaceByPlaceId(id);
+        if (sergipe && hasCityConflictBetweenAddresses(originTrimmed, sergipe.displayName)) {
+          return undefined;
+        }
+        return id;
+      })();
+      const safeDestPlaceId = (() => {
+        const id = destPlaceId || undefined;
+        if (!id) return undefined;
+        const sergipe = findSergipeKnownPlaceByPlaceId(id);
+        if (sergipe && hasCityConflictBetweenAddresses(destTrimmed, sergipe.displayName)) {
+          return undefined;
+        }
+        return id;
+      })();
+
       const result = await calculatePassengerRouteMutation.mutateAsync({
         originAddress: originTrimmed,
         destinationAddress: destTrimmed,
         vehicleType,
-        originPlaceId: originPlaceId || undefined,
-        destinationPlaceId: destPlaceId || undefined,
+        originPlaceId: safeOriginPlaceId,
+        destinationPlaceId: safeDestPlaceId,
         originLat:
           originFromGpsRef.current && originCoordsRef.current
             ? String(originCoordsRef.current.lat)
@@ -269,10 +293,32 @@ function LoggedInHome() {
             : undefined,
       });
 
-      if (result.origin.placeId) setOriginPlaceId(result.origin.placeId);
-      if (result.destination.placeId) setDestPlaceId(result.destination.placeId);
-      setOriginAddress(result.origin.displayName);
-      setDestinationAddress(result.destination.displayName);
+      const originLabel = safeOriginPlaceId
+        ? pickResolvedAddressLabel(originTrimmed, result.origin.displayName, {
+            trustedPlaceSelection: true,
+          })
+        : originTrimmed || result.origin.displayName;
+      const destinationLabel = safeDestPlaceId
+        ? pickResolvedAddressLabel(destTrimmed, result.destination.displayName, {
+            trustedPlaceSelection: true,
+          })
+        : pickResolvedAddressLabel(destTrimmed, result.destination.displayName);
+
+      const savedOriginPlaceId =
+        result.origin.placeId &&
+        !hasCityConflictBetweenAddresses(originLabel, result.origin.displayName)
+          ? result.origin.placeId
+          : undefined;
+      const savedDestPlaceId =
+        result.destination.placeId &&
+        !hasCityConflictBetweenAddresses(destinationLabel, result.destination.displayName)
+          ? result.destination.placeId
+          : undefined;
+
+      setOriginPlaceId(savedOriginPlaceId ?? "");
+      setDestPlaceId(savedDestPlaceId ?? "");
+      setOriginAddress(originLabel);
+      setDestinationAddress(destinationLabel);
 
       const startCoords = { lat: result.origin.lat, lng: result.origin.lng };
       const endCoords = { lat: result.destination.lat, lng: result.destination.lng };
@@ -290,10 +336,10 @@ function LoggedInHome() {
 
       const { originHistory: nextOrigin, destinationHistory: nextDest } =
         persistRideAddressHistory(
-          result.origin.displayName,
-          result.destination.displayName,
-          result.origin.placeId,
-          result.destination.placeId
+          originLabel,
+          destinationLabel,
+          savedOriginPlaceId,
+          savedDestPlaceId
         );
       setOriginHistory(nextOrigin);
       setDestinationHistory(nextDest);

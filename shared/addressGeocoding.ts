@@ -85,6 +85,94 @@ export function extractCityFromAddress(address: string): string | null {
   return match?.[1]?.trim() ?? null;
 }
 
+function normalizeCityName(city: string): string {
+  return stripAccents(city).toLowerCase();
+}
+
+/** Indica conflito de cidade entre o texto digitado e o endereço resolvido. */
+export function hasCityConflictBetweenAddresses(
+  userAddress: string,
+  resolvedAddress: string
+): boolean {
+  const userCity = extractCityFromAddress(userAddress);
+  const resolvedCity = extractCityFromAddress(resolvedAddress);
+  if (!userCity || !resolvedCity) return false;
+  return normalizeCityName(userCity) !== normalizeCityName(resolvedCity);
+}
+
+/** Preserva o texto do usuário quando o geocoder aponta para outra cidade ou POI errado. */
+export function isLikelyUnwantedAddressRelabel(
+  userInput: string,
+  resolvedDisplayName: string
+): boolean {
+  const trimmed = userInput.trim();
+  if (trimmed.length < 4) return false;
+
+  if (hasCityConflictBetweenAddresses(trimmed, resolvedDisplayName)) return true;
+
+  const userNorm = stripAccents(trimmed).toLowerCase();
+  const resolvedNorm = stripAccents(resolvedDisplayName).toLowerCase();
+
+  if (resolvedNorm.includes("aeroporto") && !userNorm.includes("aeroporto")) {
+    return true;
+  }
+
+  if (
+    resolvedNorm.includes("aracaju") &&
+    !userNorm.includes("aracaju") &&
+    !userNorm.includes("aeroporto")
+  ) {
+    return true;
+  }
+
+  const landmarkPattern =
+    /aeroporto|shopping\s+jardins|shopping\s+riomar|assembleia legislativa|orla de atalaia|terminal rodoviario|rodoviaria de aracaju/i;
+  if (landmarkPattern.test(resolvedDisplayName) && !landmarkPattern.test(trimmed)) {
+    return true;
+  }
+
+  const userStreet = userNorm.split(",")[0]?.trim() ?? "";
+  if (userStreet.length >= 6 && !resolvedNorm.includes(userStreet.slice(0, 6))) {
+    if (landmarkPattern.test(resolvedDisplayName)) return true;
+  }
+
+  return false;
+}
+
+export type PickResolvedAddressLabelOptions = {
+  /** Usuário escolheu sugestão/autocomplete com placeId confiável. */
+  trustedPlaceSelection?: boolean;
+};
+
+/** Preserva o texto do usuário quando o geocoder aponta para outra cidade. */
+export function pickResolvedAddressLabel(
+  userInput: string,
+  resolvedDisplayName: string,
+  options?: PickResolvedAddressLabelOptions
+): string {
+  const trimmed = userInput.trim();
+  if (trimmed.length < 3) return resolvedDisplayName;
+
+  if (options?.trustedPlaceSelection) {
+    if (hasCityConflictBetweenAddresses(trimmed, resolvedDisplayName)) return trimmed;
+    return resolvedDisplayName;
+  }
+
+  if (isLikelyUnwantedAddressRelabel(trimmed, resolvedDisplayName)) return trimmed;
+
+  const userNorm = stripAccents(trimmed).toLowerCase();
+  const resolvedNorm = stripAccents(resolvedDisplayName).toLowerCase();
+  if (
+    trimmed.length >= 8 &&
+    !resolvedNorm.includes(userNorm.slice(0, Math.min(12, userNorm.length))) &&
+    !userNorm.includes(resolvedNorm.slice(0, Math.min(12, resolvedNorm.length)))
+  ) {
+    return trimmed;
+  }
+
+  return resolvedDisplayName;
+}
+
 export function extractStreetNumber(text: string): string | null {
   const commaMatch = text.match(/,\s*(\d{1,6})\s*(?:,|$)/);
   if (commaMatch) return commaMatch[1] ?? null;

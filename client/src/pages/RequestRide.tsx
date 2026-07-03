@@ -39,6 +39,11 @@ import { persistDemoRideFromServer } from "@/lib/useDemoRideHydration";
 import { syncDemoRecurringSchedulesFromServer } from "@/lib/demoRecurringStorage";
 import { fuiBrand, fuiRoute, fuiSelectedTile, fuiSurface } from "@/lib/fuiTheme";
 import { formatAddressForGeocoding } from "@shared/mapDefaults";
+import {
+  hasCityConflictBetweenAddresses,
+  pickResolvedAddressLabel,
+} from "@shared/addressGeocoding";
+import { findSergipeKnownPlaceByPlaceId } from "@shared/sergipeKnownPlaces";
 import { WL } from "@/whitelabel";
 import StatusPanel from "@/components/fui/StatusPanel";
 
@@ -125,6 +130,15 @@ export default function RequestRide() {
 
   const resolveDemoPlaceIdForHistory = (address: string, currentPlaceId?: string) =>
     resolveLocalPlaceId(address, currentPlaceId);
+
+  const sanitizePlaceIdForAddress = (address: string, placeId?: string) => {
+    if (!placeId) return undefined;
+    const sergipe = findSergipeKnownPlaceByPlaceId(placeId);
+    if (sergipe && hasCityConflictBetweenAddresses(address, sergipe.displayName)) {
+      return undefined;
+    }
+    return placeId;
+  };
 
   const clearRouteCalculation = () => {
     routeReadyRef.current = false;
@@ -278,26 +292,56 @@ export default function RequestRide() {
   const calculatePassengerRouteMutation = trpc.maps.calculatePassengerRoute.useMutation();
 
   const applyPassengerRouteResult = (
-    result: Awaited<ReturnType<typeof calculatePassengerRouteMutation.mutateAsync>>
+    result: Awaited<ReturnType<typeof calculatePassengerRouteMutation.mutateAsync>>,
+    userAddresses?: {
+      origin?: string;
+      destination?: string;
+      originTrustedPlace?: boolean;
+      destinationTrustedPlace?: boolean;
+    }
   ) => {
-    if (result.origin.placeId) {
+    const typedOrigin = (userAddresses?.origin ?? originAddress).trim();
+    const typedDestination = (userAddresses?.destination ?? destinationAddress).trim();
+
+    const originLabel = userAddresses?.originTrustedPlace
+      ? pickResolvedAddressLabel(typedOrigin, result.origin.displayName, {
+          trustedPlaceSelection: true,
+        })
+      : typedOrigin || result.origin.displayName;
+
+    const destinationLabel = userAddresses?.destinationTrustedPlace
+      ? pickResolvedAddressLabel(typedDestination, result.destination.displayName, {
+          trustedPlaceSelection: true,
+        })
+      : pickResolvedAddressLabel(typedDestination, result.destination.displayName);
+
+    if (result.origin.placeId && !hasCityConflictBetweenAddresses(originLabel, result.origin.displayName)) {
       originPlaceIdRef.current = result.origin.placeId;
       setOriginPlaceId(result.origin.placeId);
+    } else {
+      originPlaceIdRef.current = "";
+      setOriginPlaceId("");
     }
-    if (result.destination.placeId) {
+    if (
+      result.destination.placeId &&
+      !hasCityConflictBetweenAddresses(destinationLabel, result.destination.displayName)
+    ) {
       destPlaceIdRef.current = result.destination.placeId;
       setDestPlaceId(result.destination.placeId);
+    } else {
+      destPlaceIdRef.current = "";
+      setDestPlaceId("");
     }
 
-    setOriginAddress(result.origin.displayName);
-    setDestinationAddress(result.destination.displayName);
+    setOriginAddress(originLabel);
+    setDestinationAddress(destinationLabel);
 
     const { originHistory: nextOriginHistory, destinationHistory: nextDestHistory } =
       persistRideAddressHistory(
-        result.origin.displayName,
-        result.destination.displayName,
-        result.origin.placeId,
-        result.destination.placeId
+        originLabel,
+        destinationLabel,
+        originPlaceIdRef.current || undefined,
+        destPlaceIdRef.current || undefined
       );
     setOriginHistory(nextOriginHistory);
     setDestinationHistory(nextDestHistory);
@@ -367,7 +411,12 @@ export default function RequestRide() {
           destinationAddress: prefill.destinationAddress.trim(),
           vehicleType: prefill.vehicleType ?? vehicleType,
         });
-        applyPassengerRouteResult(result);
+        applyPassengerRouteResult(result, {
+          origin: prefill.originAddress.trim(),
+          destination: prefill.destinationAddress.trim(),
+          originTrustedPlace: false,
+          destinationTrustedPlace: false,
+        });
         toast.success("Corrida repetida — origem e destino preenchidos");
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "Erro ao repetir corrida");
@@ -395,12 +444,21 @@ export default function RequestRide() {
       const useOsmRouting = isLocalDemoDev() || mapsConfigured === false;
 
       if (useOsmRouting) {
+        const safeOriginPlaceId = sanitizePlaceIdForAddress(
+          originTrimmed,
+          originPlaceIdRef.current || undefined
+        );
+        const safeDestPlaceId = sanitizePlaceIdForAddress(
+          destTrimmed,
+          destPlaceIdRef.current || undefined
+        );
+
         const result = await calculatePassengerRouteMutation.mutateAsync({
           originAddress: originTrimmed,
           destinationAddress: destTrimmed,
           vehicleType,
-          originPlaceId: originPlaceIdRef.current || undefined,
-          destinationPlaceId: destPlaceIdRef.current || undefined,
+          originPlaceId: safeOriginPlaceId,
+          destinationPlaceId: safeDestPlaceId,
           originLat:
             originFromGpsRef.current && originCoordsRef.current
               ? String(originCoordsRef.current.lat)
@@ -411,12 +469,17 @@ export default function RequestRide() {
               : undefined,
           intermediateStops: activeIntermediateStops.length ? activeIntermediateStops : undefined,
         });
-        applyPassengerRouteResult(result);
+        applyPassengerRouteResult(result, {
+          origin: originTrimmed,
+          destination: destTrimmed,
+          originTrustedPlace: Boolean(safeOriginPlaceId),
+          destinationTrustedPlace: Boolean(safeDestPlaceId),
+        });
         return;
       }
 
-      const originPlace = originPlaceIdRef.current;
-      const destPlace = destPlaceIdRef.current;
+      const originPlace = sanitizePlaceIdForAddress(originTrimmed, originPlaceIdRef.current || undefined);
+      const destPlace = sanitizePlaceIdForAddress(destTrimmed, destPlaceIdRef.current || undefined);
       const origin = originPlace
         ? `place_id:${originPlace}`
         : formatAddressForGeocoding(originTrimmed, WL.city || undefined);

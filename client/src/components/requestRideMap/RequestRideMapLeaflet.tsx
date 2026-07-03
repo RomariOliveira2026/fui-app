@@ -7,7 +7,7 @@ import { memo, useCallback, useEffect, useRef } from "react";
 import L from "leaflet";
 import { cn } from "@/lib/utils";
 import { LeafletMap, createCircleMarker, drawRoute } from "@/components/Map";
-import { createDriverLiveMarker } from "@/components/map/DriverLiveMarker";
+import { createDriverLiveMarker, createVehicleLiveIcon } from "@/components/map/DriverLiveMarker";
 import { decodePolyline } from "@/lib/polyline";
 import {
   buildDriverPhasePath,
@@ -19,7 +19,6 @@ import {
   type RoutePoint,
 } from "@shared/routeAnimation";
 import { haversineMeters } from "@shared/demoMaps";
-import { adaptiveDriverCatchUpSpeedMps } from "@shared/demoRideProgression";
 import {
   REQUEST_RIDE_MAP_DEFAULT_CENTER,
   REQUEST_RIDE_MAP_DEFAULT_ZOOM,
@@ -92,6 +91,9 @@ const defaultCenter: [number, number] = [
 /** Tolerância (m) para parar o loop de animação. */
 const STOP_EPSILON_M = 0.4;
 
+/** Velocidade máxima de ajuste suave entre polls do servidor. */
+const MAX_DRIVER_CATCHUP_MPS = 13;
+
 export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
   className,
   origin,
@@ -162,17 +164,21 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
     [getBoundsPoints, trackingPhase]
   );
 
-  const refreshDriverPath = useCallback(() => {
-    if (tripPathRef.current.length >= 2) {
-      const driverPos = isValidPoint(driver) ? driver : null;
-      driverPathRef.current = resolveDriverPath(
-        tripPathRef.current,
-        trackingPhase,
-        driverPos
-      );
-      pathTotalRef.current = pathTotalMeters(driverPathRef.current);
-    }
-  }, [trackingPhase, driver]);
+  const refreshDriverPath = useCallback(
+    (options?: { trimFromDriver?: boolean }) => {
+      if (tripPathRef.current.length >= 2) {
+        const driverPos =
+          options?.trimFromDriver && isValidPoint(driver) ? driver : null;
+        driverPathRef.current = resolveDriverPath(
+          tripPathRef.current,
+          trackingPhase,
+          driverPos
+        );
+        pathTotalRef.current = pathTotalMeters(driverPathRef.current);
+      }
+    },
+    [trackingPhase, driver]
+  );
 
   const syncStaticLayers = useCallback(() => {
     const map = mapRef.current;
@@ -208,7 +214,7 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
     if (hasOrigin && hasDest) {
       const geometry = buildRouteGeometry(origin, destination, routePath, encodedPolyline);
       tripPathRef.current = geometry;
-      refreshDriverPath();
+      refreshDriverPath({ trimFromDriver: false });
 
       const drawGeometry = geometry.map((p) => [p.lat, p.lng] as [number, number]);
       layersRef.current.route = drawRoute(map, drawGeometry, {
@@ -287,13 +293,13 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
     if (Math.abs(diff) > STOP_EPSILON_M) {
       const remaining = pathTotalRef.current - display;
       const baseSpeed = linearSpeedAtMeters(remaining);
-      const speed = adaptiveDriverCatchUpSpeedMps(diff, baseSpeed);
+      const speed = Math.min(MAX_DRIVER_CATCHUP_MPS, baseSpeed);
       const step = speed * deltaSec;
 
       if (diff > 0) {
         display = Math.min(target, display + step);
       } else {
-        display = Math.max(target, display - step * 0.85);
+        display = Math.max(target, display - step * 0.65);
       }
       displayMetersRef.current = display;
       applyDisplayPosition(display);
@@ -328,13 +334,14 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
       return;
     }
 
-    refreshDriverPath();
+    if (driverPathRef.current.length < 2) {
+      refreshDriverPath({ trimFromDriver: false });
+    }
     const path = driverPathRef.current;
     if (path.length < 2) return;
 
     if (layersRef.current.driver && prevVehicleTypeRef.current !== vehicleType) {
-      map.removeLayer(layersRef.current.driver);
-      layersRef.current.driver = undefined;
+      layersRef.current.driver.setIcon(createVehicleLiveIcon(vehicleType));
       prevVehicleTypeRef.current = vehicleType;
     }
 
@@ -358,11 +365,16 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
     }
 
     if (phaseChanged) {
+      refreshDriverPath({ trimFromDriver: true });
+      const phasePath = driverPathRef.current;
+      if (phasePath.length < 2) return;
+      pathTotalRef.current = pathTotalMeters(phasePath);
       stopDriverAnimation();
-      displayMetersRef.current = snappedTarget;
-      targetMetersRef.current = snappedTarget;
-      applyDisplayPosition(snappedTarget);
-      driverDisplayRef.current = projected.point;
+      const projectedAfterPhase = projectPointOnPath(phasePath, driver);
+      displayMetersRef.current = projectedAfterPhase.meters;
+      targetMetersRef.current = projectedAfterPhase.meters;
+      applyDisplayPosition(projectedAfterPhase.meters);
+      driverDisplayRef.current = projectedAfterPhase.point;
       return;
     }
 
@@ -370,9 +382,8 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
       driverDisplayRef.current != null &&
       haversineMeters(driverDisplayRef.current, driver) > 1.5;
 
-    // Rota recortada no trecho atual: metros no path ficam ~0 mesmo com motorista em movimento.
     if (driverMoved) {
-      targetMetersRef.current = snappedTarget;
+      targetMetersRef.current = Math.max(targetMetersRef.current, snappedTarget);
       const metersJump = Math.abs(snappedTarget - displayMetersRef.current);
       if (metersJump < 1) {
         stopDriverAnimation();
@@ -384,7 +395,7 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
     }
 
     const prevTarget = targetMetersRef.current;
-    if (Math.abs(snappedTarget - prevTarget) > 0.5) {
+    if (snappedTarget > prevTarget + 0.5) {
       targetMetersRef.current = snappedTarget;
     }
 

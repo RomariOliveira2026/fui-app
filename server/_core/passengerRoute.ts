@@ -8,7 +8,7 @@ import {
   type DemoVehicleType,
 } from "@shared/demoPricing";
 import { resolveGeocodingScope, resolveHintCity } from "@shared/mapDefaults";
-import { extractCityFromAddress } from "@shared/addressGeocoding";
+import { extractCityFromAddress, hasCityConflictBetweenAddresses, pickResolvedAddressLabel } from "@shared/addressGeocoding";
 import { findSergipeKnownPlace, findSergipeKnownPlaceByPlaceId } from "@shared/sergipeKnownPlaces";
 import { isRealGeocodePlaceId } from "@shared/geocodePlaceId";
 import { geocodeAddressWithNominatim, lookupPlaceIdWithNominatim, reverseGeocodeWithNominatim, sleepMs } from "./nominatim";
@@ -73,6 +73,21 @@ function parseLatLngStrings(
   return { lat: parsedLat, lng: parsedLng };
 }
 
+function withPreferredDisplayName(
+  trimmedAddress: string,
+  location: Omit<ResolvedLocation, "displayName"> & { displayName: string },
+  options?: { trustedPlaceSelection?: boolean }
+): ResolvedLocation {
+  return {
+    ...location,
+    displayName: pickResolvedAddressLabel(trimmedAddress, location.displayName, options),
+  };
+}
+
+function shouldIgnorePlaceIdForAddress(trimmedAddress: string, resolvedDisplayName: string): boolean {
+  return trimmedAddress.length >= 5 && hasCityConflictBetweenAddresses(trimmedAddress, resolvedDisplayName);
+}
+
 async function resolveLocation(
   address: string,
   placeId: string | undefined,
@@ -86,13 +101,17 @@ async function resolveLocation(
   if (pinnedCoords) {
     const reversed = await reverseGeocodeWithNominatim(pinnedCoords.lat, pinnedCoords.lng);
     if (reversed && !reversed.isCoarse) {
-      return {
-        lat: pinnedCoords.lat,
-        lng: pinnedCoords.lng,
-        displayName: reversed.displayName,
-        placeId: placeId ?? reversed.placeId,
-        source: "nominatim",
-      };
+      return withPreferredDisplayName(
+        trimmed,
+        {
+          lat: pinnedCoords.lat,
+          lng: pinnedCoords.lng,
+          displayName: reversed.displayName,
+          placeId: placeId ?? reversed.placeId,
+          source: "nominatim",
+        },
+        { trustedPlaceSelection: Boolean(placeId) }
+      );
     }
     if (trimmed.length >= 2) {
       return {
@@ -109,71 +128,67 @@ async function resolveLocation(
     const demo = findDemoPlaceByPlaceId(placeId);
     const exactDemo = findDemoPlaceByText(trimmed);
     if (demo && exactDemo?.placeId === placeId) {
-      return {
-        lat: demo.lat,
-        lng: demo.lng,
-        displayName: demo.description,
-        placeId: demo.placeId,
-        source: "demo_catalog",
-      };
+      return withPreferredDisplayName(
+        trimmed,
+        {
+          lat: demo.lat,
+          lng: demo.lng,
+          displayName: demo.description,
+          placeId: demo.placeId,
+          source: "demo_catalog",
+        },
+        { trustedPlaceSelection: true }
+      );
     }
   }
 
   if (placeId) {
     const sergipeById = findSergipeKnownPlaceByPlaceId(placeId);
-    if (sergipeById) {
-      return {
-        lat: sergipeById.lat,
-        lng: sergipeById.lng,
-        displayName: sergipeById.displayName,
-        placeId: sergipeById.placeId,
-        source: "sergipe_catalog",
-      };
+    if (sergipeById && !shouldIgnorePlaceIdForAddress(trimmed, sergipeById.displayName)) {
+      return withPreferredDisplayName(
+        trimmed,
+        {
+          lat: sergipeById.lat,
+          lng: sergipeById.lng,
+          displayName: sergipeById.displayName,
+          placeId: sergipeById.placeId,
+          source: "sergipe_catalog",
+        },
+        { trustedPlaceSelection: true }
+      );
     }
 
     if (isRealGeocodePlaceId(placeId)) {
       const byPlaceId = await lookupPlaceIdWithNominatim(placeId);
       if (byPlaceId) {
-        return {
-          lat: byPlaceId.lat,
-          lng: byPlaceId.lng,
-          displayName: trimmed.length >= 2 ? trimmed : byPlaceId.displayName,
-          placeId: byPlaceId.placeId,
-          source: "nominatim",
-        };
+        const displayName = trimmed.length >= 2 ? trimmed : byPlaceId.displayName;
+        if (!shouldIgnorePlaceIdForAddress(trimmed, byPlaceId.displayName)) {
+          return withPreferredDisplayName(
+            trimmed,
+            {
+              lat: byPlaceId.lat,
+              lng: byPlaceId.lng,
+              displayName,
+              placeId: byPlaceId.placeId,
+              source: "nominatim",
+            },
+            { trustedPlaceSelection: true }
+          );
+        }
       }
-    }
-  }
-
-  if (trimmed.length >= 2) {
-    const knownEarly = findSergipeKnownPlace(trimmed);
-    if (knownEarly) {
-      console.info("[geocode:sergipe-catalog] hit", {
-        original: trimmed,
-        displayName: knownEarly.displayName,
-        lat: knownEarly.lat,
-        lng: knownEarly.lng,
-      });
-      return {
-        lat: knownEarly.lat,
-        lng: knownEarly.lng,
-        displayName: knownEarly.displayName,
-        placeId: knownEarly.placeId,
-        source: "sergipe_catalog",
-      };
     }
   }
 
   if (trimmed.length >= 2) {
     const exactDemo = findDemoPlaceByText(trimmed);
     if (exactDemo) {
-      return {
+      return withPreferredDisplayName(trimmed, {
         lat: exactDemo.lat,
         lng: exactDemo.lng,
         displayName: exactDemo.description,
         placeId: exactDemo.placeId,
         source: "demo_catalog",
-      };
+      });
     }
   }
 
@@ -181,13 +196,13 @@ async function resolveLocation(
     const scope = resolveGeocodingScope(ENV.appCity);
     const geocoded = await geocodeAddressWithNominatim(trimmed, scope.operationalCity);
     if (geocoded) {
-      return {
+      return withPreferredDisplayName(trimmed, {
         lat: geocoded.lat,
         lng: geocoded.lng,
         displayName: geocoded.displayName,
         placeId: geocoded.placeId,
         source: "nominatim",
-      };
+      });
     }
   }
 
@@ -199,26 +214,26 @@ async function resolveLocation(
       lat: known.lat,
       lng: known.lng,
     });
-    return {
+    return withPreferredDisplayName(trimmed, {
       lat: known.lat,
       lng: known.lng,
       displayName: known.displayName,
       placeId: known.placeId,
       source: "sergipe_catalog",
-    };
+    });
   }
 
   if (allowDemoFallback && trimmed.length >= 2) {
     const fallback = tryResolveDemoCatalog(trimmed);
     if (fallback) {
       const partialDemo = findDemoPlaceByText(fallback.address);
-      return {
+      return withPreferredDisplayName(trimmed, {
         lat: fallback.lat,
         lng: fallback.lng,
         displayName: fallback.address,
         placeId: partialDemo?.placeId,
         source: "demo_fallback",
-      };
+      });
     }
   }
 

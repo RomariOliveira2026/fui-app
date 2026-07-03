@@ -249,7 +249,7 @@ describe("calculatePassengerRoute Itabaiana → Aracaju", () => {
     });
 
     expect(result.destination.source).toBe("sergipe_catalog");
-    expect(result.destination.displayName).toContain("Assembleia");
+    expect(result.destination.displayName).toMatch(/Assembl/i);
     expect(result.distance).toBeGreaterThan(50_000);
   });
 

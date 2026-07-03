@@ -1,5 +1,7 @@
 /** Endereços conhecidos de Sergipe — fallback quando Nominatim não resolve. */
 
+import { stripAccents } from "./addressGeocoding";
+
 export type SergipeKnownPlace = {
   /** Substrings para match (minúsculas, sem acento). */
   matchTerms: string[];
@@ -222,12 +224,29 @@ const GENERIC_MATCH_TOKENS = new Set([
 ]);
 
 function normalizeForMatch(text: string): string {
-  return text
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/\s+/g, " ")
-    .trim();
+  return stripAccents(text).toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+type SergipePlaceCity = "aracaju" | "itabaiana";
+
+function getSergipePlaceCity(place: SergipeKnownPlace): SergipePlaceCity | null {
+  if (place.placeId.includes(":itabaiana:") || place.placeId.startsWith("demo-")) {
+    return "itabaiana";
+  }
+  if (place.placeId.includes(":aracaju:")) {
+    return "aracaju";
+  }
+  const displayNorm = normalizeForMatch(place.displayName);
+  if (displayNorm.includes("itabaiana")) return "itabaiana";
+  if (displayNorm.includes("aracaju")) return "aracaju";
+  return null;
+}
+
+function getQueryCityHint(query: string): SergipePlaceCity | null {
+  const normalized = normalizeForMatch(query);
+  if (/\bitabaiana\b/.test(normalized)) return "itabaiana";
+  if (/\baracaju\b/.test(normalized)) return "aracaju";
+  return null;
 }
 
 function tokenizeForMatch(text: string): string[] {
@@ -254,6 +273,20 @@ export function scoreSergipePlaceMatch(
 ): number {
   const normalized = normalizeForMatch(query);
   if (normalized.length < 3) return 0;
+
+  const queryCity = getQueryCityHint(query);
+  const placeCity = getSergipePlaceCity(place);
+  if (queryCity && placeCity && queryCity !== placeCity) {
+    return 0;
+  }
+
+  if (place.placeId === "sergipe:aracaju:aeroporto") {
+    const mentionsAirport =
+      normalized.includes("aeroporto") || normalized.includes("airport");
+    if (!mentionsAirport && queryCity !== "aracaju") {
+      return 0;
+    }
+  }
 
   let score = 0;
 

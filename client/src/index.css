@@ -241,3 +241,26 @@
   border: none !important;
   object-fit: contain;
 }
+
+/* Marcador do motorista — ícone escuro, sem círculo laranja */
+.leaflet-marker-icon.fui-driver-live-marker {
+  width: 40px !important;
+  height: 40px !important;
+  margin-left: -20px !important;
+  margin-top: -20px !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.fui-driver-live-marker__inner,
+.fui-driver-live-marker__inner svg {
+  display: block;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.fui-driver-live-marker__inner svg g {
+  stroke: #0f172a !important;
+}

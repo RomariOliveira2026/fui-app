@@ -4,7 +4,9 @@ import {
   extractCityFromAddress,
   fixCommonSergipeStreetTypos,
   formatAddressForGeocoding,
+  isLikelyUnwantedAddressRelabel,
   normalizeBrazilianAddressText,
+  pickResolvedAddressLabel,
 } from "@shared/addressGeocoding";
 import { findSergipeKnownPlace } from "@shared/sergipeKnownPlaces";
 
@@ -62,5 +64,44 @@ describe("addressGeocoding", () => {
     expect(place).not.toBeNull();
     expect(place!.displayName).toContain("Shopping Jardins");
     expect(place!.displayName).toContain("Aracaju");
+  });
+
+  it("não confunde endereço de Itabaiana com aeroporto de Aracaju", () => {
+    const place = findSergipeKnownPlace("Rua João Pessoa, Centro, Itabaiana/SE");
+    expect(place?.placeId ?? null).not.toBe("sergipe:aracaju:aeroporto");
+  });
+
+  it("não confunde bairro Santa Maria em Itabaiana com aeroporto", () => {
+    const place = findSergipeKnownPlace("Rua das Flores, Santa Maria, Itabaiana/SE");
+    expect(place?.placeId ?? null).not.toBe("sergipe:aracaju:aeroporto");
+  });
+
+  it("não confunde endereço residencial sem cidade com aeroporto", () => {
+    const place = findSergipeKnownPlace("Rua José Alves, 145, Santa Maria");
+    expect(place?.placeId ?? null).not.toBe("sergipe:aracaju:aeroporto");
+  });
+
+  it("preserva endereço digitado quando o rótulo resolvido é de outra cidade", () => {
+    expect(
+      pickResolvedAddressLabel(
+        "Avenida Getúlio Vargas, Centro, Itabaiana/SE",
+        "Aeroporto Internacional de Aracaju - Santa Maria/SE"
+      )
+    ).toContain("Itabaiana");
+  });
+
+  it("preserva endereço residencial digitado sem menção ao aeroporto", () => {
+    expect(
+      isLikelyUnwantedAddressRelabel(
+        "Rua José Alves, 145, Bairro Centro",
+        "Aeroporto Internacional de Aracaju - Santa Maria/SE"
+      )
+    ).toBe(true);
+    expect(
+      pickResolvedAddressLabel(
+        "Rua José Alves, 145, Bairro Centro",
+        "Aeroporto Internacional de Aracaju - Santa Maria/SE"
+      )
+    ).toBe("Rua José Alves, 145, Bairro Centro");
   });
 });

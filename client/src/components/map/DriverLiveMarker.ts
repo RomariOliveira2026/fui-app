@@ -1,9 +1,10 @@
 /**
- * Marcador do motorista ao vivo — veículo por categoria com anel Fui.
+ * Marcador do motorista ao vivo — ícone escuro por categoria, sem fundo laranja.
  */
 import L from "leaflet";
-import { fuiMapPinIcon } from "@/components/map/fuiMapPinIcon";
 import type { DemoVehicleType } from "@shared/demoPricing";
+
+const DRIVER_ICON_COLOR = "#0f172a";
 
 const VEHICLE_SVG_PATHS: Record<DemoVehicleType, string> = {
   moto:
@@ -16,26 +17,27 @@ const VEHICLE_SVG_PATHS: Record<DemoVehicleType, string> = {
     '<path d="M3.5 7h10v10.2H6"/><path d="M13.5 10.5h3.1l3.9 4.1v2.6h-2.1M13.5 17.2h1.9"/><path d="M6 10h4.8M6 13h4.8"/><circle cx="6" cy="17.2" r="2"/><circle cx="17.4" cy="17.2" r="2"/>',
 };
 
-function createVehicleLiveIcon(vehicleType: DemoVehicleType = "carro"): L.DivIcon {
-  const path = VEHICLE_SVG_PATHS[vehicleType] ?? VEHICLE_SVG_PATHS.carro;
+export function normalizeDriverVehicleType(raw?: string | null): DemoVehicleType {
+  const value = (raw ?? "carro").toLowerCase().trim();
+  if (value === "moto" || value === "carro" || value === "van" || value === "utilitario") {
+    return value;
+  }
+  return "carro";
+}
+
+export function createVehicleLiveIcon(vehicleType?: string | null): L.DivIcon {
+  const type = normalizeDriverVehicleType(vehicleType);
+  const path = VEHICLE_SVG_PATHS[type];
   return L.divIcon({
     className: "fui-driver-live-marker",
-    iconSize: [44, 44],
-    iconAnchor: [22, 22],
+    iconSize: [40, 40],
+    iconAnchor: [20, 20],
     html: `
-      <div style="
-        width: 44px;
-        height: 44px;
-        border-radius: 9999px;
-        background: linear-gradient(135deg, #F39200, #D97706);
-        box-shadow: 0 10px 24px rgba(0,0,0,.35), 0 0 0 3px rgba(255,255,255,.92);
-        display: grid;
-        place-items: center;
-      ">
-        <svg width="26" height="26" viewBox="0 0 24 24" fill="none"
-          stroke="white" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"
-          aria-hidden="true">
-          ${path}
+      <div class="fui-driver-live-marker__inner">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <g fill="none" stroke="${DRIVER_ICON_COLOR}" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round">
+            ${path}
+          </g>
         </svg>
       </div>
     `,
@@ -45,10 +47,10 @@ function createVehicleLiveIcon(vehicleType: DemoVehicleType = "carro"): L.DivIco
 export function createDriverLiveMarker(
   map: L.Map,
   position: [number, number],
-  options?: { title?: string; vehicleType?: DemoVehicleType }
+  options?: { title?: string; vehicleType?: string | null }
 ): L.Marker {
   return L.marker(position, {
-    icon: options?.vehicleType ? createVehicleLiveIcon(options.vehicleType) : fuiMapPinIcon,
+    icon: createVehicleLiveIcon(options?.vehicleType),
     title: options?.title ?? "Motorista",
     zIndexOffset: 1000,
   }).addTo(map);
