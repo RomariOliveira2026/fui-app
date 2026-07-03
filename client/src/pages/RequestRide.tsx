@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
@@ -167,7 +167,10 @@ export default function RequestRide() {
     quoteResetRef.current();
   };
 
-  const activeIntermediateStops = intermediateStops.filter((s) => s.address.trim().length >= 2);
+  const activeIntermediateStopsForQuote = useMemo(
+    () => intermediateStops.filter((s) => s.address.trim().length >= 2),
+    [intermediateStops]
+  );
 
   // Store coordinates and route snapshot for ride request (refs = leitura síncrona)
   const originCoordsRef = useRef<{ lat: number; lng: number } | null>(null);
@@ -310,8 +313,6 @@ export default function RequestRide() {
   const requestRide = trpc.ride.request.useMutation();
   const calculatePassengerRouteMutation = trpc.maps.calculatePassengerRoute.useMutation();
 
-  const activeIntermediateStopsForQuote = intermediateStops.filter((s) => s.address.trim().length >= 2);
-
   const rideQuote = usePassengerRideQuote({
     originAddress,
     destinationAddress,
@@ -373,7 +374,7 @@ export default function RequestRide() {
       setEstimatedPrice(nextPrice);
       estimatedPriceRef.current = nextPrice;
     }
-  }, [vehicleType, rideQuote.ready, rideQuote.categoryQuotes, rideQuote, useOsmRouting]);
+  }, [vehicleType, rideQuote.ready, rideQuote.categoryQuotes, rideQuote.priceForVehicle, useOsmRouting]);
 
   useEffect(() => {
     if (!useOsmRouting || !rideQuote.error) return;
@@ -556,7 +557,7 @@ export default function RequestRide() {
             originFromGpsRef.current && originCoordsRef.current
               ? String(originCoordsRef.current.lng)
               : undefined,
-          intermediateStops: activeIntermediateStops.length ? activeIntermediateStops : undefined,
+          intermediateStops: activeIntermediateStopsForQuote.length ? activeIntermediateStopsForQuote : undefined,
         });
         applyPassengerRouteResult(result, {
           origin: originTrimmed,
@@ -826,7 +827,7 @@ export default function RequestRide() {
       <AppHeader title="Solicitar Corrida" />
       
       {/* Loading Overlay */}
-      {((useOsmRouting && rideQuote.loading) || calculating) && (
+      {((useOsmRouting && rideQuote.loading && !rideQuote.ready) || calculating) && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center backdrop-blur-sm">
           <div className="bg-card rounded-2xl p-8 shadow-2xl max-w-sm mx-4 text-center border border-border">
             <div className="relative w-24 h-24 mx-auto mb-6">

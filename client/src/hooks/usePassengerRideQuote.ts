@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import type { DemoVehicleType } from "@shared/demoPricing";
 import type { CategoryQuote } from "@shared/rideQuote";
@@ -50,6 +50,29 @@ type UsePassengerRideQuoteInput = {
   debounceMs?: number;
 };
 
+function buildQuoteSignature(input: {
+  originAddress: string;
+  destinationAddress: string;
+  originPlaceId?: string;
+  destinationPlaceId?: string;
+  originLat?: string;
+  originLng?: string;
+  intermediateStops?: IntermediateStopInput[];
+}): string {
+  return JSON.stringify({
+    origin: input.originAddress.trim(),
+    destination: input.destinationAddress.trim(),
+    originPlaceId: input.originPlaceId ?? "",
+    destinationPlaceId: input.destinationPlaceId ?? "",
+    originLat: input.originLat ?? "",
+    originLng: input.originLng ?? "",
+    stops: (input.intermediateStops ?? []).map((s) => ({
+      address: s.address.trim(),
+      placeId: s.placeId ?? "",
+    })),
+  });
+}
+
 export function usePassengerRideQuote(input: UsePassengerRideQuoteInput) {
   const {
     originAddress,
@@ -65,13 +88,116 @@ export function usePassengerRideQuote(input: UsePassengerRideQuoteInput) {
   } = input;
 
   const [state, setState] = useState<PassengerRideQuoteState>(EMPTY_QUOTE);
-  const mutation = trpc.maps.calculatePassengerRoute.useMutation();
+  const { mutateAsync } = trpc.maps.calculatePassengerRoute.useMutation();
+  const mutateAsyncRef = useRef(mutateAsync);
+  mutateAsyncRef.current = mutateAsync;
   const requestIdRef = useRef(0);
+  const vehicleTypeRef = useRef(vehicleType);
+  vehicleTypeRef.current = vehicleType;
+
+  const quoteSignature = useMemo(
+    () =>
+      buildQuoteSignature({
+        originAddress,
+        destinationAddress,
+        originPlaceId,
+        destinationPlaceId,
+        originLat,
+        originLng,
+        intermediateStops,
+      }),
+    [
+      originAddress,
+      destinationAddress,
+      originPlaceId,
+      destinationPlaceId,
+      originLat,
+      originLng,
+      intermediateStops,
+    ]
+  );
 
   const reset = useCallback(() => {
     requestIdRef.current += 1;
     setState(EMPTY_QUOTE);
   }, []);
+
+  useEffect(() => {
+    if (!enabled) {
+      reset();
+      return;
+    }
+
+    const parsed = JSON.parse(quoteSignature) as {
+      origin: string;
+      destination: string;
+    };
+    if (parsed.origin.length < 4 || parsed.destination.length < 4) {
+      reset();
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      const requestId = ++requestIdRef.current;
+      setState((prev) => ({ ...prev, loading: true, error: null }));
+
+      void mutateAsyncRef
+        .current({
+          originAddress: parsed.origin,
+          destinationAddress: parsed.destination,
+          vehicleType: vehicleTypeRef.current,
+          originPlaceId: originPlaceId || undefined,
+          destinationPlaceId: destinationPlaceId || undefined,
+          originLat,
+          originLng,
+          intermediateStops:
+            intermediateStops && intermediateStops.length > 0 ? intermediateStops : undefined,
+          allowDemoFallback: false,
+        })
+        .then((result) => {
+          if (requestId !== requestIdRef.current) return;
+
+          const selectedQuote =
+            pickCategoryQuote(result.categoryQuotes, vehicleTypeRef.current) ??
+            result.categoryQuotes.find((q) => q.vehicleType === vehicleTypeRef.current);
+
+          setState({
+            loading: false,
+            ready: true,
+            error: null,
+            distance: result.distance,
+            duration: result.duration,
+            distanceText: result.distanceText,
+            durationText: result.durationText,
+            estimatedPrice: selectedQuote?.estimatedPrice ?? result.estimatedPrice,
+            categoryQuotes: result.categoryQuotes,
+            originCoords: { lat: result.origin.lat, lng: result.origin.lng },
+            destCoords: { lat: result.destination.lat, lng: result.destination.lng },
+            routePath: result.routePath,
+            overviewPolyline: result.overviewPolyline,
+          });
+        })
+        .catch((error: unknown) => {
+          if (requestId !== requestIdRef.current) return;
+          setState({
+            ...EMPTY_QUOTE,
+            error: error instanceof Error ? error.message : "Não foi possível calcular a rota",
+          });
+        });
+    }, debounceMs);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    debounceMs,
+    enabled,
+    quoteSignature,
+    reset,
+    originPlaceId,
+    destinationPlaceId,
+    originLat,
+    originLng,
+    intermediateStops,
+  ]);
 
   const fetchQuote = useCallback(async () => {
     const origin = originAddress.trim();
@@ -85,7 +211,7 @@ export function usePassengerRideQuote(input: UsePassengerRideQuoteInput) {
     setState((prev) => ({ ...prev, loading: true, error: null }));
 
     try {
-      const result = await mutation.mutateAsync({
+      const result = await mutateAsyncRef.current({
         originAddress: origin,
         destinationAddress: destination,
         vehicleType,
@@ -130,44 +256,11 @@ export function usePassengerRideQuote(input: UsePassengerRideQuoteInput) {
     destinationAddress,
     destinationPlaceId,
     intermediateStops,
-    mutation,
     originAddress,
     originLat,
     originLng,
     originPlaceId,
     reset,
-    vehicleType,
-  ]);
-
-  useEffect(() => {
-    if (!enabled) {
-      reset();
-      return;
-    }
-
-    const origin = originAddress.trim();
-    const destination = destinationAddress.trim();
-    if (origin.length < 4 || destination.length < 4) {
-      reset();
-      return;
-    }
-
-    const timer = window.setTimeout(() => {
-      void fetchQuote();
-    }, debounceMs);
-
-    return () => window.clearTimeout(timer);
-  }, [
-    debounceMs,
-    destinationAddress,
-    destinationPlaceId,
-    enabled,
-    fetchQuote,
-    originAddress,
-    originPlaceId,
-    originLat,
-    originLng,
-    intermediateStops,
     vehicleType,
   ]);
 
