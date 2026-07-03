@@ -403,6 +403,7 @@ function LoggedInHome() {
           className="w-full h-full !rounded-none border-0"
           origin={originCoords}
           destination={destCoords}
+          vehicleType={vehicleType}
           routePath={routePath}
           encodedPolyline={routePolylineEncoded}
           nearbyDrivers={nearbyDemoDrivers}

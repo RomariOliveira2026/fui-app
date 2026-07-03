@@ -20,6 +20,22 @@ describe("demoRideProgression", () => {
     expect(getDemoRideSpeedMultiplier({ multiplier: "6" })).toBe(6);
   });
 
+  it("mantém rota longa crível no modo médio", () => {
+    const durationMs = computeSegmentDurationMs(65_000, {
+      speedMultiplier: 60,
+      mode: "medium",
+    });
+    expect(durationMs).toBeGreaterThanOrEqual(480_000);
+  });
+
+  it("permite modo curto sem cair para duração instantânea", () => {
+    const durationMs = computeSegmentDurationMs(65_000, {
+      speedMultiplier: 60,
+      mode: "short",
+    });
+    expect(durationMs).toBeGreaterThanOrEqual(180_000);
+  });
+
   it("avança posição ao longo de toda a polyline", () => {
     vi.useFakeTimers();
     const path = [

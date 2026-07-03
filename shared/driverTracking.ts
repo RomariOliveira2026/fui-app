@@ -67,6 +67,15 @@ export type EtaDisplay = {
   minutes: number;
 };
 
+function formatEtaDistanceLabel(distanceM: number): string {
+  if (distanceM >= 1000) {
+    const km = distanceM / 1000;
+    const text = km >= 10 ? km.toFixed(0) : km.toFixed(1);
+    return `~${text.replace(".", ",")} km`;
+  }
+  return `~${Math.round(distanceM)} m`;
+}
+
 /** Formata ETA para UI — abaixo de 10 min usa M:SS para contagem perceptível. */
 export function formatEtaFromSeconds(seconds: number, distanceM?: number): EtaDisplay {
   const safeSeconds = Math.max(0, Math.round(seconds));
@@ -94,21 +103,27 @@ export function formatEtaFromSeconds(seconds: number, distanceM?: number): EtaDi
     const m = Math.floor(safeSeconds / 60);
     const s = safeSeconds % 60;
     const timeStr = `${m}:${s.toString().padStart(2, "0")}`;
-    const distanceBit = distanceM != null ? `~${Math.round(distanceM)} m · ` : "";
+    const distanceBit =
+      distanceM != null ? `${formatEtaDistanceLabel(distanceM)} · ` : "";
     return {
       headline: timeStr,
       unit: "",
-      label: `${distanceBit}chegada em ${timeStr}`,
+      label: `${distanceBit}tempo restante ${timeStr}`,
       seconds: safeSeconds,
       minutes: Math.ceil(safeSeconds / 60),
     };
   }
 
   const minutes = Math.ceil(safeSeconds / 60);
+  const distanceBit =
+    distanceM != null ? `${formatEtaDistanceLabel(distanceM)} · ` : "";
   return {
     headline: String(minutes),
     unit: "min",
-    label: minutes === 1 ? "~1 minuto" : `~${minutes} minutos`,
+    label:
+      minutes === 1
+        ? `${distanceBit}~1 minuto restante`
+        : `${distanceBit}~${minutes} minutos restantes`,
     seconds: safeSeconds,
     minutes,
   };
@@ -238,7 +253,7 @@ export function getPassengerDriverEta(
       unit: etaText.unit,
       isArriving: false,
       distanceM,
-      label: `${etaText.label} até o destino`,
+      label: etaText.label,
       statusTitle: "Corrida em andamento",
     };
   }

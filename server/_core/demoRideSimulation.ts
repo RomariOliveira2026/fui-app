@@ -60,6 +60,7 @@ function buildSegment(
   });
   const timing = buildSegmentTimingFromPath(path, currentPosition ?? null, {
     minMs: SEGMENT_DURATION_MS,
+    distanceMetersOverride: phase === "to_destination" ? Number(ride.distance ?? 0) : undefined,
   });
   return { path, target, ...timing };
 }
@@ -115,7 +116,10 @@ export function restoreSimulationStateFromRide(ride: Ride): void {
     const path = buildDriverPhasePath(getDemoTripPath(ride), "to_destination", {
       currentPosition: driver,
     });
-    const timing = buildSegmentTimingFromPath(path, driver, { minMs: SEGMENT_DURATION_MS });
+    const timing = buildSegmentTimingFromPath(path, driver, {
+      minMs: SEGMENT_DURATION_MS,
+      distanceMetersOverride: Number(ride.distance ?? 0),
+    });
     states.set(ride.id, {
       phase: "in_trip",
       segment: { path, target: destination, ...timing },
@@ -371,9 +375,12 @@ function refreshSimulationSegmentPath(rideId: number): void {
     pickupOffsetMeters: START_OFFSET_M,
     currentPosition: current,
   });
-  const durationMs = computeSegmentDurationMs(pathTotalMeters(path), {
-    minMs: SEGMENT_DURATION_MS,
-  });
+  const durationMs = computeSegmentDurationMs(
+    Math.max(pathTotalMeters(path), phase === "to_destination" ? Number(ride.distance ?? 0) : 0),
+    {
+      minMs: SEGMENT_DURATION_MS,
+    }
+  );
   const newSegment: Segment = {
     path,
     target: state.segment.target,

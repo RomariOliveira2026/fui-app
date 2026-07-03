@@ -15,6 +15,7 @@ import {
   projectPointOnPath,
 } from "@shared/routeAnimation";
 import { haversineMeters } from "@shared/demoMaps";
+import type { DemoVehicleType } from "@shared/demoPricing";
 
 type MapPoint = { lat: number; lng: number };
 
@@ -37,6 +38,7 @@ type RideRouteMapProps = {
   driverLng?: string | number | null;
   rideStatus?: string;
   driverId?: number | null;
+  vehicleType?: DemoVehicleType | null;
   simulationPhase?: DemoSimulationPhase | null;
   /** Rota OSRM do servidor — mesma geometria usada na simulação do motorista. */
   tripPath?: MapPoint[] | null;
@@ -53,6 +55,7 @@ export default function RideRouteMap({
   driverLng,
   rideStatus = "requested",
   driverId,
+  vehicleType,
   simulationPhase,
   tripPath: serverTripPath,
   className,
@@ -204,6 +207,7 @@ export default function RideRouteMap({
           origin={origin}
           destination={destination}
           driver={mapDriver}
+          vehicleType={vehicleType ?? undefined}
           encodedPolyline={encodedPolyline}
           routePath={routePath}
           trackingPhase={trackingPhase}

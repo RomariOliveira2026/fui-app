@@ -76,7 +76,10 @@ export default function PassengerActiveRideCard({
         {driverEnRoute && driverTracking && (
           <p className="flex items-center gap-2 text-xs text-sky-400">
             <Clock className="h-4 w-4 shrink-0" />
-            {driverTracking.label}
+            <span>
+              <span className="font-medium text-sky-300">Tempo restante:</span>{" "}
+              {driverTracking.label}
+            </span>
           </p>
         )}
 

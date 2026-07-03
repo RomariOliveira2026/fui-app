@@ -1,4 +1,5 @@
 import { StatusBadge } from "@/components/fui/StatusBadge";
+import { useDemoAcceleratedEta } from "@/lib/demoRideEta";
 import { fuiBrand, fuiSemantic, type FuiSemantic } from "@/lib/fuiTheme";
 import { useLiveEtaPresentation } from "@/lib/useLiveEtaSeconds";
 import type { RideTrackingPresentation } from "@/lib/rideTracking";
@@ -31,19 +32,15 @@ export default function RideETAStatusCard({ tracking, className }: RideETAStatus
     tracking.distanceM,
     showEta && tracking.seconds > 0
   );
+  const demoEta = useDemoAcceleratedEta(showEta);
 
   const headline = liveEta?.headline ?? tracking.etaHeadline;
   const unit = liveEta?.unit ?? tracking.etaUnit;
+  const usesMinuteSecondHeadline = showEta && !unit && headline.includes(":");
 
   let etaSubline = tracking.etaSubline;
   if (liveEta && tracking.seconds > 0) {
-    if (tracking.phase === "in_trip") {
-      etaSubline = `${liveEta.label} até o destino`;
-    } else if (tracking.phase === "arriving") {
-      etaSubline = liveEta.label;
-    } else {
-      etaSubline = `Motorista a ${liveEta.label}`;
-    }
+    etaSubline = liveEta.label;
   }
 
   return (
@@ -58,12 +55,19 @@ export default function RideETAStatusCard({ tracking, className }: RideETAStatus
         <div className="flex min-w-[4.5rem] flex-col items-center justify-center border-r border-border pr-4">
           {showEta ? (
             <>
+              <span className="mb-1 text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Tempo restante
+              </span>
               <span className={cn("text-3xl font-bold tabular-nums leading-none", fuiBrand.text)}>
                 {headline}
               </span>
               {unit ? (
                 <span className="mt-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
                   {unit}
+                </span>
+              ) : usesMinuteSecondHeadline ? (
+                <span className="mt-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                  min:seg
                 </span>
               ) : null}
             </>
@@ -92,6 +96,11 @@ export default function RideETAStatusCard({ tracking, className }: RideETAStatus
             ) : null}
           </div>
           <p className="text-xs text-muted-foreground">{etaSubline}</p>
+          {demoEta.visible ? (
+            <p className="text-[10px] font-medium text-amber-600 dark:text-amber-400">
+              {demoEta.label} — não confundir com a duração total da viagem
+            </p>
+          ) : null}
         </div>
       </div>
     </div>

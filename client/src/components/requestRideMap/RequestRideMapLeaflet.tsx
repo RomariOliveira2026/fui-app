@@ -97,6 +97,7 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
   origin,
   destination,
   driver,
+  vehicleType,
   nearbyDrivers,
   routePath,
   encodedPolyline,
@@ -116,6 +117,7 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
   const displayMetersRef = useRef(0);
   const targetMetersRef = useRef(0);
   const prevTrackingPhaseRef = useRef<RequestRideMapViewProps["trackingPhase"]>(trackingPhase);
+  const prevVehicleTypeRef = useRef<RequestRideMapViewProps["vehicleType"]>(vehicleType);
   const animFrameRef = useRef<number | null>(null);
   const lastFrameMsRef = useRef<number | null>(null);
   const driverDisplayRef = useRef<RequestRideMapPoint | null>(null);
@@ -330,6 +332,12 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
     const path = driverPathRef.current;
     if (path.length < 2) return;
 
+    if (layersRef.current.driver && prevVehicleTypeRef.current !== vehicleType) {
+      map.removeLayer(layersRef.current.driver);
+      layersRef.current.driver = undefined;
+      prevVehicleTypeRef.current = vehicleType;
+    }
+
     pathTotalRef.current = pathTotalMeters(path);
     const projected = projectPointOnPath(path, driver);
     const snappedTarget = projected.meters;
@@ -343,6 +351,7 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
 
       layersRef.current.driver = createDriverLiveMarker(map, toLatLngPair(projected.point), {
         title: "Motorista ao vivo",
+        vehicleType,
       });
       fitVisibleBounds(true);
       return;
@@ -384,7 +393,7 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
     } else if (!driverMoved) {
       driverDisplayRef.current = projected.point;
     }
-  }, [driver, refreshDriverPath, fitVisibleBounds, startDriverAnimation, stopDriverAnimation, applyDisplayPosition, trackingPhase]);
+  }, [driver, refreshDriverPath, fitVisibleBounds, startDriverAnimation, stopDriverAnimation, applyDisplayPosition, trackingPhase, vehicleType]);
 
   useEffect(() => {
     syncStaticLayers();

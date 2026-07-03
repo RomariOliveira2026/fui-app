@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { calculatePassengerRoute } from "./_core/passengerRoute";
+import { estimateDemoRidePriceCents, type DemoVehicleType } from "@shared/demoPricing";
 
 describe("calculatePassengerRoute", () => {
   beforeEach(() => {
@@ -110,5 +111,24 @@ describe("calculatePassengerRoute", () => {
 
     expect(result.usedHaversineFallback).toBe(true);
     expect(result.distance).toBeGreaterThan(0);
+  });
+
+  it("precifica rota longa com valores críveis por categoria", () => {
+    const vehicleTypes: DemoVehicleType[] = ["moto", "carro", "van", "utilitario"];
+    const prices = vehicleTypes.map((vehicleType) =>
+      estimateDemoRidePriceCents(vehicleType, 92_000, 5_400).estimatedPrice
+    );
+
+    expect(prices[0]).toBeGreaterThan(20_000);
+    expect(prices[1]).toBeGreaterThan(30_000);
+    expect(prices[2]).toBeGreaterThan(45_000);
+    expect(prices[3]).toBeGreaterThan(55_000);
+    expect(prices).toEqual([...prices].sort((a, b) => a - b));
+  });
+
+  it("normaliza duração curta demais antes de calcular preço", () => {
+    const twoMinuteLongTrip = estimateDemoRidePriceCents("carro", 65_000, 120);
+    expect(twoMinuteLongTrip.durationS).toBeGreaterThan(3_500);
+    expect(twoMinuteLongTrip.estimatedPrice).toBeGreaterThan(23_000);
   });
 });

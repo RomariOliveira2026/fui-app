@@ -62,6 +62,7 @@ function buildSegment(
   });
   const timing = buildSegmentTimingFromPath(path, currentPosition ?? null, {
     minMs: DEMO_OPERATIONAL_SEGMENT_MS,
+    distanceMetersOverride: phase === "to_destination" ? Number(ride.distance ?? 0) : undefined,
   });
   return { path, target, ...timing };
 }
@@ -151,6 +152,7 @@ export function restoreOperationalStateFromRide(ride: Ride): void {
     });
     const timing = buildSegmentTimingFromPath(path, driver, {
       minMs: DEMO_OPERATIONAL_SEGMENT_MS,
+      distanceMetersOverride: Number(ride.distance ?? 0),
     });
     states.set(ride.id, {
       phase: "in_trip",
@@ -421,9 +423,12 @@ export function refreshOperationalSegmentPath(rideId: number): void {
     pickupOffsetMeters: START_OFFSET_M,
     currentPosition: phase === "to_destination" ? current : null,
   });
-  const durationMs = computeSegmentDurationMs(pathTotalMeters(path), {
+  const durationMs = computeSegmentDurationMs(
+    Math.max(pathTotalMeters(path), phase === "to_destination" ? Number(ride.distance ?? 0) : 0),
+    {
     minMs: DEMO_OPERATIONAL_SEGMENT_MS,
-  });
+    }
+  );
   const newSegment: Segment = {
     path,
     target: state.segment.target,

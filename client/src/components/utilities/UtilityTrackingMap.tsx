@@ -98,6 +98,7 @@ export default function UtilityTrackingMap({
           origin={origin}
           destination={destination}
           driver={showDriver ? driver : null}
+          vehicleType="utilitario"
           encodedPolyline={encodedPolyline}
           routePath={routePath}
           trackingPhase={trackingPhase === "in_transit" ? "in_trip" : trackingPhase === "arriving" ? "arriving" : trackingPhase === "accepted" ? "en_route" : "searching"}

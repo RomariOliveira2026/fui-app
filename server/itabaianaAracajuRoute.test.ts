@@ -100,7 +100,7 @@ describe("calculatePassengerRoute Itabaiana → Aracaju", () => {
     expect(result.origin.displayName.toLowerCase()).toContain("itabaiana");
     expect(result.destination.displayName.toLowerCase()).toContain("aracaju");
     expect(result.distance).toBeGreaterThan(50_000);
-    expect(result.estimatedPrice).toBeGreaterThan(0);
+    expect(result.estimatedPrice).toBeGreaterThan(30_000);
     expect(result.usedHaversineFallback).toBe(false);
   });
 

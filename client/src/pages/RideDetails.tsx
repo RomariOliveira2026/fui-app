@@ -14,6 +14,7 @@ import RideRouteMap from "@/components/RideRouteMap";
 import DemoRideChat from "@/components/DemoRideChat";
 import RateDriverModal from "@/components/RateDriverModal";
 import { isLocalDemoDev } from "@/lib/demoMode";
+import { useDemoAcceleratedEta } from "@/lib/demoRideEta";
 import {
   applyDemoPayment,
   isDemoPaymentApproved,
@@ -142,6 +143,24 @@ export default function RideDetails() {
       toast.success("Corrida concluída!");
     }
   }, [ride?.status]);
+
+  const previewSimRide = ride as RideWithSimulation | undefined;
+  const previewTracking = ride
+    ? getRideTrackingPresentation(
+        ride,
+        previewSimRide?.simulationPhase,
+        (ride as { dispatchMeta?: RideDispatchMeta }).dispatchMeta,
+        (ride as { tripPath?: RoutePoint[] }).tripPath,
+        (ride as { etaSecondsRemaining?: number }).etaSecondsRemaining
+      )
+    : null;
+  const demoEta = useDemoAcceleratedEta(
+    !!previewTracking &&
+      previewTracking.phase !== "searching" &&
+      previewTracking.phase !== "completed" &&
+      previewTracking.phase !== "waiting_pickup" &&
+      previewTracking.seconds > 0
+  );
 
   if (isLoading) {
     return (
@@ -277,6 +296,7 @@ export default function RideDetails() {
                 driverLng={showDriverOnMap ? ride.driverCurrentLng : null}
                 rideStatus={ride.status}
                 driverId={ride.driverId}
+                vehicleType={ride.vehicleType}
                 simulationPhase={simRide.simulationPhase}
                 tripPath={tripPath}
               />
@@ -339,6 +359,12 @@ export default function RideDetails() {
                 <p className="font-semibold text-foreground">
                   {ride.duration ? `${Math.round(ride.duration / 60)} min` : "-"}
                 </p>
+                {demoEta.visible && showDriverOnMap ? (
+                  <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
+                    Tempo total da viagem no trajeto real. O cronômetro acima mostra o tempo
+                    restante na {demoEta.label.toLowerCase()}.
+                  </p>
+                ) : null}
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Pagamento</p>

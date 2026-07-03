@@ -23,7 +23,7 @@ import ThirdPartyRideFields from "@/components/passenger/ThirdPartyRideFields";
 import IntermediateStopsFields from "@/components/passenger/IntermediateStopsFields";
 import { loadRidePrefill, clearRidePrefill } from "@/lib/ridePrefill";
 import type { BookedForThirdParty, IntermediateStop, IntermediateStopInput } from "@shared/passengerPremium";
-import { getDemoPricingByVehicleType } from "@shared/demoPricing";
+import { estimateDemoRidePriceCents } from "@shared/demoPricing";
 import { useSavedAddresses } from "@/lib/useSavedAddresses";
 import { isLocalDemoDev } from "@/lib/demoMode";
 import { usePassengerCurrentLocation } from "@/lib/usePassengerCurrentLocation";
@@ -459,21 +459,21 @@ export default function RequestRide() {
       distanceRef.current = route.distance.value;
       durationRef.current = route.duration.value;
 
-      const vehiclePricing =
-        pricing?.find((p: any) => p.vehicleType === vehicleType) ??
-        getDemoPricingByVehicleType(vehicleType);
+      const vehiclePricing = pricing?.find((p: any) => p.vehicleType === vehicleType);
       if (!vehiclePricing) {
         toast.error("Erro ao calcular preço");
         return;
       }
 
-      const distanceKm = route.distance.value / 1000;
-      const durationMin = route.duration.value / 60;
-      const calculatedPrice =
-        vehiclePricing.basePrice +
-        distanceKm * vehiclePricing.pricePerKm +
-        durationMin * vehiclePricing.pricePerMinute;
-      const roundedPrice = Math.round(Math.max(calculatedPrice, vehiclePricing.minimumPrice));
+      const centralEstimate = estimateDemoRidePriceCents(
+        vehicleType,
+        route.distance.value,
+        route.duration.value
+      );
+      const roundedPrice = Math.max(
+        centralEstimate.estimatedPrice,
+        Math.round(vehiclePricing.minimumPrice ?? 0)
+      );
 
       estimatedPriceRef.current = roundedPrice;
       routeReadyRef.current = true;
@@ -861,6 +861,7 @@ export default function RequestRide() {
                 className="w-full h-[400px]"
                 origin={originCoords}
                 destination={destCoords}
+                vehicleType={vehicleType}
                 routePath={routePath}
                 encodedPolyline={routePolylineEncoded}
                 nearbyDrivers={nearbyDemoDrivers}

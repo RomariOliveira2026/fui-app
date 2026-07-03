@@ -3,6 +3,7 @@ import {
   BRAZIL_MAP_OVERVIEW_ZOOM,
   STREET_LEVEL_MAP_ZOOM,
 } from "@shared/mapDefaults";
+import type { DemoVehicleType } from "@shared/demoPricing";
 
 /** Contrato compartilhado entre backends Leaflet e Google em /request-ride. */
 export type RequestRideMapPoint = { lat: number; lng: number };
@@ -22,6 +23,8 @@ export type RequestRideMapViewProps = {
   destination?: RequestRideMapPoint | null;
   /** Posição do motorista (corrida em tempo real). */
   driver?: RequestRideMapPoint | null;
+  /** Categoria do veículo usada no marcador ao vivo. */
+  vehicleType?: DemoVehicleType;
   /** Motoristas demo próximos (modo operacional). */
   nearbyDrivers?: DemoFleetMapMarker[] | null;
   /** Pontos da rota para Leaflet (prioridade sobre polyline codificada). */

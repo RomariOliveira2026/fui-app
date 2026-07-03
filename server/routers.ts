@@ -66,6 +66,8 @@ import {
 } from "./_core/demoRideSimulation";
 import { isDemoDriverSimulationAutoAcceptServer, isDemoDriverSimulationEnabledServer } from "@shared/demoSimulation";
 import { isDemoOperationalRidesEnabledServer } from "@shared/demoOperationalRides";
+import { estimateDemoRidePriceCents, type DemoVehicleType } from "@shared/demoPricing";
+import { haversineMeters } from "@shared/demoMaps";
 import { buildDemoRideClientPayload } from "./_core/demoRideClientMeta";
 import { registerOperationalDemoRide, ensureOperationalTripStarted, restoreOperationalStateFromRide } from "./_core/demoOperationalRide";
 import { ensureDemoFleetSeed, listDemoFleetForMap } from "./_core/demoFleet";
@@ -132,6 +134,41 @@ const recurrenceRuleInputSchema = z
 import { nanoid } from "nanoid";
 
 let stripeClient: Stripe | null = null;
+
+function parseRideCoord(lat: string | number, lng: string | number): { lat: number; lng: number } | null {
+  const parsedLat = typeof lat === "number" ? lat : Number.parseFloat(lat);
+  const parsedLng = typeof lng === "number" ? lng : Number.parseFloat(lng);
+  if (!Number.isFinite(parsedLat) || !Number.isFinite(parsedLng)) return null;
+  return { lat: parsedLat, lng: parsedLng };
+}
+
+function enforceCredibleRideEstimate(input: {
+  vehicleType: DemoVehicleType;
+  originLat: string | number;
+  originLng: string | number;
+  destinationLat: string | number;
+  destinationLng: string | number;
+  distance: number;
+  duration: number;
+  estimatedPrice: number;
+}) {
+  const origin = parseRideCoord(input.originLat, input.originLng);
+  const destination = parseRideCoord(input.destinationLat, input.destinationLng);
+  const directDistanceM = origin && destination ? haversineMeters(origin, destination) : 0;
+  const minimumRoadDistanceM = directDistanceM > 10_000 ? directDistanceM * 1.18 : directDistanceM;
+  const credibleDistanceM = Math.max(input.distance || 0, minimumRoadDistanceM);
+  const estimate = estimateDemoRidePriceCents(
+    input.vehicleType,
+    credibleDistanceM,
+    input.duration || 0
+  );
+
+  return {
+    distance: Math.max(input.distance || 0, Math.round(estimate.distanceM)),
+    duration: Math.max(input.duration || 0, Math.round(estimate.durationS)),
+    estimatedPrice: Math.max(input.estimatedPrice || 0, estimate.estimatedPrice),
+  };
+}
 
 /** Lazy init — evita crash no import quando STRIPE_SECRET_KEY não está na Vercel. */
 function getStripe(): Stripe {
@@ -565,10 +602,16 @@ export const appRouter = router({
         try {
         const { bookedFor, intermediateStops, ...rideInput } = input;
         const passengerPremiumMeta = buildPremiumMeta({ bookedFor, intermediateStops });
+        const credibleEstimate = enforceCredibleRideEstimate(input);
+        const credibleRideInput = {
+          ...rideInput,
+          distance: credibleEstimate.distance,
+          duration: credibleEstimate.duration,
+        };
 
         // Demo local: corrida em memória — evita insert com passengerId=0 no MySQL
         if (isDemoPassenger(ctx.user)) {
-          let finalEstimatedPrice = input.estimatedPrice;
+          let finalEstimatedPrice = credibleEstimate.estimatedPrice;
           let pricePerPassenger: number | undefined;
 
           if (input.isShared && input.maxPassengers && input.maxPassengers > 1) {
@@ -577,7 +620,7 @@ export const appRouter = router({
 
           const ride = createDemoRide({
             passengerId: ctx.user.id,
-            ...rideInput,
+            ...credibleRideInput,
             estimatedPrice: finalEstimatedPrice,
             pricePerPassenger,
             currentPassengers: 1,
@@ -627,15 +670,15 @@ export const appRouter = router({
         }
 
         // Apply VIP discount
-        let finalEstimatedPrice = input.estimatedPrice;
+        let finalEstimatedPrice = credibleEstimate.estimatedPrice;
         const user = isDemoPassenger(ctx.user)
           ? ctx.user
           : await db.getUserById(ctx.user.id);
         if (user && user.vipLevel) {
           const vipDiscount = db.getVipDiscount(user.vipLevel);
           if (vipDiscount > 0) {
-            const discountAmount = Math.floor((input.estimatedPrice * vipDiscount) / 100);
-            finalEstimatedPrice = input.estimatedPrice - discountAmount;
+            const discountAmount = Math.floor((credibleEstimate.estimatedPrice * vipDiscount) / 100);
+            finalEstimatedPrice = credibleEstimate.estimatedPrice - discountAmount;
           }
         }
 
@@ -647,7 +690,7 @@ export const appRouter = router({
 
         const result = await db.createRide({
           passengerId: ctx.user.id,
-          ...rideInput,
+          ...credibleRideInput,
           estimatedPrice: finalEstimatedPrice,
           pricePerPassenger,
           currentPassengers: 1, // Creator is the first passenger
@@ -682,7 +725,7 @@ export const appRouter = router({
             dropoffAddress: input.destinationAddress,
             dropoffLat: input.destinationLat,
             dropoffLng: input.destinationLng,
-            individualPrice: pricePerPassenger || input.estimatedPrice,
+            individualPrice: pricePerPassenger || finalEstimatedPrice,
             pickupOrder: 1,
             dropoffOrder: 1,
           });
@@ -1618,15 +1661,12 @@ export const appRouter = router({
           throw new TRPCError({ code: "NOT_FOUND", message: "Pricing config not found" });
         }
 
-        const distanceKm = input.distance / 1000;
-        const durationMin = input.duration / 60;
-
-        const calculatedPrice = 
-          config.basePrice + 
-          (distanceKm * config.pricePerKm) + 
-          (durationMin * config.pricePerMinute);
-
-        const afterTariff = Math.max(calculatedPrice, config.minimumPrice);
+        const centralEstimate = estimateDemoRidePriceCents(
+          input.vehicleType,
+          input.distance,
+          input.duration
+        );
+        const afterTariff = Math.max(centralEstimate.estimatedPrice, config.minimumPrice);
         const finalPrice = applyFinanceMinimumPrice(
           afterTariff,
           input.vehicleType,
@@ -1636,9 +1676,9 @@ export const appRouter = router({
         return {
           estimatedPrice: Math.round(finalPrice),
           breakdown: {
-            basePrice: config.basePrice,
-            distancePrice: Math.round(distanceKm * config.pricePerKm),
-            durationPrice: Math.round(durationMin * config.pricePerMinute),
+            basePrice: centralEstimate.breakdown.basePrice,
+            distancePrice: centralEstimate.breakdown.distancePrice,
+            durationPrice: centralEstimate.breakdown.durationPrice,
             minimumPrice: Math.round(finalPrice),
           }
         };
@@ -1789,7 +1829,17 @@ export const appRouter = router({
         const timeOfDay = `${input.scheduledFor.getHours().toString().padStart(2, "0")}:${input.scheduledFor.getMinutes().toString().padStart(2, "0")}`;
 
         if (isDemoPassenger(ctx.user)) {
-          const finalPrice = input.estimatedPrice ?? 0;
+          const credibleEstimate = enforceCredibleRideEstimate({
+            vehicleType: input.vehicleType,
+            originLat: input.originLat,
+            originLng: input.originLng,
+            destinationLat: input.destinationLat,
+            destinationLng: input.destinationLng,
+            distance: input.distance ?? 0,
+            duration: input.duration ?? 0,
+            estimatedPrice: input.estimatedPrice ?? 0,
+          });
+          const finalPrice = credibleEstimate.estimatedPrice;
           let recurringScheduleId: number | undefined;
 
           if (recurrenceRule) {
@@ -1805,8 +1855,8 @@ export const appRouter = router({
                 destinationLng: input.destinationLng.toString(),
                 paymentMethod: input.paymentMethod,
                 estimatedPrice: finalPrice,
-                distance: input.distance,
-                duration: input.duration,
+                distance: credibleEstimate.distance,
+                duration: credibleEstimate.duration,
                 bookedFor,
                 intermediateStops,
               },
@@ -1832,8 +1882,8 @@ export const appRouter = router({
             destinationAddress: scheduleInput.destinationAddress,
             destinationLat: scheduleInput.destinationLat.toString(),
             destinationLng: scheduleInput.destinationLng.toString(),
-            distance: scheduleInput.distance ?? 0,
-            duration: scheduleInput.duration ?? 0,
+            distance: credibleEstimate.distance,
+            duration: credibleEstimate.duration,
             estimatedPrice: finalPrice,
             paymentMethod: scheduleInput.paymentMethod,
             status: "requested",
@@ -1892,11 +1942,8 @@ export const appRouter = router({
         const distance = osrmData.routes[0].distance || 0; // meters
         const duration = osrmData.routes[0].duration || 0; // seconds
 
-        const distanceKm = distance / 1000;
-        const estimatedPrice = Math.max(
-          pricing.basePrice + Math.round(distanceKm * pricing.pricePerKm),
-          pricing.minimumPrice
-        );
+        const centralEstimate = estimateDemoRidePriceCents(input.vehicleType, distance, duration);
+        const estimatedPrice = Math.max(centralEstimate.estimatedPrice, pricing.minimumPrice);
 
         // Apply coupon if provided
         let finalPrice = estimatedPrice;

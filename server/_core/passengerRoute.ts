@@ -4,7 +4,7 @@ import {
   tryResolveDemoCatalog,
 } from "@shared/demoMaps";
 import {
-  getDemoPricingByVehicleType,
+  estimateDemoRidePriceCents,
   type DemoVehicleType,
 } from "@shared/demoPricing";
 import { resolveGeocodingScope, resolveHintCity } from "@shared/mapDefaults";
@@ -48,17 +48,7 @@ function computeEstimatedPrice(
   distanceM: number,
   durationS: number
 ): number {
-  const pricing = getDemoPricingByVehicleType(vehicleType);
-  if (!pricing) return 0;
-
-  const distanceKm = distanceM / 1000;
-  const durationMin = durationS / 60;
-  const raw =
-    pricing.basePrice +
-    distanceKm * pricing.pricePerKm +
-    durationMin * pricing.pricePerMinute;
-
-  return Math.round(Math.max(raw, pricing.minimumPrice));
+  return estimateDemoRidePriceCents(vehicleType, distanceM, durationS).estimatedPrice;
 }
 
 function parseCoordPlaceId(placeId: string): { lat: number; lng: number } | null {

@@ -17,6 +17,39 @@ export type RideSegmentTiming = {
   durationMs: number;
 };
 
+export type DemoRideSimulationMode = "short" | "medium" | "realistic";
+
+export function getDemoRideSimulationMode(env: {
+  mode?: string;
+} = {}): DemoRideSimulationMode {
+  const raw =
+    env.mode ??
+    (typeof process !== "undefined"
+      ? process.env.DEMO_RIDE_SIMULATION_MODE ?? process.env.VITE_DEMO_RIDE_SIMULATION_MODE
+      : undefined);
+  if (raw === "short" || raw === "medium" || raw === "realistic") return raw;
+  return "medium";
+}
+
+function getModeDefaultMultiplier(mode: DemoRideSimulationMode, betaDemo?: string): number {
+  if (mode === "realistic") return 1;
+  if (mode === "short") return 18;
+  if (betaDemo === "true" || betaDemo === "1") return 10;
+  return 6;
+}
+
+function computeCredibleDemoMinimumMs(
+  distanceMeters: number,
+  mode: DemoRideSimulationMode,
+  baseMinMs: number
+): number {
+  if (mode === "realistic") return baseMinMs;
+  if (distanceMeters >= 50_000) return Math.max(baseMinMs, mode === "short" ? 180_000 : 480_000);
+  if (distanceMeters >= 20_000) return Math.max(baseMinMs, mode === "short" ? 120_000 : 300_000);
+  if (distanceMeters >= 8_000) return Math.max(baseMinMs, mode === "short" ? 75_000 : 150_000);
+  return baseMinMs;
+}
+
 /**
  * Multiplicador de velocidade da simulação demo.
  * 1 = tempo real (~36 km/h). 10 = demo ~10× mais rápido.
@@ -27,6 +60,7 @@ export type RideSegmentTiming = {
 export function getDemoRideSpeedMultiplier(env: {
   multiplier?: string;
   betaDemo?: string;
+  mode?: string;
 } = {}): number {
   const raw =
     env.multiplier ??
@@ -38,8 +72,7 @@ export function getDemoRideSpeedMultiplier(env: {
     return Math.min(parsed, 60);
   }
   const beta = env.betaDemo ?? (typeof process !== "undefined" ? process.env.BETA_DEMO : undefined);
-  if (beta === "true" || beta === "1") return 10;
-  return 1;
+  return getModeDefaultMultiplier(getDemoRideSimulationMode(env), beta);
 }
 
 /** Duração do trecho (ms) a partir da distância e velocidade simulada. */
@@ -49,14 +82,17 @@ export function computeSegmentDurationMs(
     minMs?: number;
     speedKmh?: number;
     speedMultiplier?: number;
+    mode?: DemoRideSimulationMode;
   }
 ): number {
   const minMs = options?.minMs ?? DEMO_SEGMENT_MIN_MS;
   const speedKmh = options?.speedKmh ?? DEMO_DRIVER_SPEED_KMH;
   const multiplier = options?.speedMultiplier ?? getDemoRideSpeedMultiplier();
+  const mode = options?.mode ?? getDemoRideSimulationMode();
   const distanceM = Math.max(distanceMeters, 100);
   const realMs = (distanceM / 1000 / speedKmh) * 3600 * 1000;
-  return Math.max(minMs, Math.round(realMs / multiplier));
+  const credibleMinMs = computeCredibleDemoMinimumMs(distanceM, mode, minMs);
+  return Math.max(credibleMinMs, Math.round(realMs / multiplier));
 }
 
 export function getSegmentTimeProgress(segment: {
@@ -119,9 +155,14 @@ export function buildSegmentTimingFromPath(
     minMs?: number;
     speedKmh?: number;
     speedMultiplier?: number;
+    distanceMetersOverride?: number;
   }
 ): { startedAtMs: number; durationMs: number } {
-  const durationMs = computeSegmentDurationMs(pathTotalMeters(path), options);
+  const durationDistanceM = Math.max(
+    pathTotalMeters(path),
+    options?.distanceMetersOverride ?? 0
+  );
+  const durationMs = computeSegmentDurationMs(durationDistanceM, options);
 
   if (!currentPosition || path.length < 2) {
     return { startedAtMs: Date.now(), durationMs };

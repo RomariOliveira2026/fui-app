@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { useDemoAcceleratedEta } from "@/lib/demoRideEta";
 import { fuiBrand, fuiIconRingClass } from "@/lib/fuiTheme";
 import { useLiveEtaPresentation } from "@/lib/useLiveEtaSeconds";
 import type { RideTrackingPresentation } from "@/lib/rideTracking";
@@ -35,15 +36,15 @@ export default function RideDriverFoundCard({
     tracking?.distanceM ?? 0,
     !!tracking && tracking.seconds > 0
   );
+  const showRemainingEta = !!tracking && tracking.seconds > 0;
+  const demoEta = useDemoAcceleratedEta(showRemainingEta);
 
   const headline = liveEta?.headline ?? tracking?.etaHeadline;
   const unit = liveEta?.unit ?? tracking?.etaUnit;
   const etaDisplay =
-    tracking && tracking.seconds > 0 && headline
+    showRemainingEta && headline
       ? `${headline}${unit ? ` ${unit}` : ""}`
       : null;
-
-  const etaLine = etaDisplay ? `Chegada estimada: ${etaDisplay}` : tracking?.etaSubline;
 
   return (
     <div className={cn("rounded-xl border border-border bg-card overflow-hidden", className)}>
@@ -98,10 +99,13 @@ export default function RideDriverFoundCard({
             <p className="font-medium text-foreground capitalize">{driver.vehicleColor ?? "—"}</p>
           </div>
           <div>
-            <p className="text-[11px] text-muted-foreground">ETA</p>
-            <p className={cn("font-semibold", fuiBrand.text)}>
-              {etaDisplay ?? etaLine ?? "—"}
+            <p className="text-[11px] text-muted-foreground">Tempo restante</p>
+            <p className={cn("font-semibold tabular-nums", fuiBrand.text)}>
+              {etaDisplay ?? "—"}
             </p>
+            {demoEta.visible ? (
+              <p className="mt-0.5 text-[10px] text-muted-foreground">{demoEta.label}</p>
+            ) : null}
           </div>
         </div>
 
