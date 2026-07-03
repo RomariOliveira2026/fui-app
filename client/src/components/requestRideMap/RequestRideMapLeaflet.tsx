@@ -53,8 +53,8 @@ function cssBearingForPathMeters(path: RoutePoint[], meters: number): number {
   const after = pointAtPathMeters(path, Math.min(total, meters + 8));
   if (haversineMeters(before, after) < 0.25) return 0;
 
-  // The vehicle SVG points east by default; CSS rotation zero should mean east.
-  return bearingDegrees(before, after) - 90;
+  // Top-view icons point north by default; CSS rotate matches the compass bearing.
+  return bearingDegrees(before, after);
 }
 
 function buildRouteGeometry(
