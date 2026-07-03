@@ -11,6 +11,7 @@ import { createDriverLiveMarker, createVehicleLiveIcon } from "@/components/map/
 import { decodePolyline } from "@/lib/polyline";
 import {
   buildDriverPhasePath,
+  cumulativePathDistances,
   densifyPath,
   linearSpeedAtMeters,
   pathTotalMeters,
@@ -45,16 +46,35 @@ function bearingDegrees(from: RequestRideMapPoint, to: RequestRideMapPoint): num
   return (Math.atan2(y, x) * 180) / Math.PI;
 }
 
-function cssBearingForPathMeters(path: RoutePoint[], meters: number): number {
+/** Bearing estável: olha à frente na rota para evitar oscilar em curvas micro da polyline. */
+function stableBearingAtPathMeters(path: RoutePoint[], meters: number): number {
   const total = pathTotalMeters(path);
   if (path.length < 2 || total <= 0) return 0;
 
-  const before = pointAtPathMeters(path, Math.max(0, meters - 8));
-  const after = pointAtPathMeters(path, Math.min(total, meters + 8));
-  if (haversineMeters(before, after) < 0.25) return 0;
+  const lookAheadM = Math.min(52, Math.max(22, total * 0.1));
+  const from = pointAtPathMeters(path, meters);
+  const to = pointAtPathMeters(path, Math.min(total, meters + lookAheadM));
+  if (haversineMeters(from, to) >= 1) {
+    return bearingDegrees(from, to);
+  }
 
-  // Top-view icons point north by default; CSS rotate matches the compass bearing.
-  return bearingDegrees(before, after);
+  const cum = cumulativePathDistances(path);
+  for (let i = 1; i < path.length; i++) {
+    if (cum[i]! >= meters) {
+      const a = path[i - 1]!;
+      const b = path[i]!;
+      if (haversineMeters(a, b) >= 0.25) return bearingDegrees(a, b);
+      break;
+    }
+  }
+  return 0;
+}
+
+function smoothBearingDegrees(prev: number | null, next: number): number {
+  if (prev == null) return next;
+  const delta = ((next - prev + 540) % 360) - 180;
+  if (Math.abs(delta) < 0.35) return prev;
+  return prev + delta * 0.22;
 }
 
 function buildRouteGeometry(
@@ -146,6 +166,7 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
   const animFrameRef = useRef<number | null>(null);
   const lastFrameMsRef = useRef<number | null>(null);
   const driverDisplayRef = useRef<RequestRideMapPoint | null>(null);
+  const driverBearingRef = useRef<number | null>(null);
 
   const getBoundsPoints = useCallback((): [number, number][] => {
     const points: [number, number][] = [];
@@ -293,9 +314,11 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
     const pos = pointAtPathMeters(path, clamped);
     driverDisplayRef.current = pos;
     marker.setLatLng(toLatLngPair(pos));
-    marker
-      .getElement()
-      ?.style.setProperty("--fui-driver-bearing", `${cssBearingForPathMeters(path, clamped)}deg`);
+
+    const rawBearing = stableBearingAtPathMeters(path, clamped);
+    const bearing = smoothBearingDegrees(driverBearingRef.current, rawBearing);
+    driverBearingRef.current = bearing;
+    marker.getElement()?.style.setProperty("--fui-driver-bearing", `${bearing}deg`);
   }, []);
 
   const tickDriverAnimation = useCallback(() => {
@@ -325,7 +348,8 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
       if (diff > 0) {
         display = Math.min(target, display + step);
       } else {
-        display = Math.max(target, display - step * 0.65);
+        // Correções do servidor: encaixa sem deslizar de ré ao longo da rota.
+        display = target;
       }
       displayMetersRef.current = display;
       applyDisplayPosition(display);
@@ -357,6 +381,7 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
         layersRef.current.driver = undefined;
       }
       driverDisplayRef.current = null;
+      driverBearingRef.current = null;
       return;
     }
 
@@ -382,6 +407,7 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
       displayMetersRef.current = snappedTarget;
       targetMetersRef.current = snappedTarget;
       driverDisplayRef.current = projected.point;
+      driverBearingRef.current = null;
 
       layersRef.current.driver = createDriverLiveMarker(map, toLatLngPair(projected.point), {
         title: "Motorista ao vivo",
@@ -398,6 +424,7 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
       if (phasePath.length < 2) return;
       pathTotalRef.current = pathTotalMeters(phasePath);
       stopDriverAnimation();
+      driverBearingRef.current = null;
       const projectedAfterPhase = projectPointOnPath(phasePath, driver);
       displayMetersRef.current = projectedAfterPhase.meters;
       targetMetersRef.current = projectedAfterPhase.meters;

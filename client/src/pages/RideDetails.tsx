@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
@@ -24,11 +24,11 @@ import {
   getRideTrackingPresentation,
   shouldShowDriverOnMap,
 } from "@/lib/rideTracking";
-import {
-  isDemoRideIdClient,
+import { isDemoRideIdClient,
   persistDemoRideFromServer,
   useDemoRideHydration,
 } from "@/lib/useDemoRideHydration";
+import { getDemoRideSnapshot } from "@/lib/demoRideStorage";
 import RideSimulationPanel, { type RideWithSimulation } from "@/components/RideSimulationPanel";
 import RideDriverTrackingPanel from "@/components/ride/RideDriverTrackingPanel";
 import RideETAStatusCard from "@/components/ride/RideETAStatusCard";
@@ -59,6 +59,11 @@ export default function RideDetails() {
   const [chatOpen, setChatOpen] = useState(false);
   useDemoRideHydration();
 
+  const demoSnapshot = useMemo(() => {
+    if (!isLocalDemoDev() || !isDemoRideIdClient(rideId)) return undefined;
+    return getDemoRideSnapshot(rideId);
+  }, [rideId]);
+
   const confirmDemoPayment = trpc.ride.confirmDemoPayment.useMutation({
     onSuccess: (updated) => {
       persistDemoRideFromServer(updated);
@@ -85,7 +90,7 @@ export default function RideDetails() {
   });
   
   const { data: ride, isLoading, isError, error, refetch } = trpc.ride.getById.useQuery(
-    { rideId },
+    { rideId, demoSnapshot: demoSnapshot as never },
     {
       enabled: !!rideId,
       throwOnError: false,
@@ -93,6 +98,9 @@ export default function RideDetails() {
         const data = query.state.data as RideWithSimulation | undefined;
         if (!data || data.status === "completed" || data.status === "cancelled") {
           return false;
+        }
+        if (data.status === "requested" && !data.driverId) {
+          return 1500;
         }
         if (simulationEnabled || shouldShowDriverOnMap(data)) {
           return 1000;

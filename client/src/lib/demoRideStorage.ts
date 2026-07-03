@@ -43,6 +43,11 @@ export function upsertDemoRide(ride: Ride): void {
   saveDemoRides(rides);
 }
 
+/** Snapshot para reidratar corrida demo no servidor (Vercel/serverless). */
+export function getDemoRideSnapshot(rideId: number): Ride | undefined {
+  return loadDemoRides().find((ride) => ride.id === rideId);
+}
+
 export type DemoChatMessageSnapshot = {
   id: number;
   senderId: number;

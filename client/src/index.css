@@ -267,6 +267,5 @@
   height: 34px;
   transform: rotate(var(--fui-driver-bearing));
   transform-origin: 50% 50%;
-  transition: transform 420ms cubic-bezier(0.22, 1, 0.36, 1);
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.4));
 }

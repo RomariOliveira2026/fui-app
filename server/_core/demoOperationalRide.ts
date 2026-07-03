@@ -41,6 +41,7 @@ type Segment = RideSegmentTiming;
 type OperationalState = {
   phase: DemoSimulationPhase;
   segment: Segment | null;
+  /** Momento em que a busca começou — ancorado em ride.createdAt para Vercel/serverless. */
   registeredAtMs: number;
   arrivedPickupAtMs: number | null;
   vehicleType: DemoFleetVehicleType;
@@ -48,6 +49,16 @@ type OperationalState = {
 
 const states = new Map<number, OperationalState>();
 const START_OFFSET_M = 850;
+
+function resolveOperationalRegisteredAtMs(rideId: number, ride?: Ride | null): number {
+  const existing = states.get(rideId);
+  if (existing?.registeredAtMs) return existing.registeredAtMs;
+
+  const rideCreatedAt = ride?.createdAt ? new Date(ride.createdAt).getTime() : NaN;
+  if (Number.isFinite(rideCreatedAt)) return rideCreatedAt;
+
+  return Date.now();
+}
 
 function buildSegment(
   ride: Ride,
@@ -91,6 +102,11 @@ export function clearOperationalState(rideId: number): void {
   states.delete(rideId);
 }
 
+/** Apenas testes — limpa mapa em memória entre casos. */
+export function clearAllOperationalDemoStates(): void {
+  states.clear();
+}
+
 export function registerOperationalDemoRide(
   rideId: number,
   vehicleType: DemoFleetVehicleType,
@@ -98,6 +114,10 @@ export function registerOperationalDemoRide(
   originLng: string
 ): void {
   if (!isDemoOperationalRidesEnabledServer() || !isDemoRideId(rideId)) return;
+
+  const ride = getDemoRide(rideId);
+  const existing = states.get(rideId);
+  if (existing && existing.phase !== "searching") return;
 
   const lat = Number.parseFloat(originLat);
   const lng = Number.parseFloat(originLng);
@@ -108,7 +128,7 @@ export function registerOperationalDemoRide(
   states.set(rideId, {
     phase: "searching",
     segment: null,
-    registeredAtMs: Date.now(),
+    registeredAtMs: resolveOperationalRegisteredAtMs(rideId, ride),
     arrivedPickupAtMs: null,
     vehicleType,
   });
@@ -136,7 +156,9 @@ export function restoreOperationalStateFromRide(ride: Ride): void {
     return;
   }
   if (ride.status === "requested") {
-    registerOperationalDemoRide(ride.id, vehicleType, ride.originLat, ride.originLng);
+    if (!states.has(ride.id)) {
+      registerOperationalDemoRide(ride.id, vehicleType, ride.originLat, ride.originLng);
+    }
     return;
   }
   if (!ride.driverId) return;
@@ -192,9 +214,28 @@ function operationalAcceptRide(rideId: number): Ride | undefined {
 
   const match = findNearestAvailableFleetDriver(state.vehicleType, ride.originLat, ride.originLng);
   if (!match) {
-    console.warn(`[DemoOperational] Nenhum motorista ${state.vehicleType} disponível para #${rideId}`);
-    return undefined;
+    ensureDemoFleetSeed(
+      parseMapPoint(ride.originLat, ride.originLng) ?? undefined
+    );
+    const retry = findNearestAvailableFleetDriver(state.vehicleType, ride.originLat, ride.originLng);
+    if (!retry) {
+      console.warn(
+        `[DemoOperational] Nenhum motorista ${state.vehicleType} disponível para #${rideId}`
+      );
+      return undefined;
+    }
+    return operationalAcceptRideWithMatch(rideId, ride, state, retry);
   }
+
+  return operationalAcceptRideWithMatch(rideId, ride, state, match);
+}
+
+function operationalAcceptRideWithMatch(
+  rideId: number,
+  ride: Ride,
+  state: OperationalState,
+  match: NonNullable<ReturnType<typeof findNearestAvailableFleetDriver>>
+): Ride | undefined {
 
   const origin = parseMapPoint(ride.originLat, ride.originLng);
   const destination = parseMapPoint(ride.destinationLat, ride.destinationLng);
@@ -307,7 +348,8 @@ export function advanceOperationalDemoRide(ride: Ride): Ride {
   if (!state) return ride;
 
   if (state.phase === "searching") {
-    if (Date.now() - state.registeredAtMs >= DEMO_OPERATIONAL_ACCEPT_DELAY_MS) {
+    const registeredAt = resolveOperationalRegisteredAtMs(ride.id, ride);
+    if (Date.now() - registeredAt >= DEMO_OPERATIONAL_ACCEPT_DELAY_MS) {
       const accepted = operationalAcceptRide(ride.id);
       if (accepted) return accepted;
     }

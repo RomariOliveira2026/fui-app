@@ -1218,10 +1218,16 @@ export const appRouter = router({
     getById: protectedProcedure
       .input(z.object({
         rideId: z.number(),
+        /** Snapshot do localStorage — reidrata corrida demo em serverless (Vercel). */
+        demoSnapshot: z.any().optional(),
       }))
       .query(async ({ ctx, input }) => {
         if (isDemoRideId(input.rideId)) {
           let ride = getDemoRide(input.rideId);
+          if (!ride && input.demoSnapshot && isDemoRideId(Number(input.demoSnapshot.id))) {
+            hydrateDemoRides([input.demoSnapshot as never]);
+            ride = getDemoRide(input.rideId);
+          }
           if (!ride) {
             throw new TRPCError({ code: "NOT_FOUND", message: "Ride not found" });
           }

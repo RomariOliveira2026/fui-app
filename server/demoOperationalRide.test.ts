@@ -47,6 +47,7 @@ vi.mock("./_core/demoRide", () => ({
 
 import {
   advanceOperationalDemoRide,
+  clearAllOperationalDemoStates,
   getOperationalEtaSeconds,
   getOperationalPhase,
   registerOperationalDemoRide,
@@ -82,12 +83,33 @@ function makeRide(overrides: Partial<Ride> = {}): Ride {
 describe("demoOperationalRide", () => {
   beforeEach(() => {
     rideStore.clear();
+    clearAllOperationalDemoStates();
     vi.useFakeTimers();
   });
 
-  it("inicia viagem no embarque e conclui somente no destino", () => {
-    rideStore.set(-42, makeRide());
+  it("ancora busca em createdAt da corrida (serverless)", () => {
+    const createdAt = new Date("2026-01-01T12:00:00.000Z");
+    rideStore.set(-42, makeRide({ createdAt }));
+    vi.setSystemTime(new Date("2026-01-01T12:00:05.000Z"));
+
     registerOperationalDemoRide(-42, "carro", "-10.685000", "-37.425000");
+    let ride = advanceOperationalDemoRide(rideStore.get(-42)!);
+    expect(ride.status).toBe("accepted");
+
+    vi.useRealTimers();
+  });
+
+  it("inicia viagem no embarque e conclui somente no destino", () => {
+    rideStore.set(
+      -42,
+      makeRide({
+        driverId: null,
+        vehicleId: null,
+        createdAt: new Date(0),
+      })
+    );
+    registerOperationalDemoRide(-42, "carro", "-10.685000", "-37.425000");
+    vi.advanceTimersByTime(1);
 
     let ride = advanceOperationalDemoRide(rideStore.get(-42)!);
     expect(ride.status).toBe("accepted");
@@ -121,7 +143,14 @@ describe("demoOperationalRide", () => {
     }));
     vi.mocked(getDemoTripPath).mockReturnValue(longPath);
 
-    rideStore.set(-42, makeRide({ status: "in_progress" }));
+    rideStore.set(
+      -42,
+      makeRide({
+        status: "in_progress",
+        driverCurrentLat: "-10.684000",
+        driverCurrentLng: "-37.424000",
+      })
+    );
     restoreOperationalStateFromRide(rideStore.get(-42)!);
 
     expect(getOperationalPhase(-42)).toBe("in_trip");
