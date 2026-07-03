@@ -50,9 +50,9 @@ function bearingDegrees(from: RequestRideMapPoint, to: RequestRideMapPoint): num
  * ignorando os micro-zigue-zagues da polyline densificada. Em retas o valor
  * praticamente não muda, então o ícone não balança.
  */
-function stableBearingAtPathMeters(path: RoutePoint[], meters: number): number {
+function stableBearingAtPathMeters(path: RoutePoint[], meters: number): number | null {
   const total = pathTotalMeters(path);
-  if (path.length < 2 || total <= 0) return 0;
+  if (path.length < 2 || total <= 0) return null;
 
   const window = 60;
   const back = pointAtPathMeters(path, Math.max(0, meters - window));
@@ -66,17 +66,14 @@ function stableBearingAtPathMeters(path: RoutePoint[], meters: number): number {
   if (haversineMeters(from, to) >= 1) {
     return bearingDegrees(from, to);
   }
-  return 0;
+  return null;
 }
 
-/**
- * Só troca a rotação quando a direção muda de forma perceptível (histerese).
- * Isso elimina o balanço lateral em trechos retos, mantendo o giro em curvas.
- */
+/** Só troca a rotação quando a direção muda de forma perceptível (histerese). */
 function nextBearingWithHysteresis(prev: number | null, next: number): number {
   if (prev == null) return next;
   const delta = ((next - prev + 540) % 360) - 180;
-  if (Math.abs(delta) < 3) return prev;
+  if (Math.abs(delta) < 12) return prev;
   return next;
 }
 
@@ -137,6 +134,9 @@ const defaultCenter: [number, number] = [
 /** Tolerância (m) para parar o loop de animação. */
 const STOP_EPSILON_M = 0.4;
 
+/** Deslocamento mínimo para recalcular a rotação do ícone. */
+const MIN_BEARING_MOVE_M = 4;
+
 /** Velocidade máxima de ajuste suave entre polls do servidor. */
 const MAX_DRIVER_CATCHUP_MPS = 13;
 
@@ -170,6 +170,7 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
   const lastFrameMsRef = useRef<number | null>(null);
   const driverDisplayRef = useRef<RequestRideMapPoint | null>(null);
   const driverBearingRef = useRef<number | null>(null);
+  const bearingAnchorRef = useRef<RequestRideMapPoint | null>(null);
 
   const getBoundsPoints = useCallback((): [number, number][] => {
     const points: [number, number][] = [];
@@ -318,7 +319,16 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
     driverDisplayRef.current = pos;
     marker.setLatLng(toLatLngPair(pos));
 
+    const movedEnough =
+      !bearingAnchorRef.current ||
+      haversineMeters(bearingAnchorRef.current, pos) >= MIN_BEARING_MOVE_M;
+
+    if (!movedEnough) return;
+
     const rawBearing = stableBearingAtPathMeters(path, clamped);
+    if (rawBearing == null) return;
+
+    bearingAnchorRef.current = pos;
     const bearing = nextBearingWithHysteresis(driverBearingRef.current, rawBearing);
     if (bearing !== driverBearingRef.current) {
       driverBearingRef.current = bearing;
@@ -387,6 +397,7 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
       }
       driverDisplayRef.current = null;
       driverBearingRef.current = null;
+      bearingAnchorRef.current = null;
       return;
     }
 
@@ -413,6 +424,7 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
       targetMetersRef.current = snappedTarget;
       driverDisplayRef.current = projected.point;
       driverBearingRef.current = null;
+      bearingAnchorRef.current = null;
 
       layersRef.current.driver = createDriverLiveMarker(map, toLatLngPair(projected.point), {
         title: "Motorista ao vivo",
@@ -430,6 +442,7 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
       pathTotalRef.current = pathTotalMeters(phasePath);
       stopDriverAnimation();
       driverBearingRef.current = null;
+      bearingAnchorRef.current = null;
       const projectedAfterPhase = projectPointOnPath(phasePath, driver);
       displayMetersRef.current = projectedAfterPhase.meters;
       targetMetersRef.current = projectedAfterPhase.meters;
