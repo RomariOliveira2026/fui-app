@@ -79,6 +79,11 @@ import { fuiBrand, fuiSelectedTile, fuiSurface } from "@/lib/fuiTheme";
 import { usePassengerDashboardData } from "@/lib/usePassengerDashboardData";
 import { resolveDriverLandingPath } from "@shared/driverLanding";
 import {
+  getDefaultOriginSelection,
+  seedDefaultOriginHistory,
+} from "@/lib/defaultOriginAddress";
+import { DEFAULT_PASSENGER_HOME } from "@shared/defaultHomeAddress";
+import {
   consumePostAuthRedirect,
   hasDriverSignupIntent,
   peekPostAuthRedirect,
@@ -141,11 +146,13 @@ function LoggedInHome() {
   const destCoordsRef = useRef<{ lat: number; lng: number } | null>(null);
   const originFromGpsRef = useRef(false);
   const lowAccuracyWarnedRef = useRef(false);
+  const [autoLocateOrigin, setAutoLocateOrigin] = useState(false);
 
-  const shouldAutoLocate = requestMode && !originAddress.trim();
+  const shouldAutoLocate = requestMode && autoLocateOrigin && !originAddress.trim();
   const passengerLocation = usePassengerCurrentLocation({ enabled: shouldAutoLocate });
 
   const handleUseCurrentLocation = () => {
+    setAutoLocateOrigin(true);
     originFromGpsRef.current = true;
     lowAccuracyWarnedRef.current = false;
     clearRoute();
@@ -167,7 +174,7 @@ function LoggedInHome() {
   });
 
   useEffect(() => {
-    setOriginHistory(loadAddressHistory(FUI_HISTORY_ORIGIN_KEY));
+    setOriginHistory(seedDefaultOriginHistory());
     setDestinationHistory(loadAddressHistory(FUI_HISTORY_DESTINATION_KEY));
   }, []);
 
@@ -423,9 +430,23 @@ function LoggedInHome() {
     { type: "utilitario" as const, icon: Package, label: "Utilitário" },
   ];
 
+  const applyDefaultOrigin = () => {
+    const defaults = getDefaultOriginSelection();
+    originFromGpsRef.current = false;
+    setAutoLocateOrigin(false);
+    setOriginAddress(defaults.address);
+    setOriginPlaceId(defaults.placeId);
+    originCoordsRef.current = defaults.coords;
+    setOriginCoords(defaults.coords);
+  };
+
   const openRequestFlow = (prefill?: { origin?: string; destination?: string }) => {
     clearRoute();
-    if (prefill?.origin) setOriginAddress(prefill.origin);
+    if (prefill?.origin) {
+      setOriginAddress(prefill.origin);
+    } else {
+      applyDefaultOrigin();
+    }
     if (prefill?.destination) setDestinationAddress(prefill.destination);
     setRequestMode(true);
   };
@@ -553,8 +574,14 @@ function LoggedInHome() {
                   }}
                   onSelect={(result) => {
                     originFromGpsRef.current = false;
+                    setAutoLocateOrigin(false);
                     setOriginAddress(result.address);
                     setOriginPlaceId(result.placeId);
+                    if (result.lat != null && result.lng != null) {
+                      const coords = { lat: result.lat, lng: result.lng };
+                      originCoordsRef.current = coords;
+                      setOriginCoords(coords);
+                    }
                     if (routeCalculated) clearRoute();
                   }}
                   onConfirm={(address) => {
@@ -572,6 +599,12 @@ function LoggedInHome() {
                   icon={<div className="w-3 h-3 rounded-full bg-green-500 border-2 border-green-300" />}
                   historyItems={originHistory}
                   savedAddresses={savedAddresses}
+                  prioritySuggestions={[
+                    {
+                      address: DEFAULT_PASSENGER_HOME.address,
+                      placeId: DEFAULT_PASSENGER_HOME.placeId,
+                    },
+                  ]}
                   locationBias={locationBias}
                   disabled={passengerLocation.isLocating}
                 />

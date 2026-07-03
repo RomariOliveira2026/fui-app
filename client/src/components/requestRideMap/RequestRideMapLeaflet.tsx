@@ -34,6 +34,29 @@ function isValidPoint(point: RequestRideMapPoint | null | undefined): point is R
   return !!point && Number.isFinite(point.lat) && Number.isFinite(point.lng);
 }
 
+function bearingDegrees(from: RequestRideMapPoint, to: RequestRideMapPoint): number {
+  const fromLat = (from.lat * Math.PI) / 180;
+  const toLat = (to.lat * Math.PI) / 180;
+  const deltaLng = ((to.lng - from.lng) * Math.PI) / 180;
+  const y = Math.sin(deltaLng) * Math.cos(toLat);
+  const x =
+    Math.cos(fromLat) * Math.sin(toLat) -
+    Math.sin(fromLat) * Math.cos(toLat) * Math.cos(deltaLng);
+  return (Math.atan2(y, x) * 180) / Math.PI;
+}
+
+function cssBearingForPathMeters(path: RoutePoint[], meters: number): number {
+  const total = pathTotalMeters(path);
+  if (path.length < 2 || total <= 0) return 0;
+
+  const before = pointAtPathMeters(path, Math.max(0, meters - 8));
+  const after = pointAtPathMeters(path, Math.min(total, meters + 8));
+  if (haversineMeters(before, after) < 0.25) return 0;
+
+  // The vehicle SVG points east by default; CSS rotation zero should mean east.
+  return bearingDegrees(before, after) - 90;
+}
+
 function buildRouteGeometry(
   origin: RequestRideMapPoint,
   destination: RequestRideMapPoint,
@@ -270,6 +293,9 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
     const pos = pointAtPathMeters(path, clamped);
     driverDisplayRef.current = pos;
     marker.setLatLng(toLatLngPair(pos));
+    marker
+      .getElement()
+      ?.style.setProperty("--fui-driver-bearing", `${cssBearingForPathMeters(path, clamped)}deg`);
   }, []);
 
   const tickDriverAnimation = useCallback(() => {
@@ -343,6 +369,7 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
     if (layersRef.current.driver && prevVehicleTypeRef.current !== vehicleType) {
       layersRef.current.driver.setIcon(createVehicleLiveIcon(vehicleType));
       prevVehicleTypeRef.current = vehicleType;
+      applyDisplayPosition(displayMetersRef.current);
     }
 
     pathTotalRef.current = pathTotalMeters(path);
@@ -360,6 +387,7 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
         title: "Motorista ao vivo",
         vehicleType,
       });
+      applyDisplayPosition(snappedTarget);
       fitVisibleBounds(true);
       return;
     }

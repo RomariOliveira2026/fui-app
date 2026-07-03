@@ -8,6 +8,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { filterDemoPlaces, findDemoPlaceByPlaceId, findDemoPlaceByText } from "@shared/demoMaps";
+import { findSergipeKnownPlace, findSergipeKnownPlaceByPlaceId } from "@shared/sergipeKnownPlaces";
 import { BRAZIL_MAP_CENTER, DEFAULT_OPERATION_CENTER, rankByLocality } from "@shared/mapDefaults";
 
 const MIN_QUERY_LENGTH = 2;
@@ -65,6 +66,8 @@ interface AddressAutocompleteProps {
   historyItems?: AddressHistoryItem[];
   /** Endereços salvos — exibidos no dropdown ao digitar. */
   savedAddresses?: SavedAddressLike[];
+  /** Sugestões fixas (ex.: Casa) — aparecem primeiro ao focar o campo. */
+  prioritySuggestions?: AddressHistoryItem[];
   /** Viés regional para sugestões (lat/lng do usuário). */
   locationBias?: { lat: number; lng: number } | null;
 }
@@ -89,6 +92,7 @@ export function AddressAutocomplete({
   onConfirm,
   historyItems = [],
   savedAddresses = [],
+  prioritySuggestions = [],
   locationBias = null,
 }: AddressAutocompleteProps) {
   const [query, setQuery] = useState(value);
@@ -208,6 +212,21 @@ export function AddressAutocomplete({
     const seen = new Set<string>();
     const out: FlatSuggestion[] = [];
 
+    if (isFocused && trimmedQuery.length === 0) {
+      for (const item of prioritySuggestions) {
+        const key = item.address.trim().toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push({
+          type: "saved",
+          key: `priority-${key}`,
+          title: "Casa",
+          address: item.address,
+          label: "home",
+        });
+      }
+    }
+
     for (const item of filteredSaved) {
       const key = item.address.trim().toLowerCase();
       if (seen.has(key)) continue;
@@ -243,11 +262,11 @@ export function AddressAutocomplete({
     }
 
     return out;
-  }, [filteredSaved, filteredHistory, placeResults, debouncedQuery]);
+  }, [filteredSaved, filteredHistory, placeResults, debouncedQuery, isFocused, trimmedQuery, prioritySuggestions]);
 
   const showDropdown =
     isFocused &&
-    trimmedQuery.length > 0 &&
+    (trimmedQuery.length > 0 || prioritySuggestions.length > 0) &&
     (flatSuggestions.length > 0 || (debouncedQuery.trim().length >= MIN_QUERY_LENGTH && isLoading));
 
   const showEmptyState =
@@ -291,10 +310,11 @@ export function AddressAutocomplete({
       const address = item.address;
       const exact = findDemoPlaceByText(address);
       const partial = exact ?? filterDemoPlaces(address)[0];
-      const placeId =
-        item.type === "history" && item.placeId
-          ? item.placeId
-          : partial?.placeId ?? "";
+      const sergipe =
+        (item.type === "history" && item.placeId
+          ? findSergipeKnownPlaceByPlaceId(item.placeId)
+          : null) ?? findSergipeKnownPlace(address);
+      const placeId = sergipe?.placeId ?? partial?.placeId ?? (item.type === "history" ? item.placeId : "") ?? "";
 
       setQuery(address);
       onChange(address);
@@ -302,8 +322,8 @@ export function AddressAutocomplete({
       onSelect({
         address,
         placeId,
-        lat: partial?.lat,
-        lng: partial?.lng,
+        lat: partial?.lat ?? sergipe?.lat,
+        lng: partial?.lng ?? sergipe?.lng,
       });
 
       window.setTimeout(() => {

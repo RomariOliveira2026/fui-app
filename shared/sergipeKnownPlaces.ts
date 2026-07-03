@@ -181,6 +181,20 @@ export const SERGIPE_KNOWN_PLACES: SergipeKnownPlace[] = [
     placeId: "sergipe:itabaiana:eduardo-paixao-rocha-800",
   },
   {
+    matchTerms: [
+      "vera candida de santana",
+      "vera candida santana",
+      "vera candida costa de santana",
+      "rua vera candida",
+      "1258 rotary",
+      "rotary club itabaiana",
+    ],
+    lat: -10.6891766,
+    lng: -37.4364078,
+    displayName: "Rua Vera Cândida de Santana, nº 1.258 - Rotary Club, Itabaiana/SE",
+    placeId: "sergipe:itabaiana:vera-candida-santana-1258",
+  },
+  {
     matchTerms: ["rodoviaria itabaiana", "rodoviária itabaiana"],
     lat: -10.682,
     lng: -37.428,

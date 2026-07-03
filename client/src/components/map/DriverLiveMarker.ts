@@ -4,11 +4,11 @@
 import L from "leaflet";
 import type { DemoVehicleType } from "@shared/demoPricing";
 
-const DRIVER_ICON_COLOR = "#0f172a";
+const DRIVER_ICON_COLOR = "#071116";
 
 const VEHICLE_SVG_PATHS: Record<DemoVehicleType, string> = {
   moto:
-    '<path d="M7 15a3 3 0 1 0 0 6 3 3 0 0 0 0-6Zm10 0a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z"/><path d="M9.2 17.2h3.2l2.1-4.7H18l1.3 4.1M6.2 17.2l2.6-5.3h2.8l1.9 2.6M11.4 11.9l-1.2-2.4H7.8M15.8 9.5h2.4"/>',
+    '<path d="M5.9 15.6a2.25 2.25 0 1 0 0 4.5 2.25 2.25 0 0 0 0-4.5Z"/><path d="M17.9 15.6a2.25 2.25 0 1 0 0 4.5 2.25 2.25 0 0 0 0-4.5Z"/><path d="M8.1 17.4h3.6l2.15-4.7h3.15l1.85 4.25M6 17.25l2.65-5.15h2.7l2.15 3.05M10.45 12.1l-1.1-2.45H7.35M15.2 9.65h2.85"/>',
   carro:
     '<path d="M5.2 11.6 7 7.2A2 2 0 0 1 8.9 6h6.2A2 2 0 0 1 17 7.2l1.8 4.4"/><path d="M4 12h16v5.2a1.8 1.8 0 0 1-1.8 1.8H5.8A1.8 1.8 0 0 1 4 17.2V12Z"/><path d="M7 18.5v1.2M17 18.5v1.2M6.8 15h.1M17.1 15h.1"/>',
   van:
@@ -29,13 +29,13 @@ export function createVehicleLiveIcon(vehicleType?: string | null): L.DivIcon {
   const type = normalizeDriverVehicleType(vehicleType);
   const path = VEHICLE_SVG_PATHS[type];
   return L.divIcon({
-    className: "fui-driver-live-marker",
-    iconSize: [40, 40],
-    iconAnchor: [20, 20],
+    className: `fui-driver-live-marker fui-driver-live-marker--${type}`,
+    iconSize: [30, 30],
+    iconAnchor: [15, 15],
     html: `
       <div class="fui-driver-live-marker__inner">
-        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-          <g fill="none" stroke="${DRIVER_ICON_COLOR}" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round">
+        <svg width="30" height="30" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <g fill="none" stroke="${DRIVER_ICON_COLOR}" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round">
             ${path}
           </g>
         </svg>

@@ -44,6 +44,11 @@ import {
   pickResolvedAddressLabel,
 } from "@shared/addressGeocoding";
 import { findSergipeKnownPlaceByPlaceId } from "@shared/sergipeKnownPlaces";
+import {
+  getDefaultOriginSelection,
+  seedDefaultOriginHistory,
+} from "@/lib/defaultOriginAddress";
+import { DEFAULT_PASSENGER_HOME } from "@shared/defaultHomeAddress";
 import { WL } from "@/whitelabel";
 import StatusPanel from "@/components/fui/StatusPanel";
 
@@ -84,7 +89,7 @@ export default function RequestRide() {
   const prefillAppliedRef = useRef(false);
   const originFromGpsRef = useRef(false);
   const lowAccuracyWarnedRef = useRef(false);
-  const [autoLocateOrigin, setAutoLocateOrigin] = useState(true);
+  const [autoLocateOrigin, setAutoLocateOrigin] = useState(false);
   
   // Carpool fields
   const [isShared, setIsShared] = useState(false);
@@ -190,7 +195,19 @@ export default function RequestRide() {
   const utils = trpc.useUtils();
 
   useEffect(() => {
-    syncHistoryFromStorage();
+    setOriginHistory(seedDefaultOriginHistory());
+    setDestinationHistory(loadAddressHistory(FUI_HISTORY_DESTINATION_KEY));
+
+    const prefill = loadRidePrefill();
+    if (prefill) return;
+
+    const defaults = getDefaultOriginSelection();
+    originFromGpsRef.current = false;
+    setOriginAddress(defaults.address);
+    setOriginPlaceId(defaults.placeId);
+    originPlaceIdRef.current = defaults.placeId;
+    originCoordsRef.current = defaults.coords;
+    setOriginCoords(defaults.coords);
   }, []);
 
   useEffect(() => {
@@ -811,6 +828,11 @@ export default function RequestRide() {
                     setOriginAddress(result.address);
                     setOriginPlaceId(result.placeId);
                     originPlaceIdRef.current = result.placeId;
+                    if (result.lat != null && result.lng != null) {
+                      const coords = { lat: result.lat, lng: result.lng };
+                      originCoordsRef.current = coords;
+                      setOriginCoords(coords);
+                    }
                     recordOriginHistory(result.address, result.placeId);
                   }}
                   onConfirm={(address) => {
@@ -836,6 +858,12 @@ export default function RequestRide() {
                   icon={<MapPin className={`w-4 h-4 ${fuiRoute.originIcon}`} />}
                   historyItems={originHistory}
                   savedAddresses={savedAddresses}
+                  prioritySuggestions={[
+                    {
+                      address: DEFAULT_PASSENGER_HOME.address,
+                      placeId: DEFAULT_PASSENGER_HOME.placeId,
+                    },
+                  ]}
                   locationBias={passengerLocation.coords ?? originCoords}
                   disabled={passengerLocation.isLocating}
                 />
