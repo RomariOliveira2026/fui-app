@@ -10,7 +10,6 @@ import { LeafletMap, createCircleMarker, drawRoute } from "@/components/Map";
 import { createDriverLiveMarker, createVehicleLiveIcon } from "@/components/map/DriverLiveMarker";
 import { decodePolyline } from "@/lib/polyline";
 import {
-  buildDriverPhasePath,
   densifyPath,
   linearSpeedAtMeters,
   pathTotalMeters,
@@ -101,32 +100,6 @@ function buildRouteGeometry(
   return densifyPath([origin, destination], 12);
 }
 
-function resolveDriverPath(
-  tripPath: RoutePoint[],
-  trackingPhase: RequestRideMapViewProps["trackingPhase"],
-  driverPosition?: RequestRideMapPoint | null
-): RoutePoint[] {
-  if (tripPath.length < 2) return tripPath;
-
-  if (trackingPhase === "in_trip" || trackingPhase === "completed") {
-    return buildDriverPhasePath(tripPath, "to_destination", {
-      currentPosition: driverPosition ?? null,
-    });
-  }
-
-  if (
-    trackingPhase === "en_route" ||
-    trackingPhase === "arriving" ||
-    trackingPhase === "waiting_pickup"
-  ) {
-    return buildDriverPhasePath(tripPath, "to_pickup", {
-      currentPosition: driverPosition ?? null,
-    });
-  }
-
-  return tripPath;
-}
-
 const defaultCenter: [number, number] = [
   REQUEST_RIDE_MAP_DEFAULT_CENTER.lat,
   REQUEST_RIDE_MAP_DEFAULT_CENTER.lng,
@@ -139,13 +112,13 @@ const STOP_EPSILON_M = 0.4;
 const MIN_BEARING_MOVE_M = 2;
 
 /** Velocidade máxima de ajuste suave entre polls do servidor. */
-const MAX_DRIVER_CATCHUP_MPS = 28;
+const MAX_DRIVER_SPEED_MPS = 38;
 
-/** Quanto o ícone pode extrapolar à frente do último ponto do servidor (entre polls). */
-const MAX_AHEAD_OF_SERVER_M = 50;
+/** Velocidade base quando não há ETA (~50 km/h visual). */
+const DEFAULT_CRUISE_MPS = 14;
 
-/** Velocidade mínima visível — evita sensação de “travou”. */
-const MIN_CRUISE_MPS = 5;
+/** Tempo para alcançar o alvo do servidor quando há defasagem. */
+const PURSUIT_LAG_S = 0.65;
 
 export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
   className,
@@ -168,10 +141,10 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
     fleet?: L.LayerGroup;
   }>({});
   const tripPathRef = useRef<RoutePoint[]>([]);
-  const driverPathRef = useRef<RoutePoint[]>([]);
   const pathTotalRef = useRef(0);
   const displayMetersRef = useRef(0);
   const targetMetersRef = useRef(0);
+  const lastServerTargetMsRef = useRef(0);
   const prevTrackingPhaseRef = useRef<RequestRideMapViewProps["trackingPhase"]>(trackingPhase);
   const prevVehicleTypeRef = useRef<RequestRideMapViewProps["vehicleType"]>(vehicleType);
   const animFrameRef = useRef<number | null>(null);
@@ -189,22 +162,32 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
   }, [driverEtaSeconds]);
 
   function resolveDriverSpeedMps(displayM: number, targetM: number): number {
-    const remaining = Math.max(0, pathTotalRef.current - displayM);
+    const pathTotal = pathTotalRef.current;
+    const remaining = Math.max(0, pathTotal - displayM);
     if (remaining <= STOP_EPSILON_M) return 0;
 
-    const targetGap = targetM - displayM;
-    let speed = linearSpeedAtMeters(remaining);
+    const gap = Math.max(0, targetM - displayM);
+    let cruise = DEFAULT_CRUISE_MPS;
 
     const eta = driverEtaRef.current;
     if (eta != null && eta > 0) {
-      speed = remaining / eta;
+      cruise = Math.max(10, Math.min(MAX_DRIVER_SPEED_MPS, remaining / eta));
+    } else {
+      cruise = linearSpeedAtMeters(remaining, DEFAULT_CRUISE_MPS);
     }
 
-    if (targetGap > STOP_EPSILON_M) {
-      speed = Math.max(speed, adaptiveDriverCatchUpSpeedMps(targetGap));
+    if (gap > STOP_EPSILON_M) {
+      return Math.min(
+        MAX_DRIVER_SPEED_MPS,
+        Math.max(cruise, adaptiveDriverCatchUpSpeedMps(gap, DEFAULT_CRUISE_MPS, PURSUIT_LAG_S))
+      );
     }
 
-    return Math.min(MAX_DRIVER_CATCHUP_MPS, Math.max(MIN_CRUISE_MPS, speed));
+    return cruise;
+  }
+
+  function syncPathMetrics() {
+    pathTotalRef.current = pathTotalMeters(tripPathRef.current);
   }
 
   function isContinuousTrackingPhase(
@@ -258,22 +241,6 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
     [getBoundsPoints, trackingPhase]
   );
 
-  const refreshDriverPath = useCallback(
-    (options?: { trimFromDriver?: boolean }) => {
-      if (tripPathRef.current.length >= 2) {
-        const driverPos =
-          options?.trimFromDriver && isValidPoint(driver) ? driver : null;
-        driverPathRef.current = resolveDriverPath(
-          tripPathRef.current,
-          trackingPhase,
-          driverPos
-        );
-        pathTotalRef.current = pathTotalMeters(driverPathRef.current);
-      }
-    },
-    [trackingPhase, driver]
-  );
-
   const syncStaticLayers = useCallback(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -308,7 +275,7 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
     if (hasOrigin && hasDest) {
       const geometry = buildRouteGeometry(origin, destination, routePath, encodedPolyline);
       tripPathRef.current = geometry;
-      refreshDriverPath({ trimFromDriver: false });
+      syncPathMetrics();
 
       const drawGeometry = geometry.map((p) => [p.lat, p.lng] as [number, number]);
       layersRef.current.route = drawRoute(map, drawGeometry, {
@@ -320,7 +287,7 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
     }
 
     fitVisibleBounds(false);
-  }, [origin, destination, routePath, encodedPolyline, refreshDriverPath, fitVisibleBounds]);
+  }, [origin, destination, routePath, encodedPolyline, fitVisibleBounds]);
 
   const syncFleetLayers = useCallback(() => {
     const map = mapRef.current;
@@ -357,7 +324,7 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
 
   const applyDisplayPosition = useCallback((meters: number) => {
     const marker = layersRef.current.driver;
-    const path = driverPathRef.current;
+    const path = tripPathRef.current;
     if (!marker || path.length < 2) return;
 
     const clamped = Math.max(0, Math.min(pathTotalRef.current, meters));
@@ -383,7 +350,7 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
   }, []);
 
   const tickDriverAnimation = useCallback(() => {
-    const path = driverPathRef.current;
+    const path = tripPathRef.current;
     const marker = layersRef.current.driver;
 
     if (!marker || path.length < 2 || pathTotalRef.current <= 0) {
@@ -397,37 +364,26 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
     lastFrameMsRef.current = now;
 
     const target = targetMetersRef.current;
-    let display = displayMetersRef.current;
+    const display = displayMetersRef.current;
     const speed = resolveDriverSpeedMps(display, target);
     if (speed <= 0) {
       stopDriverAnimation();
       return;
     }
 
-    let nextDisplay = display + speed * deltaSec;
+    const nextDisplay = Math.min(pathTotalRef.current, display + speed * deltaSec);
 
-    if (target > display + STOP_EPSILON_M) {
-      nextDisplay = Math.min(target, nextDisplay);
-    }
-
-    const maxAllowed = target + MAX_AHEAD_OF_SERVER_M;
-    if (nextDisplay > maxAllowed) {
-      nextDisplay = maxAllowed;
-    }
-
-    nextDisplay = Math.min(pathTotalRef.current, Math.max(0, nextDisplay));
-
-    if (Math.abs(nextDisplay - display) > 0.01) {
+    if (Math.abs(nextDisplay - display) > 0.005) {
       displayMetersRef.current = nextDisplay;
       applyDisplayPosition(nextDisplay);
     }
 
-    const remaining = pathTotalRef.current - nextDisplay;
-    if (remaining > STOP_EPSILON_M && isContinuousTrackingPhase(trackingPhase)) {
+    if (
+      pathTotalRef.current - nextDisplay > STOP_EPSILON_M &&
+      isContinuousTrackingPhase(trackingPhase)
+    ) {
       animFrameRef.current = requestAnimationFrame(tickDriverAnimation);
     } else {
-      displayMetersRef.current = nextDisplay;
-      applyDisplayPosition(nextDisplay);
       animFrameRef.current = null;
     }
   }, [applyDisplayPosition, stopDriverAnimation, trackingPhase]);
@@ -454,11 +410,11 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
       return;
     }
 
-    if (driverPathRef.current.length < 2) {
-      refreshDriverPath({ trimFromDriver: false });
+    if (tripPathRef.current.length < 2) {
+      return;
     }
-    const path = driverPathRef.current;
-    if (path.length < 2) return;
+    const path = tripPathRef.current;
+    syncPathMetrics();
 
     if (layersRef.current.driver && prevVehicleTypeRef.current !== vehicleType) {
       layersRef.current.driver.setIcon(createVehicleLiveIcon(vehicleType));
@@ -475,6 +431,7 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
     if (!layersRef.current.driver) {
       displayMetersRef.current = snappedTarget;
       targetMetersRef.current = snappedTarget;
+      lastServerTargetMsRef.current = Date.now();
       driverDisplayRef.current = projected.point;
       driverBearingRef.current = null;
       bearingAnchorRef.current = null;
@@ -492,24 +449,25 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
     }
 
     if (phaseChanged) {
-      refreshDriverPath({ trimFromDriver: true });
-      const phasePath = driverPathRef.current;
-      if (phasePath.length < 2) return;
-      pathTotalRef.current = pathTotalMeters(phasePath);
       stopDriverAnimation();
       driverBearingRef.current = null;
       bearingAnchorRef.current = null;
-      const projectedAfterPhase = projectPointOnPath(phasePath, driver);
+      const projectedAfterPhase = projectPointOnPath(path, driver);
       displayMetersRef.current = projectedAfterPhase.meters;
       targetMetersRef.current = projectedAfterPhase.meters;
+      lastServerTargetMsRef.current = Date.now();
       applyDisplayPosition(projectedAfterPhase.meters);
       driverDisplayRef.current = projectedAfterPhase.point;
+      if (isContinuousTrackingPhase(trackingPhase)) {
+        startDriverAnimation();
+      }
       return;
     }
 
-    // Alvo sempre avança ao longo da rota — nunca recua (evita micro-pulos de ré).
+    // Alvo avança ao longo da mesma polyline laranja — nunca recua.
     if (snappedTarget > targetMetersRef.current + 0.5) {
       targetMetersRef.current = snappedTarget;
+      lastServerTargetMsRef.current = Date.now();
     }
 
     // Se o servidor saltar muito à frente, teleporta uma vez (sem animar de ré).
@@ -521,18 +479,13 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
       return;
     }
 
-    if (targetMetersRef.current - displayMetersRef.current > STOP_EPSILON_M) {
-      startDriverAnimation();
-      return;
-    }
-
     if (
       isContinuousTrackingPhase(trackingPhase) &&
       pathTotalRef.current - displayMetersRef.current > STOP_EPSILON_M
     ) {
       startDriverAnimation();
     }
-  }, [driver, refreshDriverPath, fitVisibleBounds, startDriverAnimation, stopDriverAnimation, applyDisplayPosition, trackingPhase, vehicleType]);
+  }, [driver, fitVisibleBounds, startDriverAnimation, stopDriverAnimation, applyDisplayPosition, trackingPhase, vehicleType]);
 
   useEffect(() => {
     syncStaticLayers();
