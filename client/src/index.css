@@ -252,6 +252,7 @@
   border: none !important;
   box-shadow: none !important;
   --fui-driver-bearing: 0deg;
+  will-change: transform;
 }
 
 .fui-driver-live-marker__inner,
@@ -265,7 +266,9 @@
 .fui-driver-live-marker__inner {
   width: 34px;
   height: 34px;
+  /* Rotação só muda em curvas reais (histerese no JS) — transição suave no giro. */
   transform: rotate(var(--fui-driver-bearing));
   transform-origin: 50% 50%;
+  transition: transform 500ms ease-out;
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.4));
 }

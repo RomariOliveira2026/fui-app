@@ -11,7 +11,6 @@ import { createDriverLiveMarker, createVehicleLiveIcon } from "@/components/map/
 import { decodePolyline } from "@/lib/polyline";
 import {
   buildDriverPhasePath,
-  cumulativePathDistances,
   densifyPath,
   linearSpeedAtMeters,
   pathTotalMeters,
@@ -46,35 +45,39 @@ function bearingDegrees(from: RequestRideMapPoint, to: RequestRideMapPoint): num
   return (Math.atan2(y, x) * 180) / Math.PI;
 }
 
-/** Bearing estável: olha à frente na rota para evitar oscilar em curvas micro da polyline. */
+/**
+ * Bearing estável: mede a direção sobre uma janela ampla (60 m antes/depois),
+ * ignorando os micro-zigue-zagues da polyline densificada. Em retas o valor
+ * praticamente não muda, então o ícone não balança.
+ */
 function stableBearingAtPathMeters(path: RoutePoint[], meters: number): number {
   const total = pathTotalMeters(path);
   if (path.length < 2 || total <= 0) return 0;
 
-  const lookAheadM = Math.min(52, Math.max(22, total * 0.1));
-  const from = pointAtPathMeters(path, meters);
-  const to = pointAtPathMeters(path, Math.min(total, meters + lookAheadM));
-  if (haversineMeters(from, to) >= 1) {
-    return bearingDegrees(from, to);
+  const window = 60;
+  const back = pointAtPathMeters(path, Math.max(0, meters - window));
+  const fwd = pointAtPathMeters(path, Math.min(total, meters + window));
+  if (haversineMeters(back, fwd) >= 3) {
+    return bearingDegrees(back, fwd);
   }
 
-  const cum = cumulativePathDistances(path);
-  for (let i = 1; i < path.length; i++) {
-    if (cum[i]! >= meters) {
-      const a = path[i - 1]!;
-      const b = path[i]!;
-      if (haversineMeters(a, b) >= 0.25) return bearingDegrees(a, b);
-      break;
-    }
+  const from = pointAtPathMeters(path, meters);
+  const to = pointAtPathMeters(path, Math.min(total, meters + window));
+  if (haversineMeters(from, to) >= 1) {
+    return bearingDegrees(from, to);
   }
   return 0;
 }
 
-function smoothBearingDegrees(prev: number | null, next: number): number {
+/**
+ * Só troca a rotação quando a direção muda de forma perceptível (histerese).
+ * Isso elimina o balanço lateral em trechos retos, mantendo o giro em curvas.
+ */
+function nextBearingWithHysteresis(prev: number | null, next: number): number {
   if (prev == null) return next;
   const delta = ((next - prev + 540) % 360) - 180;
-  if (Math.abs(delta) < 0.35) return prev;
-  return prev + delta * 0.22;
+  if (Math.abs(delta) < 3) return prev;
+  return next;
 }
 
 function buildRouteGeometry(
@@ -316,9 +319,11 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
     marker.setLatLng(toLatLngPair(pos));
 
     const rawBearing = stableBearingAtPathMeters(path, clamped);
-    const bearing = smoothBearingDegrees(driverBearingRef.current, rawBearing);
-    driverBearingRef.current = bearing;
-    marker.getElement()?.style.setProperty("--fui-driver-bearing", `${bearing}deg`);
+    const bearing = nextBearingWithHysteresis(driverBearingRef.current, rawBearing);
+    if (bearing !== driverBearingRef.current) {
+      driverBearingRef.current = bearing;
+      marker.getElement()?.style.setProperty("--fui-driver-bearing", `${bearing}deg`);
+    }
   }, []);
 
   const tickDriverAnimation = useCallback(() => {
@@ -433,31 +438,22 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
       return;
     }
 
-    const driverMoved =
-      driverDisplayRef.current != null &&
-      haversineMeters(driverDisplayRef.current, driver) > 1.5;
-
-    if (driverMoved) {
-      targetMetersRef.current = Math.max(targetMetersRef.current, snappedTarget);
-      const metersJump = Math.abs(snappedTarget - displayMetersRef.current);
-      if (metersJump < 1) {
-        stopDriverAnimation();
-        displayMetersRef.current = snappedTarget;
-        applyDisplayPosition(snappedTarget);
-        driverDisplayRef.current = projected.point;
-        return;
-      }
-    }
-
-    const prevTarget = targetMetersRef.current;
-    if (snappedTarget > prevTarget + 0.5) {
+    // Alvo sempre avança ao longo da rota — nunca recua (evita micro-pulos de ré).
+    if (snappedTarget > targetMetersRef.current + 0.5) {
       targetMetersRef.current = snappedTarget;
     }
 
-    if (Math.abs(displayMetersRef.current - targetMetersRef.current) > STOP_EPSILON_M) {
+    // Se o servidor saltar muito à frente, teleporta uma vez (sem animar de ré).
+    if (snappedTarget - displayMetersRef.current > 220) {
+      stopDriverAnimation();
+      displayMetersRef.current = snappedTarget;
+      targetMetersRef.current = snappedTarget;
+      applyDisplayPosition(snappedTarget);
+      return;
+    }
+
+    if (targetMetersRef.current - displayMetersRef.current > STOP_EPSILON_M) {
       startDriverAnimation();
-    } else if (!driverMoved) {
-      driverDisplayRef.current = projected.point;
     }
   }, [driver, refreshDriverPath, fitVisibleBounds, startDriverAnimation, stopDriverAnimation, applyDisplayPosition, trackingPhase, vehicleType]);
 
