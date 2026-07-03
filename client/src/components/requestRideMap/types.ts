@@ -33,6 +33,8 @@ export type RequestRideMapViewProps = {
   encodedPolyline?: string | null;
   /** Enquadramento inteligente do mapa de rastreamento. */
   trackingPhase?: "searching" | "driver_found" | "en_route" | "arriving" | "waiting_pickup" | "in_trip" | "completed";
+  /** ETA restante (s) — velocidade contínua do ícone entre polls do servidor. */
+  driverEtaSeconds?: number | null;
 };
 
 /** Centro padrão do mapa até o GPS do usuário (visão Brasil). */

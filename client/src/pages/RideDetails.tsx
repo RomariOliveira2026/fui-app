@@ -399,6 +399,7 @@ export default function RideDetails() {
                 vehicleType={ride.vehicleType}
                 simulationPhase={simRide.simulationPhase}
                 tripPath={tripPath}
+                driverEtaSeconds={etaSecondsRemaining ?? null}
               />
 
               {!ride.driverId && tracking && ride.status === "requested" ? (

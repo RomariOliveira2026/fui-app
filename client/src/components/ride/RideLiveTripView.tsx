@@ -15,7 +15,7 @@ import { ChevronLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type RideLiveTripViewProps = {
-  ride: Ride & { simulationPhase?: DemoSimulationPhase };
+  ride: Ride & { simulationPhase?: DemoSimulationPhase; etaSecondsRemaining?: number };
   tracking: RideTrackingPresentation;
   tripPath?: RoutePoint[];
   showDriverOnMap: boolean;
@@ -62,6 +62,7 @@ export default function RideLiveTripView({
           vehicleType={ride.vehicleType}
           simulationPhase={ride.simulationPhase}
           tripPath={tripPath}
+          driverEtaSeconds={ride.etaSecondsRemaining ?? null}
         />
       </div>
 

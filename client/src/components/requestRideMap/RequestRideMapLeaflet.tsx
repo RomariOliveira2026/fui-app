@@ -18,6 +18,7 @@ import {
   projectPointOnPath,
   type RoutePoint,
 } from "@shared/routeAnimation";
+import { adaptiveDriverCatchUpSpeedMps } from "@shared/demoRideProgression";
 import { haversineMeters } from "@shared/demoMaps";
 import {
   REQUEST_RIDE_MAP_DEFAULT_CENTER,
@@ -135,10 +136,16 @@ const defaultCenter: [number, number] = [
 const STOP_EPSILON_M = 0.4;
 
 /** Deslocamento mínimo para recalcular a rotação do ícone. */
-const MIN_BEARING_MOVE_M = 4;
+const MIN_BEARING_MOVE_M = 2;
 
 /** Velocidade máxima de ajuste suave entre polls do servidor. */
-const MAX_DRIVER_CATCHUP_MPS = 13;
+const MAX_DRIVER_CATCHUP_MPS = 28;
+
+/** Quanto o ícone pode extrapolar à frente do último ponto do servidor (entre polls). */
+const MAX_AHEAD_OF_SERVER_M = 50;
+
+/** Velocidade mínima visível — evita sensação de “travou”. */
+const MIN_CRUISE_MPS = 5;
 
 export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
   className,
@@ -150,6 +157,7 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
   routePath,
   encodedPolyline,
   trackingPhase,
+  driverEtaSeconds,
 }: RequestRideMapViewProps) {
   const mapRef = useRef<L.Map | null>(null);
   const layersRef = useRef<{
@@ -171,6 +179,44 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
   const driverDisplayRef = useRef<RequestRideMapPoint | null>(null);
   const driverBearingRef = useRef<number | null>(null);
   const bearingAnchorRef = useRef<RequestRideMapPoint | null>(null);
+  const driverEtaRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    driverEtaRef.current =
+      driverEtaSeconds != null && Number.isFinite(driverEtaSeconds) && driverEtaSeconds > 0
+        ? driverEtaSeconds
+        : null;
+  }, [driverEtaSeconds]);
+
+  function resolveDriverSpeedMps(displayM: number, targetM: number): number {
+    const remaining = Math.max(0, pathTotalRef.current - displayM);
+    if (remaining <= STOP_EPSILON_M) return 0;
+
+    const targetGap = targetM - displayM;
+    let speed = linearSpeedAtMeters(remaining);
+
+    const eta = driverEtaRef.current;
+    if (eta != null && eta > 0) {
+      speed = remaining / eta;
+    }
+
+    if (targetGap > STOP_EPSILON_M) {
+      speed = Math.max(speed, adaptiveDriverCatchUpSpeedMps(targetGap));
+    }
+
+    return Math.min(MAX_DRIVER_CATCHUP_MPS, Math.max(MIN_CRUISE_MPS, speed));
+  }
+
+  function isContinuousTrackingPhase(
+    phase: RequestRideMapViewProps["trackingPhase"]
+  ): boolean {
+    return (
+      phase === "en_route" ||
+      phase === "arriving" ||
+      phase === "waiting_pickup" ||
+      phase === "in_trip"
+    );
+  }
 
   const getBoundsPoints = useCallback((): [number, number][] => {
     const points: [number, number][] = [];
@@ -350,34 +396,41 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
     const deltaSec = Math.min(0.05, Math.max(0.001, (now - last) / 1000));
     lastFrameMsRef.current = now;
 
-    let display = displayMetersRef.current;
     const target = targetMetersRef.current;
-    const diff = target - display;
-
-    if (Math.abs(diff) > STOP_EPSILON_M) {
-      const remaining = pathTotalRef.current - display;
-      const baseSpeed = linearSpeedAtMeters(remaining);
-      const speed = Math.min(MAX_DRIVER_CATCHUP_MPS, baseSpeed);
-      const step = speed * deltaSec;
-
-      if (diff > 0) {
-        display = Math.min(target, display + step);
-      } else {
-        // Correções do servidor: encaixa sem deslizar de ré ao longo da rota.
-        display = target;
-      }
-      displayMetersRef.current = display;
-      applyDisplayPosition(display);
+    let display = displayMetersRef.current;
+    const speed = resolveDriverSpeedMps(display, target);
+    if (speed <= 0) {
+      stopDriverAnimation();
+      return;
     }
 
-    if (Math.abs(target - displayMetersRef.current) > STOP_EPSILON_M) {
+    let nextDisplay = display + speed * deltaSec;
+
+    if (target > display + STOP_EPSILON_M) {
+      nextDisplay = Math.min(target, nextDisplay);
+    }
+
+    const maxAllowed = target + MAX_AHEAD_OF_SERVER_M;
+    if (nextDisplay > maxAllowed) {
+      nextDisplay = maxAllowed;
+    }
+
+    nextDisplay = Math.min(pathTotalRef.current, Math.max(0, nextDisplay));
+
+    if (Math.abs(nextDisplay - display) > 0.01) {
+      displayMetersRef.current = nextDisplay;
+      applyDisplayPosition(nextDisplay);
+    }
+
+    const remaining = pathTotalRef.current - nextDisplay;
+    if (remaining > STOP_EPSILON_M && isContinuousTrackingPhase(trackingPhase)) {
       animFrameRef.current = requestAnimationFrame(tickDriverAnimation);
     } else {
-      displayMetersRef.current = target;
-      applyDisplayPosition(target);
+      displayMetersRef.current = nextDisplay;
+      applyDisplayPosition(nextDisplay);
       animFrameRef.current = null;
     }
-  }, [applyDisplayPosition, stopDriverAnimation]);
+  }, [applyDisplayPosition, stopDriverAnimation, trackingPhase]);
 
   const startDriverAnimation = useCallback(() => {
     if (animFrameRef.current != null) return;
@@ -432,6 +485,9 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
       });
       applyDisplayPosition(snappedTarget);
       fitVisibleBounds(true);
+      if (isContinuousTrackingPhase(trackingPhase)) {
+        startDriverAnimation();
+      }
       return;
     }
 
@@ -466,6 +522,14 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
     }
 
     if (targetMetersRef.current - displayMetersRef.current > STOP_EPSILON_M) {
+      startDriverAnimation();
+      return;
+    }
+
+    if (
+      isContinuousTrackingPhase(trackingPhase) &&
+      pathTotalRef.current - displayMetersRef.current > STOP_EPSILON_M
+    ) {
       startDriverAnimation();
     }
   }, [driver, refreshDriverPath, fitVisibleBounds, startDriverAnimation, stopDriverAnimation, applyDisplayPosition, trackingPhase, vehicleType]);

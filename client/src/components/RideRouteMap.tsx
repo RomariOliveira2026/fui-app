@@ -35,6 +35,8 @@ type RideRouteMapProps = {
   simulationPhase?: DemoSimulationPhase | null;
   /** Rota OSRM do servidor — mesma geometria usada na simulação do motorista. */
   tripPath?: MapPoint[] | null;
+  /** ETA restante (s) para animação contínua do motorista no mapa. */
+  driverEtaSeconds?: number | null;
   className?: string;
 };
 
@@ -51,6 +53,7 @@ export default function RideRouteMap({
   vehicleType,
   simulationPhase,
   tripPath: serverTripPath,
+  driverEtaSeconds,
   className,
 }: RideRouteMapProps) {
   const utils = trpc.useUtils();
@@ -153,6 +156,7 @@ export default function RideRouteMap({
           encodedPolyline={encodedPolyline}
           routePath={routePath}
           trackingPhase={trackingPhase}
+          driverEtaSeconds={driverEtaSeconds}
         />
         {showDriver && tracking?.showLivePulse ? (
           <div className="pointer-events-none absolute left-3 top-3 flex items-center gap-2 rounded-full border border-border bg-background/90 px-3 py-1.5 text-xs font-medium text-foreground backdrop-blur-sm">
