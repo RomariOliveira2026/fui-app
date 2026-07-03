@@ -31,7 +31,7 @@ import {
 import type { BookedForThirdParty, IntermediateStop, IntermediateStopInput } from "@shared/passengerPremium";
 import { estimateDemoRidePriceCents } from "@shared/demoPricing";
 import { useSavedAddresses } from "@/lib/useSavedAddresses";
-import { isLocalDemoDev } from "@/lib/demoMode";
+import { isLocalDemoDev, isDemoAppClient } from "@/lib/demoMode";
 import { usePassengerCurrentLocation } from "@/lib/usePassengerCurrentLocation";
 import { useDemoFleetDrivers } from "@/lib/useDemoFleetDrivers";
 import { fetchRouteWithDemoFallback } from "@/lib/demoRoute";
@@ -271,7 +271,7 @@ export default function RequestRide() {
     staleTime: 60_000,
     refetchOnWindowFocus: false,
   });
-  const useOsmRouting = isLocalDemoDev() || mapsConfigured !== true;
+  const useOsmRouting = isDemoAppClient() || isLocalDemoDev() || mapsConfigured !== true;
 
   const { data: pricing } = trpc.pricing.getAll.useQuery();
   const { savedAddresses } = useSavedAddresses();
@@ -339,13 +339,14 @@ export default function RequestRide() {
         : undefined,
     intermediateStops:
       activeIntermediateStopsForQuote.length > 0 ? activeIntermediateStopsForQuote : undefined,
-    enabled: useOsmRouting,
+    enabled: true,
+    allowDemoFallback: isDemoAppClient(),
   });
 
   quoteResetRef.current = rideQuote.reset;
 
   useEffect(() => {
-    if (!useOsmRouting || !rideQuote.ready) return;
+    if (!rideQuote.ready) return;
 
     if (rideQuote.originCoords) {
       originCoordsRef.current = rideQuote.originCoords;
@@ -374,27 +375,26 @@ export default function RequestRide() {
     rideQuote.distance,
     rideQuote.duration,
     rideQuote.estimatedPrice,
-    useOsmRouting,
   ]);
 
   useEffect(() => {
-    if (!useOsmRouting || !rideQuote.ready) return;
+    if (!rideQuote.ready) return;
     const nextPrice = rideQuote.priceForVehicle(vehicleType);
     if (nextPrice != null) {
       setEstimatedPrice(nextPrice);
       estimatedPriceRef.current = nextPrice;
     }
-  }, [vehicleType, rideQuote.ready, rideQuote.categoryQuotes, rideQuote.priceForVehicle, useOsmRouting]);
+  }, [vehicleType, rideQuote.ready, rideQuote.categoryQuotes, rideQuote.priceForVehicle]);
 
   useEffect(() => {
-    if (!useOsmRouting || !rideQuote.error) return;
+    if (!rideQuote.error) return;
     if (
       originAddress.trim().length >= MIN_RIDE_PREFILL_ADDRESS_LENGTH &&
       destinationAddress.trim().length >= MIN_RIDE_PREFILL_ADDRESS_LENGTH
     ) {
       toast.error(rideQuote.error);
     }
-  }, [rideQuote.error, useOsmRouting, originAddress, destinationAddress]);
+  }, [rideQuote.error, originAddress, destinationAddress]);
 
   const applyPassengerRouteResult = (
     result: Awaited<ReturnType<typeof calculatePassengerRouteMutation.mutateAsync>>,
@@ -849,7 +849,7 @@ export default function RequestRide() {
       <AppHeader title="Solicitar Corrida" />
       
       {/* Loading Overlay */}
-      {((useOsmRouting && rideQuote.loading && !rideQuote.ready) || calculating) && (
+      {((rideQuote.loading && !rideQuote.ready) || calculating) && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center backdrop-blur-sm">
           <div className="bg-card rounded-2xl p-8 shadow-2xl max-w-sm mx-4 text-center border border-border">
             <div className="relative w-24 h-24 mx-auto mb-6">
@@ -1031,8 +1031,8 @@ export default function RequestRide() {
             <RideCategoryCompare
               selected={vehicleType}
               onSelect={setVehicleType}
-              quotes={useOsmRouting ? rideQuote.categoryQuotes : undefined}
-              loading={useOsmRouting && rideQuote.loading}
+              quotes={rideQuote.categoryQuotes}
+              loading={rideQuote.loading}
               disabled={!originAddress.trim() || !destinationAddress.trim()}
             />
 
@@ -1043,7 +1043,7 @@ export default function RequestRide() {
               estimatedPrice={estimatedPrice}
               distanceM={distance}
               durationS={duration}
-              loading={useOsmRouting && rideQuote.loading}
+              loading={rideQuote.loading}
             />
 
             {/* Carpool / Shared Ride Section */}

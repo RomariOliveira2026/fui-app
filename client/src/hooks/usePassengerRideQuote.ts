@@ -50,6 +50,7 @@ type UsePassengerRideQuoteInput = {
   intermediateStops?: IntermediateStopInput[];
   enabled?: boolean;
   debounceMs?: number;
+  allowDemoFallback?: boolean;
 };
 
 function buildQuoteSignature(input: {
@@ -87,6 +88,7 @@ export function usePassengerRideQuote(input: UsePassengerRideQuoteInput) {
     intermediateStops,
     enabled = true,
     debounceMs = 900,
+    allowDemoFallback = false,
   } = input;
 
   const [state, setState] = useState<PassengerRideQuoteState>(EMPTY_QUOTE);
@@ -96,6 +98,8 @@ export function usePassengerRideQuote(input: UsePassengerRideQuoteInput) {
   const requestIdRef = useRef(0);
   const vehicleTypeRef = useRef(vehicleType);
   vehicleTypeRef.current = vehicleType;
+  const allowDemoFallbackRef = useRef(allowDemoFallback);
+  allowDemoFallbackRef.current = allowDemoFallback;
 
   const quoteSignature = useMemo(
     () =>
@@ -166,7 +170,7 @@ export function usePassengerRideQuote(input: UsePassengerRideQuoteInput) {
           originLng,
           intermediateStops:
             intermediateStops && intermediateStops.length > 0 ? intermediateStops : undefined,
-          allowDemoFallback: false,
+          allowDemoFallback: allowDemoFallbackRef.current,
         })
         .then((result) => {
           if (requestId !== requestIdRef.current) return;
@@ -242,7 +246,7 @@ export function usePassengerRideQuote(input: UsePassengerRideQuoteInput) {
         originLng,
         intermediateStops:
           intermediateStops && intermediateStops.length > 0 ? intermediateStops : undefined,
-        allowDemoFallback: false,
+        allowDemoFallback: allowDemoFallbackRef.current,
       });
 
       if (requestId !== requestIdRef.current) return;
