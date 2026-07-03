@@ -118,3 +118,18 @@ export function fuiSelectedTile(active: boolean) {
       : "border-border bg-muted/30 text-foreground hover:border-border/80"
   );
 }
+
+/** Tela de corrida ao vivo — mapa fullscreen + painel inferior */
+export const fuiTrip = {
+  sheet:
+    "pointer-events-auto mx-auto w-full max-w-lg rounded-t-2xl border-t border-border bg-card/95 backdrop-blur-md shadow-[0_-8px_32px_rgba(0,0,0,0.35)]",
+  sheetInner: "max-h-[58vh] overflow-y-auto px-4 pb-6 pt-3 space-y-4",
+  sheetHandle: "mx-auto mb-3 h-1 w-10 rounded-full bg-border",
+  mapChrome: "absolute inset-0 z-0",
+  topBar:
+    "absolute top-0 left-0 right-0 z-20 flex items-center justify-between gap-3 px-4 pt-4 pointer-events-none",
+  topBarBtn:
+    "pointer-events-auto flex h-10 w-10 items-center justify-center rounded-full border border-border bg-card/90 backdrop-blur shadow-sm",
+  etaDisplay: "text-4xl font-bold tabular-nums tracking-tight text-primary leading-none",
+  fareLabel: "text-[11px] font-medium uppercase tracking-wide text-muted-foreground",
+} as const;

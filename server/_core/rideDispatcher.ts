@@ -151,6 +151,7 @@ export function dispatchDemoRideOffers(
   const selection = selectDriversForRound(pool, requestedRound, new Set<number>());
 
   let created = 0;
+  const offeredDriverIds: number[] = [];
   for (const driver of selection.drivers) {
     if (driverHasDemoPendingOffer(rideId, driver.driverId)) continue;
     createDemoRideOffer({
@@ -159,6 +160,7 @@ export function dispatchDemoRideOffers(
       distanceMeters: driver.distanceMeters,
       offerRound: selection.offerRound,
     });
+    offeredDriverIds.push(driver.driverId);
     created++;
   }
 
@@ -168,6 +170,7 @@ export function dispatchDemoRideOffers(
     usedFallback,
     offerRound: selection.offerRound,
     expandedPool: selection.expandedPool,
+    offeredDriverIds,
   };
 }
 
@@ -309,6 +312,7 @@ export async function dispatchProductionRideOffers(
     usedFallback,
     offerRound: selection.offerRound,
     expandedPool: selection.expandedPool,
+    offeredDriverIds: toCreate.map((o) => o.driverId),
   };
 }
 

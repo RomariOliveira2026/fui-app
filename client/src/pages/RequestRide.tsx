@@ -35,7 +35,11 @@ import {
   resolveLocalPlaceId,
   simulateLocalRideRequest,
 } from "@/lib/requestRideLocal";
-import { persistDemoRideFromServer } from "@/lib/useDemoRideHydration";
+import {
+  persistDemoRideAfterRequest,
+  persistDemoRideFromServer,
+} from "@/lib/useDemoRideHydration";
+import { getDemoRideSnapshot } from "@/lib/demoRideStorage";
 import { syncDemoRecurringSchedulesFromServer } from "@/lib/demoRecurringStorage";
 import { fuiBrand, fuiRoute, fuiSelectedTile, fuiSurface } from "@/lib/fuiTheme";
 import { formatAddressForGeocoding } from "@shared/mapDefaults";
@@ -51,13 +55,9 @@ import {
 import { DEFAULT_PASSENGER_HOME } from "@shared/defaultHomeAddress";
 import { WL } from "@/whitelabel";
 import StatusPanel from "@/components/fui/StatusPanel";
-
-const vehicleInfo = {
-  moto: { icon: Bike, label: "Moto", description: "Rápido e econômico" },
-  carro: { icon: CarIcon, label: "Carro", description: "Confortável e seguro" },
-  van: { icon: Truck, label: "Van", description: "Espaçoso para grupos" },
-  utilitario: { icon: Package, label: "Utilitário", description: "Frete e mudanças" },
-};
+import RideCategoryCompare from "@/components/ride/RideCategoryCompare";
+import RideRequestSummary from "@/components/ride/RideRequestSummary";
+import { usePassengerRideQuote } from "@/hooks/usePassengerRideQuote";
 
 export default function RequestRide() {
   const { user } = useAuth();
@@ -89,6 +89,7 @@ export default function RequestRide() {
   const prefillAppliedRef = useRef(false);
   const originFromGpsRef = useRef(false);
   const lowAccuracyWarnedRef = useRef(false);
+  const quoteResetRef = useRef<() => void>(() => {});
   const [autoLocateOrigin, setAutoLocateOrigin] = useState(false);
   
   // Carpool fields
@@ -164,6 +165,7 @@ export default function RequestRide() {
     setCouponCode("");
     setAppliedCoupon(null);
     setResolvedIntermediateStops([]);
+    quoteResetRef.current();
   };
 
   const activeIntermediateStops = intermediateStops.filter((s) => s.address.trim().length >= 2);
@@ -257,6 +259,7 @@ export default function RequestRide() {
     staleTime: 60_000,
     refetchOnWindowFocus: false,
   });
+  const useOsmRouting = isLocalDemoDev() || mapsConfigured !== true;
 
   const { data: pricing } = trpc.pricing.getAll.useQuery();
   const { savedAddresses } = useSavedAddresses();
@@ -307,6 +310,78 @@ export default function RequestRide() {
 
   const requestRide = trpc.ride.request.useMutation();
   const calculatePassengerRouteMutation = trpc.maps.calculatePassengerRoute.useMutation();
+
+  const activeIntermediateStopsForQuote = intermediateStops.filter((s) => s.address.trim().length >= 2);
+
+  const rideQuote = usePassengerRideQuote({
+    originAddress,
+    destinationAddress,
+    vehicleType,
+    originPlaceId: originPlaceIdRef.current || originPlaceId || undefined,
+    destinationPlaceId: destPlaceIdRef.current || destPlaceId || undefined,
+    originLat:
+      originFromGpsRef.current && originCoordsRef.current
+        ? String(originCoordsRef.current.lat)
+        : undefined,
+    originLng:
+      originFromGpsRef.current && originCoordsRef.current
+        ? String(originCoordsRef.current.lng)
+        : undefined,
+    intermediateStops:
+      activeIntermediateStopsForQuote.length > 0 ? activeIntermediateStopsForQuote : undefined,
+    enabled: useOsmRouting,
+  });
+
+  quoteResetRef.current = rideQuote.reset;
+
+  useEffect(() => {
+    if (!useOsmRouting || !rideQuote.ready) return;
+
+    if (rideQuote.originCoords) {
+      originCoordsRef.current = rideQuote.originCoords;
+      setOriginCoords(rideQuote.originCoords);
+    }
+    if (rideQuote.destCoords) {
+      destCoordsRef.current = rideQuote.destCoords;
+      setDestCoords(rideQuote.destCoords);
+    }
+    setRoutePath(rideQuote.routePath);
+    setRoutePolylineEncoded(rideQuote.overviewPolyline);
+    setDistance(rideQuote.distance);
+    setDuration(rideQuote.duration);
+    distanceRef.current = rideQuote.distance;
+    durationRef.current = rideQuote.duration;
+    estimatedPriceRef.current = rideQuote.estimatedPrice;
+    routeReadyRef.current = true;
+    setEstimatedPrice(rideQuote.estimatedPrice);
+    setRouteCalculated(true);
+  }, [
+    rideQuote.ready,
+    rideQuote.originCoords,
+    rideQuote.destCoords,
+    rideQuote.routePath,
+    rideQuote.overviewPolyline,
+    rideQuote.distance,
+    rideQuote.duration,
+    rideQuote.estimatedPrice,
+    useOsmRouting,
+  ]);
+
+  useEffect(() => {
+    if (!useOsmRouting || !rideQuote.ready) return;
+    const nextPrice = rideQuote.priceForVehicle(vehicleType);
+    if (nextPrice != null) {
+      setEstimatedPrice(nextPrice);
+      estimatedPriceRef.current = nextPrice;
+    }
+  }, [vehicleType, rideQuote.ready, rideQuote.categoryQuotes, rideQuote, useOsmRouting]);
+
+  useEffect(() => {
+    if (!useOsmRouting || !rideQuote.error) return;
+    if (originAddress.trim().length >= 4 && destinationAddress.trim().length >= 4) {
+      toast.error(rideQuote.error);
+    }
+  }, [rideQuote.error, useOsmRouting, originAddress, destinationAddress]);
 
   const applyPassengerRouteResult = (
     result: Awaited<ReturnType<typeof calculatePassengerRouteMutation.mutateAsync>>,
@@ -458,8 +533,6 @@ export default function RequestRide() {
     const destTrimmed = destinationAddress.trim();
 
     try {
-      const useOsmRouting = isLocalDemoDev() || mapsConfigured === false;
-
       if (useOsmRouting) {
         const safeOriginPlaceId = sanitizePlaceIdForAddress(
           originTrimmed,
@@ -633,14 +706,15 @@ export default function RequestRide() {
 
     try {
       const data = await requestRide.mutateAsync(payload);
-      if (isLocalDemoDev()) {
-        try {
-          const created = await utils.ride.getById.fetch({ rideId: data.rideId });
-          persistDemoRideFromServer(created);
-        } catch {
-          // ignore
-        }
-      }
+      await persistDemoRideAfterRequest(
+        (id) =>
+          utils.ride.getById.fetch({
+            rideId: id,
+            demoSnapshot: getDemoRideSnapshot(id) as never,
+          }) as Promise<import("../../../drizzle/schema").Ride>,
+        data.rideId,
+        (data as { demoRide?: import("../../../drizzle/schema").Ride }).demoRide
+      );
       if (isLocalDemoDev() || paymentMethod === "cash") {
         toast.success("Corrida solicitada! Buscando motoristas...");
         setLocation(`/ride/${data.rideId}`);
@@ -757,7 +831,7 @@ export default function RequestRide() {
       <AppHeader title="Solicitar Corrida" />
       
       {/* Loading Overlay */}
-      {calculating && (
+      {((useOsmRouting && rideQuote.loading) || calculating) && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center backdrop-blur-sm">
           <div className="bg-card rounded-2xl p-8 shadow-2xl max-w-sm mx-4 text-center border border-border">
             <div className="relative w-24 h-24 mx-auto mb-6">
@@ -777,33 +851,10 @@ export default function RequestRide() {
           <CardHeader className="text-center">
             <CardTitle className="text-3xl font-bold">Solicitar Corrida</CardTitle>
             <CardDescription>
-              Escolha seu destino e encontre um motorista próximo
+              Informe origem e destino — o preço e a rota aparecem automaticamente
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            {/* Vehicle Type Selection */}
-            <div className="space-y-3">
-              <Label>Tipo de Veículo</Label>
-              <div className="grid grid-cols-4 gap-3">
-                {(Object.keys(vehicleInfo) as Array<keyof typeof vehicleInfo>).map((type) => {
-                  const { icon: Icon, label, description } = vehicleInfo[type];
-                  return (
-                    <button
-                      key={type}
-                      onClick={() => setVehicleType(type)}
-                      className={`p-4 transition-all ${fuiSelectedTile(vehicleType === type)}`}
-                    >
-                      <Icon className={`w-8 h-8 mx-auto mb-2 ${
-                        vehicleType === type ? "text-primary" : "text-muted-foreground"
-                      }`} />
-                      <p className={`font-semibold text-sm ${vehicleType === type ? "text-primary" : "text-foreground"}`}>{label}</p>
-                      <p className="text-xs text-muted-foreground">{description}</p>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
             {/* Origin */}
             <div className="space-y-2">
               <Label>
@@ -958,6 +1009,24 @@ export default function RequestRide() {
                 nearbyDrivers={nearbyDemoDrivers}
               />
             </div>
+
+            <RideCategoryCompare
+              selected={vehicleType}
+              onSelect={setVehicleType}
+              quotes={useOsmRouting ? rideQuote.categoryQuotes : undefined}
+              loading={useOsmRouting && rideQuote.loading}
+              disabled={!originAddress.trim() || !destinationAddress.trim()}
+            />
+
+            <RideRequestSummary
+              origin={originAddress}
+              destination={destinationAddress}
+              vehicleType={vehicleType}
+              estimatedPrice={estimatedPrice}
+              distanceM={distance}
+              durationS={duration}
+              loading={useOsmRouting && rideQuote.loading}
+            />
 
             {/* Carpool / Shared Ride Section */}
             {vehicleType !== "moto" && (
@@ -1160,25 +1229,26 @@ export default function RequestRide() {
               </div>
             </div>
 
-            {/* Calculate Price Button */}
-            <Button
-              onClick={calculatePrice}
-              variant="outline"
-              className={`w-full ${fuiBrand.btnOutline}`}
-              disabled={!originAddress || !destinationAddress || calculating}
-            >
-              {calculating ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Calculando rota...
-                </>
-              ) : (
-                <>
-                  <DollarSign className="w-4 h-4 mr-2" />
-                  Calcular Preço e Rota
-                </>
-              )}
-            </Button>
+            {!useOsmRouting && (
+              <Button
+                onClick={calculatePrice}
+                variant="outline"
+                className={`w-full ${fuiBrand.btnOutline}`}
+                disabled={!originAddress || !destinationAddress || calculating}
+              >
+                {calculating ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Calculando rota...
+                  </>
+                ) : (
+                  <>
+                    <DollarSign className="w-4 h-4 mr-2" />
+                    Atualizar preço e rota
+                  </>
+                )}
+              </Button>
+            )}
 
             {/* Coupon Input */}
             {estimatedPrice !== null && (

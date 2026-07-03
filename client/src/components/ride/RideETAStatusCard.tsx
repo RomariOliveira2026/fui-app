@@ -1,4 +1,5 @@
 import { StatusBadge } from "@/components/fui/StatusBadge";
+import { isLocalDemoDev } from "@/lib/demoMode";
 import { useDemoAcceleratedEta } from "@/lib/demoRideEta";
 import { fuiBrand, fuiSemantic, type FuiSemantic } from "@/lib/fuiTheme";
 import { useLiveEtaPresentation } from "@/lib/useLiveEtaSeconds";
@@ -96,7 +97,7 @@ export default function RideETAStatusCard({ tracking, className }: RideETAStatus
             ) : null}
           </div>
           <p className="text-xs text-muted-foreground">{etaSubline}</p>
-          {demoEta.visible ? (
+          {isLocalDemoDev() && demoEta.visible ? (
             <p className="text-[10px] font-medium text-amber-600 dark:text-amber-400">
               {demoEta.label} — não confundir com a duração total da viagem
             </p>

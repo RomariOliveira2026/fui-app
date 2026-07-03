@@ -13,6 +13,18 @@ export function isLocalDemoDev(): boolean {
   return import.meta.env.DEV || isBetaDemoRuntime();
 }
 
+let runtimeBetaDemoActive = false;
+
+/** Sincronizado por useBetaDemoRuntime após /api/app-config (BETA_DEMO no servidor). */
+export function setRuntimeBetaDemoActive(active: boolean): void {
+  runtimeBetaDemoActive = active;
+}
+
+/** Demo operacional no client: build-time, dev local ou BETA_DEMO em runtime na Vercel. */
+export function isDemoAppClient(): boolean {
+  return isLocalDemoDev() || runtimeBetaDemoActive;
+}
+
 /** Usuário demo injetado no cliente (espelha getStaticDemoPassenger no servidor). */
 export const DEMO_PASSENGER_USER = {
   id: 0,

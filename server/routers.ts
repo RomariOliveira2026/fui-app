@@ -15,6 +15,8 @@ import { utilityChatRouter } from "./routers/utilityChat";
 import { driverPremiumRouter } from "./routers/driverPremium";
 import { adminFinanceRouter } from "./routers/adminFinance";
 import { driverRegistrationRouter } from "./routers/driverRegistration";
+import { notifyDriversAboutRideOffer } from "./_core/driverOfferNotifications";
+import { getDispatcherOfferTimeoutMs } from "@shared/rideDispatcher";
 import { recordCancellationAudit } from "./_core/demoAdminFinance";
 import { applyFinanceMinimumPrice } from "./_core/platformFinance";
 import { recordRideLedgerEntry } from "./_core/financialLedger";
@@ -659,6 +661,19 @@ export const appRouter = router({
               console.log(
                 `[Dispatcher] ${dispatch.offersCreated} oferta(s) rodada ${dispatch.offerRound} para corrida demo #${ride.id} (${dispatch.eligibleCount} elegíveis)`
               );
+              try {
+                await notifyDriversAboutRideOffer({
+                  rideId: ride.id,
+                  driverIds: dispatch.offeredDriverIds,
+                  vehicleType: input.vehicleType,
+                  originAddress: input.originAddress,
+                  destinationAddress: input.destinationAddress,
+                  estimatedPriceCents: finalEstimatedPrice,
+                  expiresAt: new Date(Date.now() + getDispatcherOfferTimeoutMs()),
+                });
+              } catch (error) {
+                console.warn("[Push] Falha ao notificar motoristas com oferta demo:", error);
+              }
             }
           }
 
@@ -666,6 +681,7 @@ export const appRouter = router({
             success: true,
             rideId: ride.id,
             pricePerPassenger,
+            demoRide: buildDemoRideClientPayload(ride),
           };
         }
 
@@ -702,12 +718,23 @@ export const appRouter = router({
 
         if (rideId > 0) {
           try {
-            await dispatchProductionRideOffers(
+            const dispatch = await dispatchProductionRideOffers(
               rideId,
               input.vehicleType,
               input.originLat,
               input.originLng
             );
+            if (dispatch.offeredDriverIds.length > 0) {
+              await notifyDriversAboutRideOffer({
+                rideId,
+                driverIds: dispatch.offeredDriverIds,
+                vehicleType: input.vehicleType,
+                originAddress: input.originAddress,
+                destinationAddress: input.destinationAddress,
+                estimatedPriceCents: finalEstimatedPrice,
+                expiresAt: new Date(Date.now() + getDispatcherOfferTimeoutMs()),
+              });
+            }
           } catch (error) {
             console.error("[Dispatcher] Falha ao criar ofertas de produção:", error);
           }
@@ -731,38 +758,8 @@ export const appRouter = router({
           });
         }
         
-        // Notify all available/approved drivers about the new ride
-        if (rideId > 0) {
-          try {
-            const availableDrivers = await db.getAvailableDrivers();
-            const dbInstance = await db.getDb();
-            if (dbInstance && availableDrivers.length > 0) {
-              const passengerName = ctx.user.name || 'Um passageiro';
-              const vehicleLabel: Record<string, string> = {
-                moto: 'Moto', carro: 'Carro', van: 'Van', utilitario: 'Utilitário'
-              };
-              const priceFormatted = (finalEstimatedPrice / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-              await Promise.all(
-                availableDrivers.map((driver) =>
-                  createNotificationWithPush(dbInstance, driver.userId, {
-                    type: "ride",
-                    title: "Nova Corrida Disponível!",
-                    message: `${passengerName} solicita ${vehicleLabel[input.vehicleType] || input.vehicleType} — ${input.originAddress.split(',')[0]} → ${input.destinationAddress.split(',')[0]} (${priceFormatted})`,
-                    actionUrl: `/driver-dashboard`,
-                    actionLabel: "Ver corrida",
-                    metadata: { rideId, event: "new_ride_available" },
-                  })
-                )
-              );
-              console.log(`[Ride] Notified ${availableDrivers.length} driver(s) about ride #${rideId}`);
-            } else {
-              console.log(`[Ride] No available drivers to notify for ride #${rideId}`);
-            }
-          } catch (error) {
-            console.error("Failed to notify drivers:", error);
-          }
-        }
-
+        // Ofertas direcionadas são notificadas em dispatchProductionRideOffers (sem broadcast).
+        
         return { success: true, rideId, pricePerPassenger };
         } catch (error) {
           console.error("[ride.request] Falha ao solicitar corrida:", error);

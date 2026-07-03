@@ -103,7 +103,7 @@ function formatScheduledWait(scheduledFor: string | null): string | null {
 
 function searchingSubline(dispatchMeta?: RideDispatchMeta | null): string {
   if (!dispatchMeta) {
-    return "Encontrando o melhor motorista para você";
+    return "Buscando motoristas próximos à sua origem";
   }
   if (dispatchMeta.isScheduledWaiting) {
     const when = formatScheduledWait(dispatchMeta.scheduledFor);
@@ -127,7 +127,7 @@ function searchingSubline(dispatchMeta?: RideDispatchMeta | null): string {
   if (dispatchMeta.declinedOffers > 0) {
     return `Reorganizando busca após ${dispatchMeta.declinedOffers} recusa(s)`;
   }
-  return "Encontrando o melhor motorista para você";
+  return "Buscando motoristas próximos à sua origem";
 }
 
 export function getRideTrackingPresentation(

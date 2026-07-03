@@ -13,7 +13,7 @@ import AppHeader from "@/components/AppHeader";
 import RideRouteMap from "@/components/RideRouteMap";
 import DemoRideChat from "@/components/DemoRideChat";
 import RateDriverModal from "@/components/RateDriverModal";
-import { isLocalDemoDev } from "@/lib/demoMode";
+import { isBetaDemoRuntime, isDemoAppClient } from "@/lib/demoMode";
 import { useDemoAcceleratedEta } from "@/lib/demoRideEta";
 import {
   applyDemoPayment,
@@ -29,7 +29,10 @@ import { isDemoRideIdClient,
   useDemoRideHydration,
 } from "@/lib/useDemoRideHydration";
 import { getDemoRideSnapshot } from "@/lib/demoRideStorage";
+import { useBetaDemoRuntime } from "@/lib/useBetaDemoRuntime";
 import RideSimulationPanel, { type RideWithSimulation } from "@/components/RideSimulationPanel";
+import RideLiveTripView from "@/components/ride/RideLiveTripView";
+import RideSafetyToolbar from "@/components/ride/RideSafetyToolbar";
 import RideDriverTrackingPanel from "@/components/ride/RideDriverTrackingPanel";
 import RideETAStatusCard from "@/components/ride/RideETAStatusCard";
 import { isDemoDriverSimulationEnabled } from "@/lib/demoSimulation";
@@ -59,10 +62,16 @@ export default function RideDetails() {
   const [chatOpen, setChatOpen] = useState(false);
   useDemoRideHydration();
 
+  const buildTimeBeta = isBetaDemoRuntime();
+  const { pending: betaConfigPending } = useBetaDemoRuntime(false);
+
   const demoSnapshot = useMemo(() => {
-    if (!isLocalDemoDev() || !isDemoRideIdClient(rideId)) return undefined;
+    if (!isDemoRideIdClient(rideId)) return undefined;
     return getDemoRideSnapshot(rideId);
   }, [rideId]);
+
+  const waitForBetaConfig =
+    isDemoRideIdClient(rideId) && !buildTimeBeta && betaConfigPending;
 
   const confirmDemoPayment = trpc.ride.confirmDemoPayment.useMutation({
     onSuccess: (updated) => {
@@ -92,7 +101,7 @@ export default function RideDetails() {
   const { data: ride, isLoading, isError, error, refetch } = trpc.ride.getById.useQuery(
     { rideId, demoSnapshot: demoSnapshot as never },
     {
-      enabled: !!rideId,
+      enabled: !!rideId && !waitForBetaConfig,
       throwOnError: false,
       refetchInterval: (query) => {
         const data = query.state.data as RideWithSimulation | undefined;
@@ -170,7 +179,7 @@ export default function RideDetails() {
       previewTracking.seconds > 0
   );
 
-  if (isLoading) {
+  if (isLoading || waitForBetaConfig) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -235,7 +244,7 @@ export default function RideDetails() {
     ride.paymentStatus === "pending";
 
   const handlePayNow = () => {
-    if (!isLocalDemoDev()) {
+    if (!isDemoAppClient()) {
       setLocation(`/payment/${ride.id}`);
       return;
     }
@@ -253,6 +262,100 @@ export default function RideDetails() {
   };
 
   const driverDisplayName = demoDriver?.driverName ?? "Motorista";
+  const isLiveTrip =
+    ride.status === "requested" || ride.status === "accepted" || ride.status === "in_progress";
+  const fareCents = ride.finalPrice || ride.estimatedPrice || 0;
+  const fareLabel = ride.status === "completed" ? "Valor final" : "Preço estimado";
+
+  if (isLiveTrip && tracking) {
+    return (
+      <>
+        <RideLiveTripView
+          ride={simRide}
+          tracking={tracking}
+          tripPath={tripPath}
+          showDriverOnMap={showDriverOnMap}
+          showDriverEnRoute={showDriverEnRoute}
+          driver={
+            ride.driverId
+              ? {
+                  driverName: demoDriver?.driverName ?? driverDisplayName,
+                  rating: demoDriver?.rating,
+                  avatarUrl: demoDriver?.avatarUrl,
+                  vehicleBrand: demoDriver?.vehicleBrand,
+                  vehicleModel: demoDriver?.vehicleModel,
+                  vehiclePlate: demoDriver?.vehiclePlate,
+                  vehicleColor: demoDriver?.vehicleColor,
+                }
+              : undefined
+          }
+          isPassenger={isPassenger}
+          onBack={() => setLocation("/")}
+          onChat={() => setChatOpen(true)}
+          fareCents={fareCents}
+          fareLabel={fareLabel}
+        >
+          {simulationEnabled && isDemoRide && isPassenger && (
+            <RideSimulationPanel
+              ride={simRide}
+              onSimulateAccept={() => simulationAccept.mutate({ rideId: ride.id })}
+              onSimulateStart={() => simulationStart.mutate({ rideId: ride.id })}
+              acceptPending={simulationAccept.isPending}
+              startPending={simulationStart.isPending}
+            />
+          )}
+
+          {paymentPending ? (
+            <Button
+              onClick={handlePayNow}
+              disabled={confirmDemoPayment.isPending}
+              className={`w-full ${fuiBrand.btn}`}
+            >
+              {confirmDemoPayment.isPending ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <>
+                  <CreditCard className="w-4 h-4 mr-2" />
+                  Pagar agora para confirmar
+                </>
+              )}
+            </Button>
+          ) : null}
+
+          {canCancel ? (
+            <Button
+              variant="destructive"
+              onClick={() => cancelRide.mutate({ rideId: ride.id })}
+              disabled={cancelRide.isPending}
+              className="w-full"
+            >
+              {cancelRide.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Cancelando...
+                </>
+              ) : (
+                <>
+                  <XCircle className="w-4 h-4 mr-2" />
+                  Cancelar corrida
+                </>
+              )}
+            </Button>
+          ) : null}
+        </RideLiveTripView>
+
+        {(showDriverOnMap || showDriverEnRoute) && isPassenger && (
+          <DemoRideChat
+            rideId={ride.id}
+            otherUserName={driverDisplayName}
+            open={chatOpen}
+            onOpenChange={setChatOpen}
+            showFloatingButton={false}
+          />
+        )}
+      </>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -450,16 +553,6 @@ export default function RideDetails() {
               </StatusPanel>
             )}
 
-            {/* Status Messages */}
-            {ride.status === "requested" && !ride.driverId && (
-              <StatusPanel
-                variant="warning"
-                title="Procurando motorista"
-                description="Aguarde enquanto encontramos um motorista disponível próximo a você..."
-                compact
-              />
-            )}
-
             {ride.status === "completed" && (
               <StatusPanel
                 variant="success"
@@ -566,6 +659,10 @@ export default function RideDetails() {
                 ) : null}
               </>
             )}
+            {isPassenger && ride.shareToken ? (
+              <RideSafetyToolbar shareToken={ride.shareToken} />
+            ) : null}
+
             {/* Actions */}
             <div className="flex gap-3">
               {canCancel && (
@@ -638,7 +735,7 @@ export default function RideDetails() {
             onClose={() => setShowRatingModal(false)}
             rideId={ride.id}
             driverId={ride.driverId}
-            driverName="João Demo"
+            driverName={driverDisplayName}
           />
         )}
       </div>

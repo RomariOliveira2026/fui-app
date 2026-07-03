@@ -1,12 +1,15 @@
 import { useEffect, useRef } from "react";
 import { trpc } from "@/lib/trpc";
-import { isLocalDemoDev } from "@/lib/demoMode";
-import { loadDemoRides, upsertDemoRide } from "@/lib/demoRideStorage";
+import { isDemoAppClient, isLocalDemoDev } from "@/lib/demoMode";
+import { getDemoRideSnapshot, loadDemoRides, upsertDemoRide } from "@/lib/demoRideStorage";
 import { loadDemoOffers, persistDemoOffersFromServer } from "@/lib/demoOfferStorage";
+import { useBetaDemoRuntime } from "@/lib/useBetaDemoRuntime";
 import type { Ride } from "../../../drizzle/schema";
 
 /** Sincroniza corridas e ofertas demo entre localStorage e memória do servidor. */
 export function useDemoRideHydration() {
+  const { active: betaDemo } = useBetaDemoRuntime(false);
+  const demoClient = isLocalDemoDev() || betaDemo;
   const utils = trpc.useUtils();
   const hydratedRef = useRef(false);
   const hydrateMutation = trpc.ride.hydrateDemoState.useMutation({
@@ -24,7 +27,7 @@ export function useDemoRideHydration() {
   });
 
   useEffect(() => {
-    if (!isLocalDemoDev() || hydratedRef.current) return;
+    if (!demoClient || hydratedRef.current) return;
     const storedRides = loadDemoRides();
     const storedOffers = loadDemoOffers();
     if (storedRides.length === 0 && storedOffers.length === 0) return;
@@ -33,11 +36,11 @@ export function useDemoRideHydration() {
       rides: storedRides as never,
       offers: storedOffers as never,
     });
-  }, [hydrateMutation]);
+  }, [demoClient, hydrateMutation]);
 }
 
 export function persistDemoRideFromServer(ride: Ride): void {
-  if (!isLocalDemoDev() || ride.id < 900_001) return;
+  if (ride.id < 900_001) return;
   upsertDemoRide(ride);
 }
 
@@ -45,11 +48,30 @@ export function isDemoRideIdClient(rideId: number): boolean {
   return rideId >= 900_001;
 }
 
+/** Após ride.request — persiste snapshot para reidratar getById em serverless. */
+export async function persistDemoRideAfterRequest(
+  fetchRideById: (rideId: number) => Promise<Ride>,
+  rideId: number,
+  demoRide?: Ride | null
+): Promise<void> {
+  if (!isDemoRideIdClient(rideId)) return;
+  if (demoRide) {
+    persistDemoRideFromServer(demoRide);
+    return;
+  }
+  try {
+    const created = await fetchRideById(rideId);
+    persistDemoRideFromServer(created);
+  } catch {
+    // ignore — RideDetails tentará de novo com snapshot
+  }
+}
+
 /** Sincroniza snapshot de ofertas demo após mutações do dispatcher. */
 export async function syncDemoOffersSnapshot(
   fetchOffers: () => Promise<{ offers: unknown[] }>
 ): Promise<void> {
-  if (!isLocalDemoDev()) return;
+  if (!isDemoAppClient()) return;
   try {
     const data = await fetchOffers();
     if (data.offers?.length) {

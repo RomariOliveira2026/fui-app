@@ -58,6 +58,8 @@ import DriverStatementList from "@/components/driver/premium/DriverStatementList
 import UtilityProviderPanel from "@/components/utilities/provider/UtilityProviderPanel";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Truck } from "lucide-react";
+import DriverRideOfferOverlay from "@/components/driver/DriverRideOfferOverlay";
+import DriverActiveRideMap from "@/components/driver/DriverActiveRideMap";
 import {
   persistDemoDriverPremiumPrefs,
   useDemoDriverPremiumHydration,
@@ -82,6 +84,8 @@ export default function DriverDashboard() {
   const [immediateSelectedRide, setImmediateSelectedRide] = useState<any>(null);
   const [immediateSelectedVehicleId, setImmediateSelectedVehicleId] = useState<string>("");
   const [driverView, setDriverView] = useState<"rides" | "utilities">("rides");
+  const [overlayOffer, setOverlayOffer] = useState<any | null>(null);
+  const dismissedOfferIdsRef = useRef<Set<number>>(new Set());
 
   const { data: driverProfile, isLoading: profileLoading } = trpc.driver.getMyProfile.useQuery(undefined, {
     retry: false,
@@ -258,6 +262,15 @@ export default function DriverDashboard() {
     }
     prevRideCountRef.current = count;
   }, [openAvailableRides, playAlertSound]);
+
+  useEffect(() => {
+    if (myActiveRides.length > 0) {
+      setOverlayOffer(null);
+      return;
+    }
+    const next = openAvailableRides.find((ride) => !dismissedOfferIdsRef.current.has(ride.id));
+    setOverlayOffer(next ?? null);
+  }, [openAvailableRides, myActiveRides.length]);
 
   // Scheduled rides pending for this driver
   const { data: pendingScheduled, isLoading: scheduledLoading } =
@@ -482,6 +495,8 @@ export default function DriverDashboard() {
   };
 
   const handleImmediateDecline = (ride: { id: number }) => {
+    dismissedOfferIdsRef.current.add(ride.id);
+    setOverlayOffer(null);
     declineOffer.mutate({ rideId: ride.id });
   };
 
@@ -736,6 +751,20 @@ export default function DriverDashboard() {
                           <p className="text-sm">{ride.destinationAddress}</p>
                         </div>
                       </div>
+
+                      <DriverActiveRideMap
+                        origin={
+                          ride.originLat && ride.originLng
+                            ? { lat: Number(ride.originLat), lng: Number(ride.originLng) }
+                            : null
+                        }
+                        destination={
+                          ride.destinationLat && ride.destinationLng
+                            ? { lat: Number(ride.destinationLat), lng: Number(ride.destinationLng) }
+                            : null
+                        }
+                        vehicleType={ride.vehicleType}
+                      />
 
                       <ExternalNavigationButtons target={navTarget} />
 
@@ -1327,6 +1356,13 @@ export default function DriverDashboard() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <DriverRideOfferOverlay
+        ride={overlayOffer}
+        onAccept={handleImmediateAcceptClick}
+        onDecline={handleImmediateDecline}
+        accepting={acceptImmediateRide.isPending}
+      />
     </div>
   );
 }

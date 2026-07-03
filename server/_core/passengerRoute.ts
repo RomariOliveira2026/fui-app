@@ -7,6 +7,7 @@ import {
   estimateDemoRidePriceCents,
   type DemoVehicleType,
 } from "@shared/demoPricing";
+import { buildCategoryQuotes, type CategoryQuote } from "@shared/rideQuote";
 import { resolveGeocodingScope, resolveHintCity } from "@shared/mapDefaults";
 import { extractCityFromAddress, hasCityConflictBetweenAddresses, isLikelyUnwantedAddressRelabel, pickResolvedAddressLabel } from "@shared/addressGeocoding";
 import { findSergipeKnownPlace, findSergipeKnownPlaceByPlaceId } from "@shared/sergipeKnownPlaces";
@@ -37,6 +38,7 @@ export type PassengerRouteCalculation = {
   distanceText: string;
   durationText: string;
   estimatedPrice: number;
+  categoryQuotes: CategoryQuote[];
   routePath: RoutePoint[];
   overviewPolyline: string;
   usedHaversineFallback: boolean;
@@ -337,6 +339,7 @@ export async function calculatePassengerRoute(input: {
     route.distance.value,
     route.duration.value
   );
+  const categoryQuotes = buildCategoryQuotes(route.distance.value, route.duration.value);
 
   return {
     origin,
@@ -347,6 +350,7 @@ export async function calculatePassengerRoute(input: {
     distanceText: route.distance.text,
     durationText: route.duration.text,
     estimatedPrice,
+    categoryQuotes,
     routePath: route.routePath,
     overviewPolyline: route.overviewPolyline,
     usedHaversineFallback: route.usedHaversineFallback,

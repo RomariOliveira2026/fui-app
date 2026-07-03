@@ -16,9 +16,9 @@ export default function PassengerPrimaryActionCard({
     <Card className="border-border bg-card overflow-hidden">
       <CardContent className="p-5 space-y-4">
         <div className="space-y-1">
-          <h2 className="text-xl font-bold text-foreground">Para onde vamos hoje?</h2>
+          <h2 className="text-xl font-bold tracking-tight text-foreground">Para onde?</h2>
           <p className="text-sm text-muted-foreground">
-            Solicite uma corrida em segundos ou agende para depois.
+            Corrida em poucos toques — preço estimado antes de confirmar.
           </p>
         </div>
 

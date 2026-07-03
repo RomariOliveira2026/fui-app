@@ -62,7 +62,10 @@ import { toast } from "sonner";
 import { isLocalDemoDev } from "@/lib/demoMode";
 import { usePassengerCurrentLocation } from "@/lib/usePassengerCurrentLocation";
 import { useDemoFleetDrivers } from "@/lib/useDemoFleetDrivers";
-import { persistDemoRideFromServer } from "@/lib/useDemoRideHydration";
+import {
+  persistDemoRideAfterRequest,
+} from "@/lib/useDemoRideHydration";
+import { getDemoRideSnapshot } from "@/lib/demoRideStorage";
 import NotificationCenter from "@/components/NotificationCenter";
 import AppLogoMark from "@/components/fui/AppLogoMark";
 import PassengerActiveRideCard from "@/components/passenger/PassengerActiveRideCard";
@@ -71,7 +74,7 @@ import PassengerGreeting from "@/components/passenger/PassengerGreeting";
 import PassengerPrimaryActionCard from "@/components/passenger/PassengerPrimaryActionCard";
 import PassengerQuickActions from "@/components/passenger/PassengerQuickActions";
 import PassengerRecentRides from "@/components/passenger/PassengerRecentRides";
-import { repeatRide } from "@/lib/ridePrefill";
+import { repeatRide, saveRidePrefill } from "@/lib/ridePrefill";
 import PassengerSavedAddressesPanel from "@/components/passenger/PassengerSavedAddressesPanel";
 import PassengerSummaryCards from "@/components/passenger/PassengerSummaryCards";
 import { cn } from "@/lib/utils";
@@ -394,14 +397,15 @@ function LoggedInHome() {
 
     try {
       const data = await requestRide.mutateAsync(payload);
-      if (isLocalDemoDev()) {
-        try {
-          const created = await utils.ride.getById.fetch({ rideId: data.rideId });
-          persistDemoRideFromServer(created);
-        } catch {
-          // ignore
-        }
-      }
+      await persistDemoRideAfterRequest(
+        (id) =>
+          utils.ride.getById.fetch({
+            rideId: id,
+            demoSnapshot: getDemoRideSnapshot(id) as never,
+          }) as Promise<import("../../../drizzle/schema").Ride>,
+        data.rideId,
+        (data as { demoRide?: import("../../../drizzle/schema").Ride }).demoRide
+      );
       if (isLocalDemoDev() || paymentMethod === "cash") {
         toast.success("Corrida solicitada! Buscando motoristas...");
         setLocation(`/ride/${data.rideId}`);
@@ -441,14 +445,13 @@ function LoggedInHome() {
   };
 
   const openRequestFlow = (prefill?: { origin?: string; destination?: string }) => {
-    clearRoute();
-    if (prefill?.origin) {
-      setOriginAddress(prefill.origin);
-    } else {
-      applyDefaultOrigin();
-    }
-    if (prefill?.destination) setDestinationAddress(prefill.destination);
-    setRequestMode(true);
+    const defaults = getDefaultOriginSelection();
+    saveRidePrefill({
+      originAddress: prefill?.origin ?? defaults.address,
+      destinationAddress: prefill?.destination ?? "",
+      vehicleType: "carro",
+    });
+    setLocation("/request-ride");
   };
 
   const locationBias = passengerLocation.coords ?? originCoords;

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { isBetaDemoRuntime } from "@/lib/demoMode";
+import { isBetaDemoRuntime, setRuntimeBetaDemoActive } from "@/lib/demoMode";
 
 type AppConfigResponse = { betaDemo?: boolean };
 
@@ -32,6 +32,10 @@ export function useBetaDemoRuntime(skip: boolean) {
 
   const pending = !buildTimeActive && !skip && serverActive === null;
   const active = buildTimeActive || serverActive === true;
+
+  useEffect(() => {
+    setRuntimeBetaDemoActive(active);
+  }, [active]);
 
   return { active, pending };
 }

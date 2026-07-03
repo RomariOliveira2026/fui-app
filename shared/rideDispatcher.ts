@@ -48,6 +48,7 @@ export type DispatchResult = {
   usedFallback: boolean;
   offerRound: number;
   expandedPool: boolean;
+  offeredDriverIds: number[];
 };
 
 export type DispatchRoundSelection = {
