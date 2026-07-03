@@ -65,7 +65,6 @@ import { useDemoFleetDrivers } from "@/lib/useDemoFleetDrivers";
 import {
   persistDemoRideAfterRequest,
 } from "@/lib/useDemoRideHydration";
-import { getDemoRideSnapshot } from "@/lib/demoRideStorage";
 import NotificationCenter from "@/components/NotificationCenter";
 import AppLogoMark from "@/components/fui/AppLogoMark";
 import PassengerActiveRideCard from "@/components/passenger/PassengerActiveRideCard";
@@ -398,11 +397,7 @@ function LoggedInHome() {
     try {
       const data = await requestRide.mutateAsync(payload);
       await persistDemoRideAfterRequest(
-        (id) =>
-          utils.ride.getById.fetch({
-            rideId: id,
-            demoSnapshot: getDemoRideSnapshot(id) as never,
-          }) as Promise<import("../../../drizzle/schema").Ride>,
+        (input) => utils.client.ride.hydrateDemoState.mutate(input as never),
         data.rideId,
         (data as { demoRide?: import("../../../drizzle/schema").Ride }).demoRide
       );

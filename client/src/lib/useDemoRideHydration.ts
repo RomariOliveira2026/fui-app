@@ -1,10 +1,26 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { isDemoAppClient, isLocalDemoDev } from "@/lib/demoMode";
 import { getDemoRideSnapshot, loadDemoRides, upsertDemoRide } from "@/lib/demoRideStorage";
 import { loadDemoOffers, persistDemoOffersFromServer } from "@/lib/demoOfferStorage";
 import { useBetaDemoRuntime } from "@/lib/useBetaDemoRuntime";
 import type { Ride } from "../../../drizzle/schema";
+
+type HydrateDemoStateInput = {
+  rides: Ride[];
+  offers?: unknown[];
+};
+
+type HydrateDemoStateFn = (input: HydrateDemoStateInput) => Promise<unknown>;
+
+/** Envia snapshot via POST — nunca na query string do getById (estoura URL na Vercel). */
+export async function hydrateDemoRideOnServer(
+  hydrateDemoState: HydrateDemoStateFn,
+  ride: Ride
+): Promise<void> {
+  persistDemoRideFromServer(ride);
+  await hydrateDemoState({ rides: [ride] });
+}
 
 /** Sincroniza corridas e ofertas demo entre localStorage e memória do servidor. */
 export function useDemoRideHydration() {
@@ -48,23 +64,68 @@ export function isDemoRideIdClient(rideId: number): boolean {
   return rideId >= 900_001;
 }
 
-/** Após ride.request — persiste snapshot para reidratar getById em serverless. */
+/** Após ride.request — persiste e reidrata servidor antes de abrir /ride/:id. */
 export async function persistDemoRideAfterRequest(
-  fetchRideById: (rideId: number) => Promise<Ride>,
+  hydrateDemoState: HydrateDemoStateFn,
   rideId: number,
   demoRide?: Ride | null
 ): Promise<void> {
   if (!isDemoRideIdClient(rideId)) return;
   if (demoRide) {
-    persistDemoRideFromServer(demoRide);
+    await hydrateDemoRideOnServer(hydrateDemoState, demoRide);
     return;
   }
-  try {
-    const created = await fetchRideById(rideId);
-    persistDemoRideFromServer(created);
-  } catch {
-    // ignore — RideDetails tentará de novo com snapshot
+  const snapshot = getDemoRideSnapshot(rideId);
+  if (snapshot) {
+    await hydrateDemoRideOnServer(hydrateDemoState, snapshot);
   }
+}
+
+/** Garante corrida demo no servidor antes do primeiro getById (serverless). */
+export function useEnsureDemoRideHydrated(rideId: number) {
+  const utils = trpc.useUtils();
+  const { active: betaDemo, pending: betaPending } = useBetaDemoRuntime(false);
+  const demoClient = isLocalDemoDev() || betaDemo;
+  const [ready, setReady] = useState(() => !isDemoRideIdClient(rideId));
+
+  useEffect(() => {
+    if (!isDemoRideIdClient(rideId)) {
+      setReady(true);
+      return;
+    }
+    if (betaPending) {
+      setReady(false);
+      return;
+    }
+    if (!demoClient) {
+      setReady(true);
+      return;
+    }
+
+    const snapshot = getDemoRideSnapshot(rideId);
+    if (!snapshot) {
+      setReady(true);
+      return;
+    }
+
+    setReady(false);
+    let cancelled = false;
+
+    void utils.client.ride.hydrateDemoState
+      .mutate({ rides: [snapshot as never] })
+      .catch(() => {
+        // getById tentará na mesma instância serverless
+      })
+      .finally(() => {
+        if (!cancelled) setReady(true);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [rideId, demoClient, betaPending, utils.client.ride.hydrateDemoState]);
+
+  return { ready, betaPending };
 }
 
 /** Sincroniza snapshot de ofertas demo após mutações do dispatcher. */

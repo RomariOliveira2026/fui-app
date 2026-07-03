@@ -39,7 +39,6 @@ import {
   persistDemoRideAfterRequest,
   persistDemoRideFromServer,
 } from "@/lib/useDemoRideHydration";
-import { getDemoRideSnapshot } from "@/lib/demoRideStorage";
 import { syncDemoRecurringSchedulesFromServer } from "@/lib/demoRecurringStorage";
 import { fuiBrand, fuiRoute, fuiSelectedTile, fuiSurface } from "@/lib/fuiTheme";
 import { formatAddressForGeocoding } from "@shared/mapDefaults";
@@ -707,11 +706,7 @@ export default function RequestRide() {
     try {
       const data = await requestRide.mutateAsync(payload);
       await persistDemoRideAfterRequest(
-        (id) =>
-          utils.ride.getById.fetch({
-            rideId: id,
-            demoSnapshot: getDemoRideSnapshot(id) as never,
-          }) as Promise<import("../../../drizzle/schema").Ride>,
+        (input) => utils.client.ride.hydrateDemoState.mutate(input as never),
         data.rideId,
         (data as { demoRide?: import("../../../drizzle/schema").Ride }).demoRide
       );

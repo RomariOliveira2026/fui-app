@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,7 @@ import AppHeader from "@/components/AppHeader";
 import RideRouteMap from "@/components/RideRouteMap";
 import DemoRideChat from "@/components/DemoRideChat";
 import RateDriverModal from "@/components/RateDriverModal";
-import { isBetaDemoRuntime, isDemoAppClient } from "@/lib/demoMode";
+import { isDemoAppClient } from "@/lib/demoMode";
 import { useDemoAcceleratedEta } from "@/lib/demoRideEta";
 import {
   applyDemoPayment,
@@ -27,9 +27,8 @@ import {
 import { isDemoRideIdClient,
   persistDemoRideFromServer,
   useDemoRideHydration,
+  useEnsureDemoRideHydrated,
 } from "@/lib/useDemoRideHydration";
-import { getDemoRideSnapshot } from "@/lib/demoRideStorage";
-import { useBetaDemoRuntime } from "@/lib/useBetaDemoRuntime";
 import RideSimulationPanel, { type RideWithSimulation } from "@/components/RideSimulationPanel";
 import RideLiveTripView from "@/components/ride/RideLiveTripView";
 import RideSafetyToolbar from "@/components/ride/RideSafetyToolbar";
@@ -61,17 +60,7 @@ export default function RideDetails() {
   const [showRatingModal, setShowRatingModal] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   useDemoRideHydration();
-
-  const buildTimeBeta = isBetaDemoRuntime();
-  const { pending: betaConfigPending } = useBetaDemoRuntime(false);
-
-  const demoSnapshot = useMemo(() => {
-    if (!isDemoRideIdClient(rideId)) return undefined;
-    return getDemoRideSnapshot(rideId);
-  }, [rideId]);
-
-  const waitForBetaConfig =
-    isDemoRideIdClient(rideId) && !buildTimeBeta && betaConfigPending;
+  const { ready: demoHydrated, betaPending } = useEnsureDemoRideHydrated(rideId);
 
   const confirmDemoPayment = trpc.ride.confirmDemoPayment.useMutation({
     onSuccess: (updated) => {
@@ -99,9 +88,9 @@ export default function RideDetails() {
   });
   
   const { data: ride, isLoading, isError, error, refetch } = trpc.ride.getById.useQuery(
-    { rideId, demoSnapshot: demoSnapshot as never },
+    { rideId },
     {
-      enabled: !!rideId && !waitForBetaConfig,
+      enabled: !!rideId && demoHydrated,
       throwOnError: false,
       refetchInterval: (query) => {
         const data = query.state.data as RideWithSimulation | undefined;
@@ -179,7 +168,7 @@ export default function RideDetails() {
       previewTracking.seconds > 0
   );
 
-  if (isLoading || waitForBetaConfig) {
+  if (isLoading || !demoHydrated || betaPending) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
