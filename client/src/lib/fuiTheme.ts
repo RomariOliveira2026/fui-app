@@ -123,7 +123,7 @@ export function fuiSelectedTile(active: boolean) {
 export const fuiTrip = {
   sheet:
     "pointer-events-auto mx-auto w-full max-w-lg rounded-t-2xl border-t border-border bg-card/95 backdrop-blur-md shadow-[0_-8px_32px_rgba(0,0,0,0.35)]",
-  sheetInner: "max-h-[58vh] overflow-y-auto px-4 pb-6 pt-3 space-y-4",
+  sheetInner: "max-h-[42vh] overflow-y-auto px-4 pb-5 pt-3 space-y-3",
   sheetHandle: "mx-auto mb-3 h-1 w-10 rounded-full bg-border",
   mapChrome: "absolute inset-0 z-0",
   topBar:

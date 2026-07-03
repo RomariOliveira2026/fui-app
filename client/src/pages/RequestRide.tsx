@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useLayoutEffect, useMemo } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
@@ -21,7 +21,13 @@ import AppHeader from "@/components/AppHeader";
 import { ScheduleRideDialog, type ScheduleRideResult } from "@/components/ScheduleRideDialog";
 import ThirdPartyRideFields from "@/components/passenger/ThirdPartyRideFields";
 import IntermediateStopsFields from "@/components/passenger/IntermediateStopsFields";
-import { loadRidePrefill, clearRidePrefill } from "@/lib/ridePrefill";
+import {
+  loadRidePrefill,
+  clearRidePrefill,
+  discardInvalidRidePrefill,
+  isCompleteRidePrefill,
+  MIN_RIDE_PREFILL_ADDRESS_LENGTH,
+} from "@/lib/ridePrefill";
 import type { BookedForThirdParty, IntermediateStop, IntermediateStopInput } from "@shared/passengerPremium";
 import { estimateDemoRidePriceCents } from "@shared/demoPricing";
 import { useSavedAddresses } from "@/lib/useSavedAddresses";
@@ -198,12 +204,16 @@ export default function RequestRide() {
 
   const utils = trpc.useUtils();
 
+  useLayoutEffect(() => {
+    discardInvalidRidePrefill();
+  }, []);
+
   useEffect(() => {
     setOriginHistory(seedDefaultOriginHistory());
     setDestinationHistory(loadAddressHistory(FUI_HISTORY_DESTINATION_KEY));
 
     const prefill = loadRidePrefill();
-    if (prefill) return;
+    if (prefill && isCompleteRidePrefill(prefill)) return;
 
     const defaults = getDefaultOriginSelection();
     originFromGpsRef.current = false;
@@ -378,7 +388,10 @@ export default function RequestRide() {
 
   useEffect(() => {
     if (!useOsmRouting || !rideQuote.error) return;
-    if (originAddress.trim().length >= 4 && destinationAddress.trim().length >= 4) {
+    if (
+      originAddress.trim().length >= MIN_RIDE_PREFILL_ADDRESS_LENGTH &&
+      destinationAddress.trim().length >= MIN_RIDE_PREFILL_ADDRESS_LENGTH
+    ) {
       toast.error(rideQuote.error);
     }
   }, [rideQuote.error, useOsmRouting, originAddress, destinationAddress]);
@@ -486,7 +499,7 @@ export default function RequestRide() {
 
   useEffect(() => {
     const prefill = loadRidePrefill();
-    if (!prefill || prefillAppliedRef.current) return;
+    if (!prefill || prefillAppliedRef.current || !isCompleteRidePrefill(prefill)) return;
     prefillAppliedRef.current = true;
     setAutoLocateOrigin(false);
     clearRidePrefill();
@@ -496,22 +509,31 @@ export default function RequestRide() {
     if (prefill.vehicleType) setVehicleType(prefill.vehicleType);
 
     const runPrefill = async () => {
+      const origin = prefill.originAddress.trim();
+      const destination = prefill.destinationAddress.trim();
+      if (
+        origin.length < MIN_RIDE_PREFILL_ADDRESS_LENGTH ||
+        destination.length < MIN_RIDE_PREFILL_ADDRESS_LENGTH
+      ) {
+        return;
+      }
+
       setCalculating(true);
       try {
         const result = await calculatePassengerRouteMutation.mutateAsync({
-          originAddress: prefill.originAddress.trim(),
-          destinationAddress: prefill.destinationAddress.trim(),
+          originAddress: origin,
+          destinationAddress: destination,
           vehicleType: prefill.vehicleType ?? vehicleType,
         });
         applyPassengerRouteResult(result, {
-          origin: prefill.originAddress.trim(),
-          destination: prefill.destinationAddress.trim(),
+          origin,
+          destination,
           originTrustedPlace: false,
           destinationTrustedPlace: false,
         });
         toast.success("Corrida repetida — origem e destino preenchidos");
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Erro ao repetir corrida");
+        toast.error(getRideFlowErrorMessage(error));
       } finally {
         setCalculating(false);
       }
@@ -643,7 +665,7 @@ export default function RequestRide() {
       toast.success(`Rota calculada: ${route.distance.text} - ${route.duration.text}`);
     } catch (error) {
       console.error("Error calculating route:", error);
-      toast.error(error instanceof Error ? error.message : "Erro ao calcular rota");
+      toast.error(getRideFlowErrorMessage(error));
     } finally {
       setCalculating(false);
     }

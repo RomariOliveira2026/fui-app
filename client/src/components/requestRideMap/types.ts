@@ -35,6 +35,8 @@ export type RequestRideMapViewProps = {
   trackingPhase?: "searching" | "driver_found" | "en_route" | "arriving" | "waiting_pickup" | "in_trip" | "completed";
   /** ETA restante (s) — velocidade contínua do ícone entre polls do servidor. */
   driverEtaSeconds?: number | null;
+  /** Padding inferior do fitBounds (px) — evita que o painel cubra o carro. */
+  mapFitPaddingBottom?: number;
 };
 
 /** Centro padrão do mapa até o GPS do usuário (visão Brasil). */

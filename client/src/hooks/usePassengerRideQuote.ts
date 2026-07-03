@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { getRideFlowErrorMessage, isRideInputValidationError } from "@/lib/rideFlowErrors";
+import { MIN_RIDE_PREFILL_ADDRESS_LENGTH } from "@/lib/ridePrefill";
 import { trpc } from "@/lib/trpc";
 import type { DemoVehicleType } from "@shared/demoPricing";
 import type { CategoryQuote } from "@shared/rideQuote";
@@ -132,19 +134,31 @@ export function usePassengerRideQuote(input: UsePassengerRideQuoteInput) {
       origin: string;
       destination: string;
     };
-    if (parsed.origin.length < 4 || parsed.destination.length < 4) {
+    if (
+      parsed.origin.length < MIN_RIDE_PREFILL_ADDRESS_LENGTH ||
+      parsed.destination.length < MIN_RIDE_PREFILL_ADDRESS_LENGTH
+    ) {
       reset();
       return;
     }
 
     const timer = window.setTimeout(() => {
+      const origin = parsed.origin.trim();
+      const destination = parsed.destination.trim();
+      if (
+        origin.length < MIN_RIDE_PREFILL_ADDRESS_LENGTH ||
+        destination.length < MIN_RIDE_PREFILL_ADDRESS_LENGTH
+      ) {
+        return;
+      }
+
       const requestId = ++requestIdRef.current;
       setState((prev) => ({ ...prev, loading: true, error: null }));
 
       void mutateAsyncRef
         .current({
-          originAddress: parsed.origin,
-          destinationAddress: parsed.destination,
+          originAddress: origin,
+          destinationAddress: destination,
           vehicleType: vehicleTypeRef.current,
           originPlaceId: originPlaceId || undefined,
           destinationPlaceId: destinationPlaceId || undefined,
@@ -179,9 +193,13 @@ export function usePassengerRideQuote(input: UsePassengerRideQuoteInput) {
         })
         .catch((error: unknown) => {
           if (requestId !== requestIdRef.current) return;
+          if (isRideInputValidationError(error)) {
+            setState(EMPTY_QUOTE);
+            return;
+          }
           setState({
             ...EMPTY_QUOTE,
-            error: error instanceof Error ? error.message : "Não foi possível calcular a rota",
+            error: getRideFlowErrorMessage(error),
           });
         });
     }, debounceMs);
@@ -202,7 +220,10 @@ export function usePassengerRideQuote(input: UsePassengerRideQuoteInput) {
   const fetchQuote = useCallback(async () => {
     const origin = originAddress.trim();
     const destination = destinationAddress.trim();
-    if (origin.length < 4 || destination.length < 4) {
+    if (
+      origin.length < MIN_RIDE_PREFILL_ADDRESS_LENGTH ||
+      destination.length < MIN_RIDE_PREFILL_ADDRESS_LENGTH
+    ) {
       reset();
       return;
     }
@@ -247,9 +268,13 @@ export function usePassengerRideQuote(input: UsePassengerRideQuoteInput) {
       });
     } catch (error) {
       if (requestId !== requestIdRef.current) return;
+      if (isRideInputValidationError(error)) {
+        setState(EMPTY_QUOTE);
+        return;
+      }
       setState({
         ...EMPTY_QUOTE,
-        error: error instanceof Error ? error.message : "Não foi possível calcular a rota",
+        error: getRideFlowErrorMessage(error),
       });
     }
   }, [

@@ -63,6 +63,7 @@ export default function RideLiveTripView({
           simulationPhase={ride.simulationPhase}
           tripPath={tripPath}
           driverEtaSeconds={ride.etaSecondsRemaining ?? null}
+          mapFitPaddingBottom={280}
         />
       </div>
 

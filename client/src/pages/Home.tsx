@@ -73,7 +73,7 @@ import PassengerGreeting from "@/components/passenger/PassengerGreeting";
 import PassengerPrimaryActionCard from "@/components/passenger/PassengerPrimaryActionCard";
 import PassengerQuickActions from "@/components/passenger/PassengerQuickActions";
 import PassengerRecentRides from "@/components/passenger/PassengerRecentRides";
-import { repeatRide, saveRidePrefill } from "@/lib/ridePrefill";
+import { repeatRide, saveRidePrefill, clearRidePrefill, isCompleteRidePrefill } from "@/lib/ridePrefill";
 import PassengerSavedAddressesPanel from "@/components/passenger/PassengerSavedAddressesPanel";
 import PassengerSummaryCards from "@/components/passenger/PassengerSummaryCards";
 import { cn } from "@/lib/utils";
@@ -441,11 +441,19 @@ function LoggedInHome() {
 
   const openRequestFlow = (prefill?: { origin?: string; destination?: string }) => {
     const defaults = getDefaultOriginSelection();
-    saveRidePrefill({
-      originAddress: prefill?.origin ?? defaults.address,
-      destinationAddress: prefill?.destination ?? "",
-      vehicleType: "carro",
-    });
+    const originAddress = prefill?.origin?.trim() ?? defaults.address;
+    const destinationAddress = prefill?.destination?.trim() ?? "";
+    const draft = {
+      originAddress,
+      destinationAddress,
+      vehicleType: "carro" as const,
+    };
+
+    if (isCompleteRidePrefill(draft)) {
+      saveRidePrefill(draft);
+    } else {
+      clearRidePrefill();
+    }
     setLocation("/request-ride");
   };
 

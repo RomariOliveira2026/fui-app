@@ -3,6 +3,24 @@ import type { RidePrefill } from "@shared/passengerPremium";
 
 export const FUI_RIDE_PREFILL_KEY = "fui_ride_prefill";
 
+/** Mesmo mínimo usado pelo hook de cotação antes de chamar a API. */
+export const MIN_RIDE_PREFILL_ADDRESS_LENGTH = 4;
+
+export function isCompleteRidePrefill(prefill: RidePrefill): boolean {
+  return (
+    prefill.originAddress.trim().length >= MIN_RIDE_PREFILL_ADDRESS_LENGTH &&
+    prefill.destinationAddress.trim().length >= MIN_RIDE_PREFILL_ADDRESS_LENGTH
+  );
+}
+
+/** Remove prefill incompleto (ex.: destino vazio salvo pela Home). */
+export function discardInvalidRidePrefill(): void {
+  const prefill = loadRidePrefill();
+  if (prefill && !isCompleteRidePrefill(prefill)) {
+    clearRidePrefill();
+  }
+}
+
 export function rideToPrefill(ride: Ride): RidePrefill {
   return {
     originAddress: ride.originAddress,

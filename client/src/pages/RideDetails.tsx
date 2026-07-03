@@ -284,16 +284,6 @@ export default function RideDetails() {
           fareCents={fareCents}
           fareLabel={fareLabel}
         >
-          {simulationEnabled && isDemoRide && isPassenger && (
-            <RideSimulationPanel
-              ride={simRide}
-              onSimulateAccept={() => simulationAccept.mutate({ rideId: ride.id })}
-              onSimulateStart={() => simulationStart.mutate({ rideId: ride.id })}
-              acceptPending={simulationAccept.isPending}
-              startPending={simulationStart.isPending}
-            />
-          )}
-
           {paymentPending ? (
             <Button
               onClick={handlePayNow}
@@ -332,6 +322,21 @@ export default function RideDetails() {
             </Button>
           ) : null}
         </RideLiveTripView>
+
+        {simulationEnabled && isDemoRide && isPassenger && (
+          <div className="pointer-events-none fixed left-0 right-0 top-16 z-30 flex justify-end px-3">
+            <div className="pointer-events-auto w-full max-w-[17rem]">
+              <RideSimulationPanel
+                ride={simRide}
+                floating
+                onSimulateAccept={() => simulationAccept.mutate({ rideId: ride.id })}
+                onSimulateStart={() => simulationStart.mutate({ rideId: ride.id })}
+                acceptPending={simulationAccept.isPending}
+                startPending={simulationStart.isPending}
+              />
+            </div>
+          </div>
+        )}
 
         {(showDriverOnMap || showDriverEnRoute) && isPassenger && (
           <DemoRideChat

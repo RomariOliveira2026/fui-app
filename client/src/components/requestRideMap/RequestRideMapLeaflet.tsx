@@ -131,6 +131,7 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
   encodedPolyline,
   trackingPhase,
   driverEtaSeconds,
+  mapFitPaddingBottom = 52,
 }: RequestRideMapViewProps) {
   const mapRef = useRef<L.Map | null>(null);
   const layersRef = useRef<{
@@ -153,6 +154,11 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
   const driverBearingRef = useRef<number | null>(null);
   const bearingAnchorRef = useRef<RequestRideMapPoint | null>(null);
   const driverEtaRef = useRef<number | null>(null);
+  const mapFitPaddingBottomRef = useRef(mapFitPaddingBottom);
+
+  useEffect(() => {
+    mapFitPaddingBottomRef.current = mapFitPaddingBottom;
+  }, [mapFitPaddingBottom]);
 
   useEffect(() => {
     driverEtaRef.current =
@@ -229,8 +235,10 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
 
       const boundsPoints = getBoundsPoints();
       if (boundsPoints.length >= 2) {
+        const bottomPad = mapFitPaddingBottomRef.current;
         map.fitBounds(L.latLngBounds(boundsPoints), {
-          padding: [52, 52],
+          paddingTopLeft: L.point(52, 52),
+          paddingBottomRight: L.point(52, bottomPad),
           maxZoom: trackingPhase === "en_route" || trackingPhase === "arriving" ? 16 : 15,
           animate,
         });
@@ -394,6 +402,17 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
     animFrameRef.current = requestAnimationFrame(tickDriverAnimation);
   }, [tickDriverAnimation]);
 
+  const ensureDriverAnimation = useCallback(() => {
+    if (
+      !isContinuousTrackingPhase(trackingPhase) ||
+      tripPathRef.current.length < 2 ||
+      pathTotalRef.current - displayMetersRef.current <= STOP_EPSILON_M
+    ) {
+      return;
+    }
+    startDriverAnimation();
+  }, [startDriverAnimation, trackingPhase]);
+
   const syncDriverLayer = useCallback(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -476,16 +495,12 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
       displayMetersRef.current = snappedTarget;
       targetMetersRef.current = snappedTarget;
       applyDisplayPosition(snappedTarget);
+      ensureDriverAnimation();
       return;
     }
 
-    if (
-      isContinuousTrackingPhase(trackingPhase) &&
-      pathTotalRef.current - displayMetersRef.current > STOP_EPSILON_M
-    ) {
-      startDriverAnimation();
-    }
-  }, [driver, fitVisibleBounds, startDriverAnimation, stopDriverAnimation, applyDisplayPosition, trackingPhase, vehicleType]);
+    ensureDriverAnimation();
+  }, [driver, fitVisibleBounds, startDriverAnimation, stopDriverAnimation, applyDisplayPosition, trackingPhase, vehicleType, ensureDriverAnimation]);
 
   useEffect(() => {
     syncStaticLayers();
@@ -497,7 +512,8 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
 
   useEffect(() => {
     syncDriverLayer();
-  }, [syncDriverLayer]);
+    ensureDriverAnimation();
+  }, [syncDriverLayer, ensureDriverAnimation]);
 
   useEffect(() => {
     return () => {

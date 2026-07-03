@@ -37,6 +37,8 @@ type RideRouteMapProps = {
   tripPath?: MapPoint[] | null;
   /** ETA restante (s) para animação contínua do motorista no mapa. */
   driverEtaSeconds?: number | null;
+  /** Padding inferior do fitBounds quando mapa fullscreen com painel embaixo. */
+  mapFitPaddingBottom?: number;
   className?: string;
 };
 
@@ -54,6 +56,7 @@ export default function RideRouteMap({
   simulationPhase,
   tripPath: serverTripPath,
   driverEtaSeconds,
+  mapFitPaddingBottom,
   className,
 }: RideRouteMapProps) {
   const utils = trpc.useUtils();
@@ -143,12 +146,22 @@ export default function RideRouteMap({
   const mapDriver = showDriver ? driver : null;
 
   const tracking = getRideTrackingPresentation(rideLike, simulationPhase, null, routePath);
+  const isFullscreen = Boolean(className?.includes("h-full"));
 
   return (
-    <div className="space-y-2">
-      <div className="relative overflow-hidden rounded-xl border border-border">
+    <div className={cn(isFullscreen ? "h-full w-full min-h-0" : "space-y-2")}>
+      <div
+        className={cn(
+          "relative overflow-hidden",
+          isFullscreen ? "h-full w-full" : "rounded-xl border border-border"
+        )}
+      >
         <RequestRideMap
-          className={cn("w-full h-[420px] rounded-none border-0", className)}
+          className={cn(
+            isFullscreen ? "h-full w-full min-h-0" : "h-[420px] w-full",
+            "rounded-none border-0",
+            className
+          )}
           origin={origin}
           destination={destination}
           driver={mapDriver}
@@ -157,6 +170,7 @@ export default function RideRouteMap({
           routePath={routePath}
           trackingPhase={trackingPhase}
           driverEtaSeconds={driverEtaSeconds}
+          mapFitPaddingBottom={mapFitPaddingBottom}
         />
         {showDriver && tracking?.showLivePulse ? (
           <div className="pointer-events-none absolute left-3 top-3 flex items-center gap-2 rounded-full border border-border bg-background/90 px-3 py-1.5 text-xs font-medium text-foreground backdrop-blur-sm">
