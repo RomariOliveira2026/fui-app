@@ -4,6 +4,19 @@
   "installCommand": "pnpm install",
   "framework": null,
   "outputDirectory": "dist/public",
+  "redirects": [
+    {
+      "source": "/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "fui-68w9ubuk9-romario-oliveira-s-projects.vercel.app"
+        }
+      ],
+      "destination": "https://fui-app.vercel.app/:path*",
+      "permanent": false
+    }
+  ],
   "rewrites": [
     {
       "source": "/((?!api/|assets/|manifest\\.json|sw\\.js|favicon\\.ico|.*\\..*).*)",

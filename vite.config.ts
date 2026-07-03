@@ -8,14 +8,34 @@ const plugins = [react(), tailwindcss(), jsxLocPlugin()];
 
 const projectRoot = path.resolve(import.meta.dirname);
 
+function normalizeAppUrl(url: string): string {
+  const trimmed = url.trim();
+  return trimmed.replace(/\/+$/, "") || "https://fui-app.vercel.app";
+}
+
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, projectRoot, "");
   const viteBetaDemo = env.VITE_BETA_DEMO ?? process.env.VITE_BETA_DEMO ?? "";
+  const appUrl = normalizeAppUrl(
+    env.VITE_APP_URL ?? process.env.VITE_APP_URL ?? "https://fui-app.vercel.app"
+  );
 
   return {
-    plugins,
+    plugins: [
+      ...plugins,
+      {
+        name: "fui-canonical-url",
+        transformIndexHtml(html) {
+          const redirectScript = `<script>(function(){try{var c=${JSON.stringify(appUrl)};var h=location.hostname;var u=new URL(c);if(h!==u.hostname&&h!=='localhost'&&h!=='127.0.0.1'&&h!=='fuiapp.com.br'&&h!=='www.fuiapp.com.br'&&/\\.vercel\\.app$/.test(h))location.replace(c+location.pathname+location.search+location.hash);}catch(e){}})();</script>`;
+          return html
+            .replace("</head>", `${redirectScript}</head>`)
+            .replaceAll("https://fuiapp.com.br", appUrl);
+        },
+      },
+    ],
     define: {
       "import.meta.env.VITE_BETA_DEMO": JSON.stringify(viteBetaDemo),
+      "import.meta.env.VITE_APP_URL": JSON.stringify(appUrl),
     },
     resolve: {
       alias: {

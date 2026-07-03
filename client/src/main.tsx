@@ -1,3 +1,4 @@
+import { ensureCanonicalHost } from "@/lib/ensureCanonicalHost";
 import { trpc } from "@/lib/trpc";
 import { UNAUTHED_ERR_MSG } from '@shared/const';
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -8,6 +9,8 @@ import App from "./App";
 import { isLandingRoutePathname } from "./components/landing/landingRoutes";
 import { redirectToLogin } from "./const";
 import "./index.css";
+
+ensureCanonicalHost();
 
 function registerPwaServiceWorker() {
   if (!import.meta.env.PROD || !("serviceWorker" in navigator)) return;
