@@ -261,7 +261,7 @@ export const mapsRouter = router({
 
         const seen = new Set<string>();
         const merged: typeof demoPredictions = [];
-        for (const prediction of [...demoPredictions, ...catalogPredictions, ...nominatimPredictions]) {
+        for (const prediction of [...catalogPredictions, ...demoPredictions, ...nominatimPredictions]) {
           const key = prediction.description.trim().toLowerCase();
           if (seen.has(key)) continue;
           seen.add(key);

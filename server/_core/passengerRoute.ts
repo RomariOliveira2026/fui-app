@@ -8,7 +8,7 @@ import {
   type DemoVehicleType,
 } from "@shared/demoPricing";
 import { resolveGeocodingScope, resolveHintCity } from "@shared/mapDefaults";
-import { extractCityFromAddress, hasCityConflictBetweenAddresses, pickResolvedAddressLabel } from "@shared/addressGeocoding";
+import { extractCityFromAddress, hasCityConflictBetweenAddresses, isLikelyUnwantedAddressRelabel, pickResolvedAddressLabel } from "@shared/addressGeocoding";
 import { findSergipeKnownPlace, findSergipeKnownPlaceByPlaceId } from "@shared/sergipeKnownPlaces";
 import { isRealGeocodePlaceId } from "@shared/geocodePlaceId";
 import { geocodeAddressWithNominatim, lookupPlaceIdWithNominatim, reverseGeocodeWithNominatim, sleepMs } from "./nominatim";
@@ -86,6 +86,12 @@ function withPreferredDisplayName(
 
 function shouldIgnorePlaceIdForAddress(trimmedAddress: string, resolvedDisplayName: string): boolean {
   return trimmedAddress.length >= 5 && hasCityConflictBetweenAddresses(trimmedAddress, resolvedDisplayName);
+}
+
+function shouldRejectGeocodeResult(trimmedAddress: string, resolvedDisplayName: string): boolean {
+  if (trimmedAddress.length < 4) return false;
+  if (shouldIgnorePlaceIdForAddress(trimmedAddress, resolvedDisplayName)) return true;
+  return isLikelyUnwantedAddressRelabel(trimmedAddress, resolvedDisplayName);
 }
 
 async function resolveLocation(
@@ -193,9 +199,28 @@ async function resolveLocation(
   }
 
   if (trimmed.length >= 2) {
+    const known = findSergipeKnownPlace(trimmed);
+    if (known) {
+      console.info("[geocode:sergipe-catalog] hit", {
+        original: trimmed,
+        displayName: known.displayName,
+        lat: known.lat,
+        lng: known.lng,
+      });
+      return withPreferredDisplayName(trimmed, {
+        lat: known.lat,
+        lng: known.lng,
+        displayName: known.displayName,
+        placeId: known.placeId,
+        source: "sergipe_catalog",
+      });
+    }
+  }
+
+  if (trimmed.length >= 2) {
     const scope = resolveGeocodingScope(ENV.appCity);
     const geocoded = await geocodeAddressWithNominatim(trimmed, scope.operationalCity);
-    if (geocoded) {
+    if (geocoded && !shouldRejectGeocodeResult(trimmed, geocoded.displayName)) {
       return withPreferredDisplayName(trimmed, {
         lat: geocoded.lat,
         lng: geocoded.lng,
@@ -204,23 +229,6 @@ async function resolveLocation(
         source: "nominatim",
       });
     }
-  }
-
-  const known = findSergipeKnownPlace(trimmed);
-  if (known) {
-    console.info("[geocode:sergipe-catalog] hit", {
-      original: trimmed,
-      displayName: known.displayName,
-      lat: known.lat,
-      lng: known.lng,
-    });
-    return withPreferredDisplayName(trimmed, {
-      lat: known.lat,
-      lng: known.lng,
-      displayName: known.displayName,
-      placeId: known.placeId,
-      source: "sergipe_catalog",
-    });
   }
 
   if (allowDemoFallback && trimmed.length >= 2) {

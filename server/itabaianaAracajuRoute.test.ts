@@ -292,4 +292,67 @@ describe("calculatePassengerRoute Itabaiana → Aracaju", () => {
     expect(result.destination.displayName).toContain("Shopping Jardins");
     expect(result.distance).toBeGreaterThan(50_000);
   });
+
+  it("localiza Banese em Itaporanga D'Ajuda e calcula rota intermunicipal longa", async () => {
+    vi.spyOn(global, "fetch").mockImplementation(async (input) => {
+      const url = String(input);
+
+      if (url.includes("nominatim.openstreetmap.org/search")) {
+        const decoded = decodeURIComponent(url);
+        if (decoded.toLowerCase().includes("itaporanga")) {
+          return new Response(
+            JSON.stringify([
+              {
+                lat: "-10.6948514",
+                lon: "-37.4284713",
+                display_name:
+                  "Centro Especializado de Odontologia, Rua Itaporanga, Itabaiana, Sergipe, Brasil",
+                place_id: 99,
+                osm_type: "node",
+                osm_id: 999,
+              },
+            ]),
+            { status: 200 }
+          );
+        }
+        return new Response(JSON.stringify(ITABAIANA_NOMINATIM_ROW), { status: 200 });
+      }
+
+      if (url.includes("router.project-osrm.org/route")) {
+        return new Response(
+          JSON.stringify({
+            code: "Ok",
+            routes: [
+              {
+                distance: 70800,
+                duration: 4200,
+                geometry: {
+                  coordinates: [
+                    [-37.4364078, -10.6891766],
+                    [-37.7678, -11.0642],
+                  ],
+                },
+              },
+            ],
+          }),
+          { status: 200 }
+        );
+      }
+
+      return new Response("not found", { status: 404 });
+    });
+
+    const result = await calculatePassengerRoute({
+      originAddress: "Rua Vera Cândida de Santana, nº 1.258 - Rotary Club, Itabaiana/SE",
+      destinationAddress: "Banese, Itaporanga D'ajuda",
+      vehicleType: "carro",
+      allowDemoFallback: false,
+    });
+
+    expect(result.destination.source).toBe("sergipe_catalog");
+    expect(result.destination.placeId).toBe("sergipe:itaporanga:banese");
+    expect(result.destination.displayName).toContain("Itaporanga");
+    expect(result.destination.displayName.toLowerCase()).not.toContain("itabaiana");
+    expect(result.distance).toBeGreaterThan(60_000);
+  });
 });

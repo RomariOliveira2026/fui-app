@@ -11,6 +11,7 @@ function appendCountryToAddress(address: string, country = "Brasil"): string {
 export const SERGIPE_CITIES = [
   "Aracaju",
   "Itabaiana",
+  "Itaporanga D'Ajuda",
   "Estância",
   "Lagarto",
   "Propriá",
@@ -44,7 +45,8 @@ export function fixCommonSergipeStreetTypos(address: string): string {
   return address
     .replace(/\bMacah\b/gi, "Machado")
     .replace(/\bPaulo\s+Henrique\s+Macah\s+Pimentel\b/gi, "Paulo Henrique Machado Pimentel")
-    .replace(/\bEduardo\s+Paixão\s+Rocha\b/gi, "Eduardo da Paixão Rocha");
+    .replace(/\bEduardo\s+Paixão\s+Rocha\b/gi, "Eduardo da Paixão Rocha")
+    .replace(/\bItaporanga\s+D['']?\s*ajuda\b/gi, "Itaporanga D'Ajuda");
 }
 
 /** Normaliza UF, cidade e separadores antes do geocoding. */
@@ -72,6 +74,10 @@ export function normalizeBrazilianAddressText(address: string): string {
 export function extractCityFromAddress(address: string): string | null {
   const normalized = normalizeBrazilianAddressText(address);
   const lower = stripAccents(normalized).toLowerCase();
+
+  if (/\bitaporanga\s+d['']?\s*ajuda\b/i.test(normalized)) {
+    return "Itaporanga D'Ajuda";
+  }
 
   for (const city of SERGIPE_CITIES) {
     if (lower.includes(stripAccents(city).toLowerCase())) {
@@ -121,6 +127,14 @@ export function isLikelyUnwantedAddressRelabel(
     resolvedNorm.includes("aracaju") &&
     !userNorm.includes("aracaju") &&
     !userNorm.includes("aeroporto")
+  ) {
+    return true;
+  }
+
+  if (
+    userNorm.includes("itaporanga") &&
+    resolvedNorm.includes("itabaiana") &&
+    !resolvedNorm.includes("itaporanga")
   ) {
     return true;
   }
@@ -251,15 +265,18 @@ export function scoreAddressLocality(
   if (originalCity) {
     const oc = stripAccents(originalCity).toLowerCase();
     if (lower.includes(oc)) score += 150;
-    else if (!lower.includes("sergipe") && !lower.includes(" - se")) score -= 90;
+    else if (oc.includes("itaporanga") && lower.includes("itabaiana") && !lower.includes("itaporanga")) {
+      score -= 200;
+    } else if (!lower.includes("sergipe") && !lower.includes(" - se")) score -= 90;
   }
 
   for (const city of SERGIPE_CITIES) {
-    if (lower.includes(city.toLowerCase())) score += 70;
+    if (lower.includes(stripAccents(city).toLowerCase())) score += 70;
   }
 
   if (lower.includes("itabaiana")) score += 40;
   if (lower.includes("aracaju")) score += 40;
+  if (lower.includes("itaporanga")) score += 40;
   if (lower.includes("sergipe") || lower.includes(" - se")) score += 50;
 
   const distantMarkers = [

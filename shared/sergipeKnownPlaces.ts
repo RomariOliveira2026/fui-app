@@ -215,6 +215,46 @@ export const SERGIPE_KNOWN_PLACES: SergipeKnownPlace[] = [
     displayName: "Centro, Aracaju - SE",
     placeId: "sergipe:aracaju:centro",
   },
+  {
+    matchTerms: [
+      "banese itaporanga",
+      "banese itaporanga d ajuda",
+      "banese itaporanga d'ajuda",
+      "banco do estado de sergipe itaporanga",
+      "agencia banese itaporanga",
+      "agência banese itaporanga",
+      "banese, itaporanga",
+    ],
+    lat: -11.0642,
+    lng: -37.7678,
+    displayName: "Banese — Agência Itaporanga D'Ajuda/SE",
+    placeId: "sergipe:itaporanga:banese",
+  },
+  {
+    matchTerms: [
+      "centro itaporanga d ajuda",
+      "centro itaporanga d'ajuda",
+      "centro itaporanga",
+      "itaporanga d ajuda centro",
+      "praça vinte e cinco de janeiro itaporanga",
+      "praca 25 de janeiro itaporanga",
+    ],
+    lat: -11.0645,
+    lng: -37.7681,
+    displayName: "Centro, Itaporanga D'Ajuda/SE",
+    placeId: "sergipe:itaporanga:centro",
+  },
+  {
+    matchTerms: [
+      "rodoviaria itaporanga",
+      "rodoviária itaporanga",
+      "rodoviaria itaporanga d ajuda",
+    ],
+    lat: -11.0618,
+    lng: -37.7712,
+    displayName: "Rodoviária, Itaporanga D'Ajuda/SE",
+    placeId: "sergipe:itaporanga:rodoviaria",
+  },
 ];
 
 const GENERIC_MATCH_TOKENS = new Set([
@@ -235,22 +275,33 @@ const GENERIC_MATCH_TOKENS = new Set([
   "terminal",
   "rodoviaria",
   "rodoviário",
+  "banese",
+  "banco",
+  "estado",
 ]);
 
 function normalizeForMatch(text: string): string {
-  return stripAccents(text).toLowerCase().replace(/\s+/g, " ").trim();
+  return stripAccents(text)
+    .toLowerCase()
+    .replace(/d\s*['']\s*ajuda/g, "d ajuda")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
-type SergipePlaceCity = "aracaju" | "itabaiana";
+type SergipePlaceCity = "aracaju" | "itabaiana" | "itaporanga";
 
 function getSergipePlaceCity(place: SergipeKnownPlace): SergipePlaceCity | null {
   if (place.placeId.includes(":itabaiana:") || place.placeId.startsWith("demo-")) {
     return "itabaiana";
   }
+  if (place.placeId.includes(":itaporanga:")) {
+    return "itaporanga";
+  }
   if (place.placeId.includes(":aracaju:")) {
     return "aracaju";
   }
   const displayNorm = normalizeForMatch(place.displayName);
+  if (displayNorm.includes("itaporanga")) return "itaporanga";
   if (displayNorm.includes("itabaiana")) return "itabaiana";
   if (displayNorm.includes("aracaju")) return "aracaju";
   return null;
@@ -258,6 +309,7 @@ function getSergipePlaceCity(place: SergipeKnownPlace): SergipePlaceCity | null 
 
 function getQueryCityHint(query: string): SergipePlaceCity | null {
   const normalized = normalizeForMatch(query);
+  if (/\bitaporanga\b/.test(normalized)) return "itaporanga";
   if (/\bitabaiana\b/.test(normalized)) return "itabaiana";
   if (/\baracaju\b/.test(normalized)) return "aracaju";
   return null;
@@ -298,6 +350,18 @@ export function scoreSergipePlaceMatch(
     const mentionsAirport =
       normalized.includes("aeroporto") || normalized.includes("airport");
     if (!mentionsAirport && queryCity !== "aracaju") {
+      return 0;
+    }
+  }
+
+  if (place.placeId.startsWith("sergipe:itaporanga:")) {
+    if (!normalized.includes("itaporanga") && queryCity !== "itaporanga") {
+      return 0;
+    }
+  }
+
+  if (place.placeId.includes(":itabaiana:") || place.placeId.startsWith("demo-")) {
+    if (normalized.includes("itaporanga") && queryCity === "itaporanga") {
       return 0;
     }
   }

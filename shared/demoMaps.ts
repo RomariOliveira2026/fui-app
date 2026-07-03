@@ -1,5 +1,7 @@
 /** Dados de mapa locais para demo em Itabaiana, SE (sem Google Maps API). */
 
+import { extractCityFromAddress, stripAccents } from "./addressGeocoding";
+
 export type DemoPlace = {
   placeId: string;
   description: string;
@@ -138,9 +140,14 @@ export function tryResolveDemoCatalog(input: string): {
     return { lat: byText.lat, lng: byText.lng, address: byText.description };
   }
 
-  const partial = DEMO_PLACES.find((p) =>
-    input.toLowerCase().includes(p.mainText.toLowerCase())
-  );
+  const partial = DEMO_PLACES.find((p) => {
+    if (!input.toLowerCase().includes(p.mainText.toLowerCase())) return false;
+    const userCity = extractCityFromAddress(input);
+    if (userCity && stripAccents(userCity).toLowerCase() !== "itabaiana") {
+      return false;
+    }
+    return true;
+  });
   if (partial) {
     return { lat: partial.lat, lng: partial.lng, address: partial.description };
   }

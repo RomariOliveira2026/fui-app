@@ -279,6 +279,7 @@ function pickBestGeocodeResult(
     lower.includes("sergipe") ||
     lower.includes("aracaju") ||
     lower.includes("itabaiana") ||
+    lower.includes("itaporanga") ||
     lower.includes("estancia") ||
     lower.includes("estância") ||
     lower.includes("lagarto") ||

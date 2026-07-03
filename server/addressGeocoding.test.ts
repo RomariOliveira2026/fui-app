@@ -104,4 +104,37 @@ describe("addressGeocoding", () => {
       )
     ).toBe("Rua José Alves, 145, Bairro Centro");
   });
+
+  it("extrai Itaporanga D'Ajuda com ou sem sigla do estado", () => {
+    expect(extractCityFromAddress("Banese, Itaporanga D'ajuda")).toBe("Itaporanga D'Ajuda");
+    expect(extractCityFromAddress("Banese, Itaporanga D'ajuda/Se")).toBe("Itaporanga D'Ajuda");
+    expect(
+      formatAddressForGeocoding("Banese, Itaporanga D'ajuda", "Itabaiana").toLowerCase()
+    ).not.toContain("itabaiana");
+  });
+
+  it("resolve Banese em Itaporanga D'Ajuda no catálogo Sergipe", () => {
+    const place = findSergipeKnownPlace("Banese, Itaporanga D'ajuda");
+    expect(place).not.toBeNull();
+    expect(place!.placeId).toBe("sergipe:itaporanga:banese");
+    expect(place!.displayName).toContain("Itaporanga");
+
+    const withState = findSergipeKnownPlace("Banese, Itaporanga D'ajuda/Se");
+    expect(withState?.placeId).toBe("sergipe:itaporanga:banese");
+  });
+
+  it("não confunde Banese em Itaporanga com Centro em Itabaiana", () => {
+    const place = findSergipeKnownPlace("Banese, Itaporanga D'ajuda");
+    expect(place?.placeId ?? null).not.toBe("demo-centro");
+    expect(place?.displayName.toLowerCase() ?? "").not.toContain("itabaiana");
+  });
+
+  it("rejeita rótulo de Itabaiana quando o usuário digitou Itaporanga", () => {
+    expect(
+      isLikelyUnwantedAddressRelabel(
+        "Banese, Itaporanga D'ajuda",
+        "Centro Especializado de Odontologia, Rua Itaporanga, Itabaiana, Sergipe"
+      )
+    ).toBe(true);
+  });
 });
