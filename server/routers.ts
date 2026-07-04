@@ -71,6 +71,7 @@ import { isDemoOperationalRidesEnabledServer } from "@shared/demoOperationalRide
 import { estimateDemoRidePriceCents, type DemoVehicleType } from "@shared/demoPricing";
 import { haversineMeters } from "@shared/demoMaps";
 import { buildDemoRideClientPayload } from "./_core/demoRideClientMeta";
+import { fetchDemoRideDetailsForUser } from "./_core/demoRideAccess";
 import { registerOperationalDemoRide, ensureOperationalTripStarted, restoreOperationalStateFromRide } from "./_core/demoOperationalRide";
 import { ensureDemoFleetSeed, listDemoFleetForMap } from "./_core/demoFleet";
 import {
@@ -1220,24 +1221,11 @@ export const appRouter = router({
       }))
       .query(async ({ ctx, input }) => {
         if (isDemoRideId(input.rideId)) {
-          let ride = getDemoRide(input.rideId);
-          if (!ride && input.demoSnapshot && isDemoRideId(Number(input.demoSnapshot.id))) {
-            hydrateDemoRides([input.demoSnapshot as never]);
-            ride = getDemoRide(input.rideId);
-          }
-          if (!ride) {
-            throw new TRPCError({ code: "NOT_FOUND", message: "Ride not found" });
-          }
-          const driverProfile = getDemoDriverProfileByUserId(ctx.user.id);
-          const canAccess =
-            ride.passengerId === ctx.user.id ||
-            (driverProfile != null && ride.driverId === driverProfile.id);
-          if (!canAccess) {
-            throw new TRPCError({ code: "FORBIDDEN", message: "Access denied" });
-          }
-          processDispatchForDemoRide(input.rideId);
-          ride = getDemoRide(input.rideId)!;
-          return buildDemoRideClientPayload(ride);
+          return fetchDemoRideDetailsForUser(
+            input.rideId,
+            ctx.user.id,
+            input.demoSnapshot
+          );
         }
 
         const ride = await db.getRideById(input.rideId);
@@ -1251,6 +1239,22 @@ export const appRouter = router({
         }
 
         return ride;
+      }),
+
+    /** POST com snapshot — confiável na Vercel (GET getById pode cair em outra instância serverless). */
+    fetchDemoRideDetails: protectedProcedure
+      .input(
+        z.object({
+          rideId: z.number(),
+          demoSnapshot: z.any().optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        return fetchDemoRideDetailsForUser(
+          input.rideId,
+          ctx.user.id,
+          input.demoSnapshot
+        );
       }),
 
     /** Restaura corridas + ofertas demo do localStorage para memória do servidor. */

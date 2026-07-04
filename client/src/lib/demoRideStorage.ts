@@ -37,9 +37,21 @@ export function saveDemoRides(rides: Ride[]): void {
   }
 }
 
+/** Remove campos grandes do payload antes de persistir no localStorage. */
+export function stripDemoRideForStorage(ride: Ride): Ride {
+  const copy = { ...ride } as Ride & Record<string, unknown>;
+  delete copy.tripPath;
+  delete copy.categoryQuotes;
+  delete copy.demoDriver;
+  delete copy.simulationPhase;
+  delete copy.etaSecondsRemaining;
+  delete copy.dispatchMeta;
+  return copy as Ride;
+}
+
 export function upsertDemoRide(ride: Ride): void {
   const rides = loadDemoRides().filter((r) => r.id !== ride.id);
-  rides.unshift(reviveRide(ride));
+  rides.unshift(stripDemoRideForStorage(reviveRide(ride)));
   saveDemoRides(rides);
 }
 

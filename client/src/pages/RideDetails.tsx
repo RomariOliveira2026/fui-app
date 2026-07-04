@@ -15,6 +15,7 @@ import DemoRideChat from "@/components/DemoRideChat";
 import RateDriverModal from "@/components/RateDriverModal";
 import { isDemoAppClient } from "@/lib/demoMode";
 import { useDemoAcceleratedEta } from "@/lib/demoRideEta";
+import { useDemoRideDetails } from "@/lib/useDemoRideDetails";
 import {
   applyDemoPayment,
   isDemoPaymentApproved,
@@ -60,12 +61,22 @@ export default function RideDetails() {
   const [showRatingModal, setShowRatingModal] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   useDemoRideHydration();
-  const { ready: demoHydrated, betaPending } = useEnsureDemoRideHydrated(rideId);
+  const usesDemoPolling = isDemoAppClient() && isDemoRideIdClient(rideId);
+  const { ready: demoHydrated, betaPending } = useEnsureDemoRideHydrated(
+    usesDemoPolling ? 0 : rideId
+  );
+
+  const [demoPollMs, setDemoPollMs] = useState<number | false>(1500);
+  const demoRideQuery = useDemoRideDetails(rideId, {
+    enabled: usesDemoPolling && demoHydrated,
+    refetchInterval: demoPollMs,
+  });
 
   const confirmDemoPayment = trpc.ride.confirmDemoPayment.useMutation({
     onSuccess: (updated) => {
       persistDemoRideFromServer(updated);
       utils.ride.getById.setData({ rideId }, updated);
+      if (usesDemoPolling) void demoRideQuery.refetch();
     },
   });
 
@@ -74,6 +85,7 @@ export default function RideDetails() {
     onSuccess: (updated) => {
       persistDemoRideFromServer(updated);
       utils.ride.getById.setData({ rideId }, updated);
+      if (usesDemoPolling) void demoRideQuery.refetch();
       toast.success("Motorista Demo aceitou a corrida!");
     },
     onError: (error) => toast.error(error.message),
@@ -82,15 +94,16 @@ export default function RideDetails() {
     onSuccess: (updated) => {
       persistDemoRideFromServer(updated);
       utils.ride.getById.setData({ rideId }, updated);
+      if (usesDemoPolling) void demoRideQuery.refetch();
       toast.success("Corrida iniciada!");
     },
     onError: (error) => toast.error(error.message),
   });
-  
-  const { data: ride, isLoading, isError, error, refetch } = trpc.ride.getById.useQuery(
+
+  const standardQuery = trpc.ride.getById.useQuery(
     { rideId },
     {
-      enabled: !!rideId && demoHydrated,
+      enabled: !!rideId && demoHydrated && !usesDemoPolling,
       throwOnError: false,
       refetchInterval: (query) => {
         const data = query.state.data as RideWithSimulation | undefined;
@@ -111,6 +124,34 @@ export default function RideDetails() {
       retry: 1,
     }
   );
+
+  const ride = usesDemoPolling ? demoRideQuery.data : standardQuery.data;
+  const isLoading = usesDemoPolling ? demoRideQuery.isLoading : standardQuery.isLoading;
+  const isError = usesDemoPolling ? demoRideQuery.isError : standardQuery.isError;
+  const error = usesDemoPolling ? demoRideQuery.error : standardQuery.error;
+  const refetch = usesDemoPolling ? demoRideQuery.refetch : standardQuery.refetch;
+
+  useEffect(() => {
+    if (!usesDemoPolling) return;
+    const data = demoRideQuery.data as RideWithSimulation | undefined;
+    if (!data || data.status === "completed" || data.status === "cancelled") {
+      setDemoPollMs(false);
+      return;
+    }
+    if (data.status === "requested" && !data.driverId) {
+      setDemoPollMs(1500);
+      return;
+    }
+    if (simulationEnabled || shouldShowDriverOnMap(data)) {
+      setDemoPollMs(1000);
+      return;
+    }
+    if (data.status === "requested" || data.status === "accepted") {
+      setDemoPollMs(3000);
+      return;
+    }
+    setDemoPollMs(5000);
+  }, [demoRideQuery.data, simulationEnabled, usesDemoPolling]);
 
   useEffect(() => {
     if (ride && isDemoRideIdClient(ride.id)) {
@@ -168,7 +209,7 @@ export default function RideDetails() {
       previewTracking.seconds > 0
   );
 
-  if (isLoading || !demoHydrated || betaPending) {
+  if (isLoading || (!usesDemoPolling && !demoHydrated) || betaPending) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -177,13 +218,23 @@ export default function RideDetails() {
   }
 
   if (isError) {
+    const expiredDemo =
+      usesDemoPolling && !demoRideQuery.hasLocalSnapshot;
     return (
       <div className="min-h-screen bg-background">
         <AppHeader title="Detalhes da Corrida" />
         <FlowErrorFallback
-          title="Não foi possível carregar a corrida"
-          error={error}
-          onRetry={() => void refetch()}
+          title={expiredDemo ? "Corrida demo expirou" : "Não foi possível carregar a corrida"}
+          error={
+            expiredDemo
+              ? new Error(
+                  "Esta corrida não está mais disponível neste navegador. Solicite uma nova corrida para continuar testando."
+                )
+              : error
+          }
+          onRetry={expiredDemo ? undefined : () => void refetch()}
+          onReset={expiredDemo ? () => setLocation("/request-ride") : undefined}
+          resetLabel="Solicitar nova corrida"
           onGoHome={() => setLocation("/")}
         />
       </div>
