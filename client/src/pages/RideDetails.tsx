@@ -274,6 +274,7 @@ export default function RideDetails() {
   const showDriverEnRoute = shouldShowDriverEnRoute(ride);
   const dispatchMeta = (ride as { dispatchMeta?: RideDispatchMeta }).dispatchMeta;
   const tripPath = (ride as { tripPath?: RoutePoint[] }).tripPath;
+  const tripPathSource = (ride as { tripPathSource?: "osrm" | "fallback" }).tripPathSource;
   const etaSecondsRemaining = (ride as { etaSecondsRemaining?: number }).etaSecondsRemaining;
   const tracking = getRideTrackingPresentation(
     ride,
@@ -317,6 +318,7 @@ export default function RideDetails() {
           ride={simRide}
           tracking={tracking}
           tripPath={tripPath}
+          tripPathSource={tripPathSource}
           showDriverOnMap={showDriverOnMap}
           showDriverEnRoute={showDriverEnRoute}
           driver={
@@ -458,6 +460,7 @@ export default function RideDetails() {
                 vehicleType={ride.vehicleType}
                 simulationPhase={simRide.simulationPhase}
                 tripPath={tripPath}
+                tripPathSource={tripPathSource}
                 driverEtaSeconds={etaSecondsRemaining ?? null}
               />
 

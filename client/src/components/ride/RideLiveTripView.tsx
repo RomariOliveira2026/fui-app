@@ -17,6 +17,7 @@ type RideLiveTripViewProps = {
   ride: Ride & { simulationPhase?: DemoSimulationPhase; etaSecondsRemaining?: number };
   tracking: RideTrackingPresentation;
   tripPath?: RoutePoint[];
+  tripPathSource?: "osrm" | "fallback" | null;
   showDriverOnMap: boolean;
   showDriverEnRoute: boolean;
   driver?: RideDriverInfo;
@@ -35,6 +36,7 @@ export default function RideLiveTripView({
   ride,
   tracking,
   tripPath,
+  tripPathSource,
   showDriverOnMap,
   showDriverEnRoute,
   driver,
@@ -66,6 +68,7 @@ export default function RideLiveTripView({
           vehicleType={ride.vehicleType}
           simulationPhase={ride.simulationPhase}
           tripPath={tripPath}
+          tripPathSource={tripPathSource}
           driverEtaSeconds={ride.etaSecondsRemaining ?? null}
           mapFitPaddingBottom={mapFitPaddingBottom}
         />

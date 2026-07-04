@@ -129,6 +129,34 @@ async function resolveEndpoint(value: string): Promise<{
   return geocodeWithOsmOrDemo({ address: value });
 }
 
+async function resolveDirectionsWithOsrm(origin: string, destination: string) {
+  const start = await resolveEndpoint(origin);
+  const end = await resolveEndpoint(destination);
+
+  if (!start || !end) {
+    return demoDirections(origin, destination);
+  }
+
+  const route = await calculateDrivingRouteWithOsrm(start, end);
+  return {
+    distance: route.distance,
+    duration: route.duration,
+    startAddress: start.formattedAddress,
+    endAddress: end.formattedAddress,
+    startLocation: route.startLocation,
+    endLocation: route.endLocation,
+    overviewPolyline: route.overviewPolyline,
+    routePath: route.routePath,
+    steps: [] as Array<{
+      distance: { text: string; value: number };
+      duration: { text: string; value: number };
+      instructions: string;
+      startLocation: { lat: number; lng: number };
+      endLocation: { lat: number; lng: number };
+    }>,
+  };
+}
+
 function nominatimToAutocompletePredictions(
   places: Awaited<ReturnType<typeof searchPlacesWithNominatim>>
 ) {
@@ -388,63 +416,49 @@ export const mapsRouter = router({
       alternatives: z.boolean().optional().default(false),
     }))
     .query(async ({ input: params }) => {
-      if (!isMapsConfigured() && !ENV.isProduction) {
-        const start = await resolveEndpoint(params.origin);
-        await sleepMs(1100);
-        const end = await resolveEndpoint(params.destination);
-
-        if (start && end) {
-          const route = await calculateDrivingRouteWithOsrm(start, end);
-          return {
-            distance: route.distance,
-            duration: route.duration,
-            startAddress: start.formattedAddress,
-            endAddress: end.formattedAddress,
-            startLocation: route.startLocation,
-            endLocation: route.endLocation,
-            overviewPolyline: route.overviewPolyline,
-            routePath: route.routePath,
-            steps: [],
-          };
-        }
-
-        return demoDirections(params.origin, params.destination);
+      if (!isMapsConfigured()) {
+        return resolveDirectionsWithOsrm(params.origin, params.destination);
       }
 
-      const result = await makeRequest<DirectionsResult>(
-        "/maps/api/directions/json",
-        {
-          origin: params.origin,
-          destination: params.destination,
-          mode: params.mode,
-          language: params.language,
-          alternatives: params.alternatives,
+      try {
+        const result = await makeRequest<DirectionsResult>(
+          "/maps/api/directions/json",
+          {
+            origin: params.origin,
+            destination: params.destination,
+            mode: params.mode,
+            language: params.language,
+            alternatives: params.alternatives,
+          }
+        );
+
+        if (result.status !== "OK" || !result.routes.length) {
+          return resolveDirectionsWithOsrm(params.origin, params.destination);
         }
-      );
 
-      if (result.status !== "OK" || !result.routes.length) {
-        return null;
+        const route = result.routes[0];
+        const leg = route.legs[0];
+
+        return {
+          distance: leg.distance,
+          duration: leg.duration,
+          startAddress: leg.start_address,
+          endAddress: leg.end_address,
+          startLocation: leg.start_location,
+          endLocation: leg.end_location,
+          overviewPolyline: route.overview_polyline.points,
+          steps: leg.steps.map(s => ({
+            distance: s.distance,
+            duration: s.duration,
+            instructions: s.html_instructions,
+            startLocation: s.start_location,
+            endLocation: s.end_location,
+          })),
+        };
+      } catch (error) {
+        console.warn("[maps] Google directions failed, falling back to OSRM:", error);
+        return resolveDirectionsWithOsrm(params.origin, params.destination);
       }
-
-      const route = result.routes[0];
-      const leg = route.legs[0];
-
-      return {
-        distance: leg.distance,
-        duration: leg.duration,
-        startAddress: leg.start_address,
-        endAddress: leg.end_address,
-        startLocation: leg.start_location,
-        endLocation: leg.end_location,
-        overviewPolyline: route.overview_polyline.points,
-        steps: leg.steps.map(s => ({
-          distance: s.distance,
-          duration: s.duration,
-          instructions: s.html_instructions,
-          startLocation: s.start_location,
-          endLocation: s.end_location,
-        })),
-      };
     }),
 
   /**

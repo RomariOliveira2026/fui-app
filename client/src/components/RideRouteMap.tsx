@@ -36,6 +36,8 @@ type RideRouteMapProps = {
   simulationPhase?: DemoSimulationPhase | null;
   /** Rota OSRM do servidor — mesma geometria usada na simulação do motorista. */
   tripPath?: MapPoint[] | null;
+  /** Indica se tripPath ainda é linha reta (aguardando OSRM). */
+  tripPathSource?: "osrm" | "fallback" | null;
   /** ETA restante (s) para animação contínua do motorista no mapa. */
   driverEtaSeconds?: number | null;
   /** Padding inferior do fitBounds quando mapa fullscreen com painel embaixo. */
@@ -56,6 +58,7 @@ export default function RideRouteMap({
   vehicleType,
   simulationPhase,
   tripPath: serverTripPath,
+  tripPathSource,
   driverEtaSeconds,
   mapFitPaddingBottom,
   className,
@@ -116,9 +119,12 @@ export default function RideRouteMap({
   const [fetchedRoutePath, setFetchedRoutePath] = useState<MapPoint[] | null>(null);
 
   const hasServerTripPath = !!serverTripPath && serverTripPath.length >= 2;
+  const serverRouteIsFallback = tripPathSource === "fallback";
+  const shouldFetchRoute =
+    !!origin && !!destination && (!hasServerTripPath || serverRouteIsFallback);
 
   useEffect(() => {
-    if (hasServerTripPath) {
+    if (!shouldFetchRoute) {
       setEncodedPolyline(null);
       setFetchedRoutePath(null);
       return;
@@ -126,14 +132,13 @@ export default function RideRouteMap({
 
     setEncodedPolyline(null);
     setFetchedRoutePath(null);
-    if (!origin || !destination) return;
 
     let active = true;
     (async () => {
       try {
         const route = await utils.maps.directions.fetch({
-          origin: `${origin.lat},${origin.lng}`,
-          destination: `${destination.lat},${destination.lng}`,
+          origin: `${origin!.lat},${origin!.lng}`,
+          destination: `${destination!.lat},${destination!.lng}`,
         });
         if (!active || !route) return;
         setEncodedPolyline(route.overviewPolyline ?? null);
@@ -149,9 +154,12 @@ export default function RideRouteMap({
     return () => {
       active = false;
     };
-  }, [origin, destination, hasServerTripPath, utils]);
+  }, [origin, destination, shouldFetchRoute, utils]);
 
-  const routePath = hasServerTripPath ? serverTripPath! : fetchedRoutePath;
+  const routePath =
+    hasServerTripPath && !serverRouteIsFallback
+      ? serverTripPath!
+      : fetchedRoutePath ?? (hasServerTripPath ? serverTripPath! : null);
   const mapDriver = showDriver ? driver : null;
 
   const tracking = getRideTrackingPresentation(rideLike, simulationPhase, null, routePath);

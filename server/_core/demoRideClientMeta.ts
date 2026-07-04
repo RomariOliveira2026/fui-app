@@ -2,7 +2,7 @@ import type { Ride } from "../../drizzle/schema";
 import type { RoutePoint } from "@shared/routeAnimation";
 import { getDemoRideDriverDetails } from "./demoDriver";
 import { attachDispatchMeta } from "./dispatchEngine";
-import { getDemoTripPath } from "./demoRoutePaths";
+import { getDemoTripPath, getDemoRouteSnapshotFields, getDemoTripPathSource, scheduleDemoRoutePathUpgrade } from "./demoRoutePaths";
 import { getOperationalEtaSeconds } from "./demoOperationalRide";
 import { attachSimulationMeta, getSimulationEtaSeconds, syncDemoRideState } from "./demoRideSimulation";
 
@@ -10,6 +10,8 @@ export type DemoRideClientPayload = Ride & {
   simulationPhase?: string;
   demoDriver?: ReturnType<typeof getDemoRideDriverDetails>;
   tripPath?: RoutePoint[];
+  tripPathSource?: "osrm" | "fallback";
+  demoRoutePolyline?: string;
   etaSecondsRemaining?: number;
 };
 
@@ -20,11 +22,21 @@ export function buildDemoRideClientPayload(ride: Ride): DemoRideClientPayload {
   const withDispatch = attachDispatchMeta(withMeta);
   const demoDriver = getDemoRideDriverDetails(synced);
   const tripPath = getDemoTripPath(synced);
+  const tripPathSource = getDemoTripPathSource(synced.id) ?? "fallback";
 
   const base = (demoDriver ? { ...withDispatch, demoDriver } : withDispatch) as DemoRideClientPayload;
 
   if (tripPath.length >= 2) {
     base.tripPath = tripPath;
+    base.tripPathSource = tripPathSource;
+    const routeFields = getDemoRouteSnapshotFields(synced.id);
+    if (routeFields.demoRoutePolyline) {
+      base.demoRoutePolyline = routeFields.demoRoutePolyline;
+    }
+  }
+
+  if (tripPathSource === "fallback") {
+    scheduleDemoRoutePathUpgrade(synced);
   }
 
   const etaSeconds =

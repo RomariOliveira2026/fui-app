@@ -39,7 +39,14 @@ export function saveDemoRides(rides: Ride[]): void {
 
 /** Remove campos grandes do payload antes de persistir no localStorage. */
 export function stripDemoRideForStorage(ride: Ride): Ride {
-  const copy = { ...ride } as Ride & Record<string, unknown>;
+  const copy = { ...ride } as Ride & {
+    tripPath?: unknown;
+    categoryQuotes?: unknown;
+    demoDriver?: unknown;
+    simulationPhase?: unknown;
+    etaSecondsRemaining?: unknown;
+    dispatchMeta?: unknown;
+  };
   delete copy.tripPath;
   delete copy.categoryQuotes;
   delete copy.demoDriver;

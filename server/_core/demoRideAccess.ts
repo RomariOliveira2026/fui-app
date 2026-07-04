@@ -3,6 +3,7 @@ import type { Ride } from "../../drizzle/schema";
 import { getDemoDriverProfileByUserId } from "./demoDriver";
 import { buildDemoRideClientPayload, type DemoRideClientPayload } from "./demoRideClientMeta";
 import { getDemoRide, hydrateDemoRides, isDemoRideId } from "./demoRide";
+import { hydrateDemoRouteFromSnapshot } from "./demoRoutePaths";
 import { processDispatchForDemoRide } from "./dispatchEngine";
 
 /** Carrega corrida demo, reidratando do snapshot do cliente se necessário (Vercel/serverless). */
@@ -18,7 +19,10 @@ export function fetchDemoRideDetailsForUser(
   let ride = getDemoRide(rideId);
   if (!ride && demoSnapshot && isDemoRideId(Number((demoSnapshot as Ride).id))) {
     hydrateDemoRides([demoSnapshot as never]);
+    hydrateDemoRouteFromSnapshot(demoSnapshot as Ride & { demoRoutePolyline?: string; tripPathSource?: "osrm" | "fallback" });
     ride = getDemoRide(rideId);
+  } else if (ride && demoSnapshot) {
+    hydrateDemoRouteFromSnapshot(demoSnapshot as Ride & { demoRoutePolyline?: string; tripPathSource?: "osrm" | "fallback" });
   }
   if (!ride) {
     throw new TRPCError({ code: "NOT_FOUND", message: "Ride not found" });

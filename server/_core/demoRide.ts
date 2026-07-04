@@ -1,5 +1,6 @@
 import type { InsertRide, Ride } from "../../drizzle/schema";
 import { DEMO_PASSENGER_OPEN_ID } from "@shared/const";
+import { hydrateDemoRouteFromSnapshot } from "./demoRoutePaths";
 
 /** IDs de corridas demo em memória (não colidem com auto-increment do MySQL). */
 const DEMO_RIDE_ID_START = 900_001;
@@ -126,6 +127,9 @@ export function hydrateDemoRides(rides: Ride[]): void {
       continue;
     }
     demoRides.set(ride.id, ride);
+    hydrateDemoRouteFromSnapshot(
+      ride as Ride & { demoRoutePolyline?: string; tripPathSource?: "osrm" | "fallback" }
+    );
     if (ride.id >= nextDemoRideId) {
       nextDemoRideId = ride.id + 1;
     }

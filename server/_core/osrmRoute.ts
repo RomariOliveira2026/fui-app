@@ -1,7 +1,10 @@
 import { encodeDemoPolyline, haversineMeters } from "@shared/demoMaps";
 
 const OSRM_BASE = "https://router.project-osrm.org";
-const TIMEOUT_MS = 12_000;
+const DEFAULT_TIMEOUT_MS = 12_000;
+const LONG_ROUTE_TIMEOUT_MS = 25_000;
+/** Acima disso usa overview=simplified (menor payload, mais rápido na Vercel). */
+const LONG_ROUTE_STRAIGHT_M = 40_000;
 const HAVERSINE_ROAD_FACTOR = 1.25;
 const AVG_SPEED_KMH = 45;
 
@@ -32,6 +35,17 @@ function formatDuration(seconds: number): string {
     return mins > 0 ? `${hours} h ${mins} min` : `${hours} h`;
   }
   return `${totalMinutes} min`;
+}
+
+function resolveOsrmTimeoutMs(origin: RoutePoint, destination: RoutePoint): number {
+  const straightM = haversineMeters(origin, destination);
+  if (straightM >= LONG_ROUTE_STRAIGHT_M) return LONG_ROUTE_TIMEOUT_MS;
+  return DEFAULT_TIMEOUT_MS;
+}
+
+function resolveOsrmOverview(origin: RoutePoint, destination: RoutePoint): "full" | "simplified" {
+  const straightM = haversineMeters(origin, destination);
+  return straightM >= LONG_ROUTE_STRAIGHT_M ? "simplified" : "full";
 }
 
 function haversineRoute(origin: RoutePoint, destination: RoutePoint): OsrmRouteResult {
@@ -81,6 +95,16 @@ function haversineMultiRoute(points: RoutePoint[]): OsrmRouteResult {
   };
 }
 
+async function fetchOsrmRoute(url: string, timeoutMs: number): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /** Rota com múltiplos waypoints (origem → paradas → destino). */
 export async function calculateDrivingRouteWithWaypoints(
   waypoints: RoutePoint[]
@@ -93,15 +117,14 @@ export async function calculateDrivingRouteWithWaypoints(
   }
 
   const coordStr = waypoints.map((p) => `${p.lng},${p.lat}`).join(";");
+  const overview = resolveOsrmOverview(waypoints[0]!, waypoints[waypoints.length - 1]!);
   const url =
     `${OSRM_BASE}/route/v1/driving/${coordStr}` +
-    "?overview=full&geometries=geojson&steps=false";
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+    `?overview=${overview}&geometries=geojson&steps=false`;
+  const timeoutMs = resolveOsrmTimeoutMs(waypoints[0]!, waypoints[waypoints.length - 1]!);
 
   try {
-    const response = await fetch(url, { signal: controller.signal });
+    const response = await fetchOsrmRoute(url, timeoutMs);
     if (!response.ok) {
       console.warn("[osrm] multi-waypoint HTTP error:", response.status);
       return haversineMultiRoute(waypoints);
@@ -139,8 +162,6 @@ export async function calculateDrivingRouteWithWaypoints(
   } catch (error) {
     console.warn("[osrm] multi-waypoint route failed:", error);
     return haversineMultiRoute(waypoints);
-  } finally {
-    clearTimeout(timer);
   }
 }
 
@@ -149,16 +170,15 @@ export async function calculateDrivingRouteWithOsrm(
   origin: RoutePoint,
   destination: RoutePoint
 ): Promise<OsrmRouteResult> {
+  const overview = resolveOsrmOverview(origin, destination);
+  const timeoutMs = resolveOsrmTimeoutMs(origin, destination);
   const url =
     `${OSRM_BASE}/route/v1/driving/` +
     `${origin.lng},${origin.lat};${destination.lng},${destination.lat}` +
-    "?overview=full&geometries=geojson&steps=false";
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+    `?overview=${overview}&geometries=geojson&steps=false`;
 
   try {
-    const response = await fetch(url, { signal: controller.signal });
+    const response = await fetchOsrmRoute(url, timeoutMs);
     if (!response.ok) {
       console.warn("[osrm] HTTP error:", response.status);
       return haversineRoute(origin, destination);
@@ -196,7 +216,5 @@ export async function calculateDrivingRouteWithOsrm(
   } catch (error) {
     console.warn("[osrm] route failed:", error);
     return haversineRoute(origin, destination);
-  } finally {
-    clearTimeout(timer);
   }
 }

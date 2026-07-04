@@ -7,11 +7,14 @@ vi.mock("./osrmRoute", () => ({
 }));
 
 import { calculateDrivingRouteWithOsrm } from "./osrmRoute";
+import { encodeDemoPolyline } from "@shared/demoMaps";
 import {
   clearDemoRoutePath,
   ensureDemoRoutePath,
+  getDemoRouteSnapshotFields,
   getDemoTripPath,
   getDemoTripPathSource,
+  hydrateDemoRouteFromSnapshot,
 } from "./_core/demoRoutePaths";
 
 const mockOsrm = calculateDrivingRouteWithOsrm as ReturnType<typeof vi.fn>;
@@ -86,5 +89,25 @@ describe("demoRoutePaths", () => {
     const cached = getDemoTripPath(ride);
     expect(cached.length).toBeGreaterThan(2);
     expect(getDemoTripPathSource(ride.id)).toBe("osrm");
+  });
+
+  it("reidrata rota OSRM do snapshot (Vercel/serverless)", () => {
+    const ride = sampleRide();
+    const osrmPath = [
+      { lat: -10.685, lng: -37.425 },
+      { lat: -10.686, lng: -37.424 },
+      { lat: -10.688, lng: -37.422 },
+    ];
+    const polyline = encodeDemoPolyline(osrmPath);
+
+    hydrateDemoRouteFromSnapshot({
+      ...ride,
+      demoRoutePolyline: polyline,
+      tripPathSource: "osrm",
+    });
+
+    expect(getDemoTripPathSource(ride.id)).toBe("osrm");
+    expect(getDemoTripPath(ride).length).toBeGreaterThan(2);
+    expect(getDemoRouteSnapshotFields(ride.id).demoRoutePolyline).toBe(polyline);
   });
 });
