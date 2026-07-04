@@ -93,7 +93,7 @@ export function useEnsureDemoRideHydrated(rideId: number) {
       setReady(true);
       return;
     }
-    if (betaPending) {
+    if (betaPending && !getDemoRideSnapshot(rideId)) {
       setReady(false);
       return;
     }

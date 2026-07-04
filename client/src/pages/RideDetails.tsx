@@ -61,10 +61,9 @@ export default function RideDetails() {
   const [showRatingModal, setShowRatingModal] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   useDemoRideHydration();
-  const usesDemoPolling = isDemoAppClient() && isDemoRideIdClient(rideId);
-  const { ready: demoHydrated, betaPending } = useEnsureDemoRideHydrated(
-    usesDemoPolling ? 0 : rideId
-  );
+  const isDemoRideRoute = isDemoRideIdClient(rideId);
+  const usesDemoPolling = isDemoRideRoute;
+  const { ready: demoHydrated, betaPending } = useEnsureDemoRideHydrated(rideId);
 
   const [demoPollMs, setDemoPollMs] = useState<number | false>(1500);
   const demoRideQuery = useDemoRideDetails(rideId, {
@@ -209,7 +208,11 @@ export default function RideDetails() {
       previewTracking.seconds > 0
   );
 
-  if (isLoading || (!usesDemoPolling && !demoHydrated) || betaPending) {
+  if (
+    (usesDemoPolling ? demoRideQuery.isLoading : isLoading) ||
+    (!usesDemoPolling && !demoHydrated) ||
+    (betaPending && isDemoRideRoute && !demoRideQuery.data)
+  ) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />

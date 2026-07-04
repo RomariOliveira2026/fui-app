@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { trpc } from "@/lib/trpc";
-import { isDemoAppClient } from "@/lib/demoMode";
 import { getDemoRideSnapshot } from "@/lib/demoRideStorage";
 import {
   isDemoRideIdClient,
@@ -13,6 +12,11 @@ type UseDemoRideDetailsOptions = {
   refetchInterval?: number | false;
 };
 
+function readSnapshotPayload(rideId: number): DemoRideClientPayload | null {
+  const snapshot = getDemoRideSnapshot(rideId);
+  return snapshot ? (snapshot as DemoRideClientPayload) : null;
+}
+
 /**
  * Corridas demo na Vercel: GET getById pode cair em outra instância serverless sem memória.
  * Este hook envia o snapshot via POST a cada poll — padrão confiável para demo serverless.
@@ -22,16 +26,20 @@ export function useDemoRideDetails(
   options: UseDemoRideDetailsOptions = {}
 ) {
   const { enabled = true, refetchInterval = false } = options;
-  const useDemoFetch = isDemoAppClient() && isDemoRideIdClient(rideId) && enabled;
+  const useDemoFetch = isDemoRideIdClient(rideId) && enabled;
 
-  const [data, setData] = useState<DemoRideClientPayload | null>(null);
+  const [data, setData] = useState<DemoRideClientPayload | null>(() =>
+    useDemoFetch ? readSnapshotPayload(rideId) : null
+  );
   const [error, setError] = useState<unknown>(null);
-  const [isLoading, setIsLoading] = useState(useDemoFetch);
+  const [isLoading, setIsLoading] = useState(
+    () => useDemoFetch && !readSnapshotPayload(rideId)
+  );
   const [hasLocalSnapshot, setHasLocalSnapshot] = useState(
     () => !!getDemoRideSnapshot(rideId)
   );
 
-  const fetchMutation = trpc.ride.fetchDemoRideDetails.useMutation();
+  const utils = trpc.useUtils();
   const inFlightRef = useRef(false);
 
   const refetch = useCallback(async () => {
@@ -42,7 +50,7 @@ export function useDemoRideDetails(
     setHasLocalSnapshot(!!snapshot);
 
     try {
-      const result = await fetchMutation.mutateAsync({
+      const result = await utils.client.ride.fetchDemoRideDetails.mutate({
         rideId,
         demoSnapshot: snapshot ?? undefined,
       });
@@ -55,30 +63,40 @@ export function useDemoRideDetails(
       inFlightRef.current = false;
       setIsLoading(false);
     }
-  }, [fetchMutation, rideId, useDemoFetch]);
+  }, [rideId, useDemoFetch, utils.client.ride.fetchDemoRideDetails]);
+
+  const refetchRef = useRef(refetch);
+  refetchRef.current = refetch;
 
   useEffect(() => {
     if (!useDemoFetch) {
       setIsLoading(false);
       return;
     }
-    setIsLoading(true);
-    void refetch();
-  }, [refetch, useDemoFetch]);
+
+    const snapshot = readSnapshotPayload(rideId);
+    if (snapshot) {
+      setData((prev) => prev ?? snapshot);
+      setHasLocalSnapshot(true);
+      setIsLoading(false);
+    }
+
+    void refetchRef.current();
+  }, [rideId, useDemoFetch]);
 
   useEffect(() => {
     if (!useDemoFetch || !refetchInterval || refetchInterval <= 0) return;
     const timer = window.setInterval(() => {
-      void refetch();
+      void refetchRef.current();
     }, refetchInterval);
     return () => window.clearInterval(timer);
-  }, [refetch, refetchInterval, useDemoFetch]);
+  }, [refetchInterval, useDemoFetch]);
 
   return {
     data: useDemoFetch ? data : undefined,
     error: useDemoFetch ? error : undefined,
-    isLoading: useDemoFetch ? isLoading : false,
-    isError: useDemoFetch ? error != null : false,
+    isLoading: useDemoFetch ? isLoading && !data : false,
+    isError: useDemoFetch ? error != null && !data : false,
     refetch,
     hasLocalSnapshot,
     usesDemoFetch: useDemoFetch,
