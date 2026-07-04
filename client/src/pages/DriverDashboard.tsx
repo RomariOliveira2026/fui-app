@@ -46,6 +46,7 @@ import {
 } from "@/lib/useDemoRideHydration";
 import { persistDemoOffersFromServer } from "@/lib/demoOfferStorage";
 import { fuiBrand, fuiRoute, rideStatusLabels } from "@/lib/fuiTheme";
+import { cn } from "@/lib/utils";
 import { StatusBadge } from "@/components/fui/StatusBadge";
 import StatusPanel from "@/components/fui/StatusPanel";
 import ExternalNavigationButtons from "@/components/fui/ExternalNavigationButtons";
@@ -59,7 +60,13 @@ import UtilityProviderPanel from "@/components/utilities/provider/UtilityProvide
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Truck } from "lucide-react";
 import DriverRideOfferOverlay from "@/components/driver/DriverRideOfferOverlay";
-import DriverActiveRideMap from "@/components/driver/DriverActiveRideMap";
+import DriverLiveRideView from "@/components/driver/DriverLiveRideView";
+import { useRideOfferForeground } from "@/hooks/useRideOfferForeground";
+import {
+  clearOfferRideFromUrl,
+  parseOfferRideFromUrl,
+  type RideOfferEventDetail,
+} from "@/lib/rideOfferEvents";
 import {
   persistDemoDriverPremiumPrefs,
   useDemoDriverPremiumHydration,
@@ -85,6 +92,9 @@ export default function DriverDashboard() {
   const [immediateSelectedVehicleId, setImmediateSelectedVehicleId] = useState<string>("");
   const [driverView, setDriverView] = useState<"rides" | "utilities">("rides");
   const [overlayOffer, setOverlayOffer] = useState<any | null>(null);
+  const [priorityOfferRideId, setPriorityOfferRideId] = useState<number | null>(() =>
+    parseOfferRideFromUrl()
+  );
   const dismissedOfferIdsRef = useRef<Set<number>>(new Set());
 
   const { data: driverProfile, isLoading: profileLoading } = trpc.driver.getMyProfile.useQuery(undefined, {
@@ -229,7 +239,7 @@ export default function DriverDashboard() {
 
   const { data: availableRides, isLoading: ridesLoading } = trpc.ride.available.useQuery(undefined, {
     enabled: !!driverProfile && !!driverProfile.isAvailable,
-    refetchInterval: 5000,
+    refetchInterval: overlayOffer || priorityOfferRideId ? 2000 : 5000,
   });
 
   const openAvailableRides = (availableRides ?? []).filter(
@@ -241,6 +251,17 @@ export default function DriverDashboard() {
       ride.driverId === driverProfile?.id &&
       (ride.status === "accepted" || ride.status === "in_progress")
   );
+
+  useRideOfferForeground({
+    enabled: !!driverProfile?.isAvailable && myActiveRides.length === 0,
+    playAlert: playAlertSound,
+    onRideOffer: (detail: RideOfferEventDetail) => {
+      if (detail.rideId) {
+        setPriorityOfferRideId(detail.rideId);
+        clearOfferRideFromUrl();
+      }
+    },
+  });
 
   useEffect(() => {
     if (!isLocalDemoDev() || !driverProfile?.isAvailable) return;
@@ -268,9 +289,18 @@ export default function DriverDashboard() {
       setOverlayOffer(null);
       return;
     }
-    const next = openAvailableRides.find((ride) => !dismissedOfferIdsRef.current.has(ride.id));
+    const prioritized =
+      priorityOfferRideId != null
+        ? openAvailableRides.find((ride) => ride.id === priorityOfferRideId)
+        : undefined;
+    const next =
+      prioritized ??
+      openAvailableRides.find((ride) => !dismissedOfferIdsRef.current.has(ride.id));
     setOverlayOffer(next ?? null);
-  }, [openAvailableRides, myActiveRides.length]);
+    if (prioritized) {
+      clearOfferRideFromUrl();
+    }
+  }, [openAvailableRides, myActiveRides.length, priorityOfferRideId]);
 
   // Scheduled rides pending for this driver
   const { data: pendingScheduled, isLoading: scheduledLoading } =
@@ -496,8 +526,15 @@ export default function DriverDashboard() {
 
   const handleImmediateDecline = (ride: { id: number }) => {
     dismissedOfferIdsRef.current.add(ride.id);
+    setPriorityOfferRideId((current) => (current === ride.id ? null : current));
     setOverlayOffer(null);
     declineOffer.mutate({ rideId: ride.id });
+  };
+
+  const handleOfferExpired = (ride: { id: number }) => {
+    dismissedOfferIdsRef.current.add(ride.id);
+    setPriorityOfferRideId((current) => (current === ride.id ? null : current));
+    void utils.ride.available.invalidate();
   };
 
   const handleAcceptClick = (ride: any) => {
@@ -622,6 +659,69 @@ export default function DriverDashboard() {
       )
     : [];
 
+  const activeRide = myActiveRides[0];
+
+  if (activeRide) {
+    const navTarget = getDriverNavigationTarget(activeRide);
+    return (
+      <>
+        <DriverLiveRideView
+          ride={activeRide}
+          navigationTarget={navTarget}
+          onBack={() => setLocation("/")}
+        >
+          <div className="pointer-events-auto grid grid-cols-2 gap-3">
+            <Button
+              variant="outline"
+              className="h-12"
+              onClick={() => setLocation(`/ride/${activeRide.id}`)}
+            >
+              Ver detalhes
+            </Button>
+            {activeRide.status === "accepted" ? (
+              <Button
+                className={cn("h-12 font-bold", fuiBrand.btn)}
+                disabled={startRide.isPending}
+                onClick={() => startRide.mutate({ rideId: activeRide.id })}
+              >
+                {startRide.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : null}
+                Iniciar corrida
+              </Button>
+            ) : (
+              <Button
+                className="h-12 border-emerald-500/40 text-emerald-400"
+                variant="outline"
+                disabled={completeRide.isPending}
+                onClick={() =>
+                  completeRide.mutate({
+                    rideId: activeRide.id,
+                    finalPrice: activeRide.estimatedPrice ?? 0,
+                  })
+                }
+              >
+                {completeRide.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : (
+                  <CheckCircle2 className="h-4 w-4 mr-2" />
+                )}
+                Concluir
+              </Button>
+            )}
+          </div>
+        </DriverLiveRideView>
+
+        <DriverRideOfferOverlay
+          ride={null}
+          onAccept={handleImmediateAcceptClick}
+          onDecline={handleImmediateDecline}
+          accepting={acceptImmediateRide.isPending}
+        />
+      </>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       <AppHeader title="Painel do Motorista" />
@@ -713,111 +813,6 @@ export default function DriverDashboard() {
         />
 
         <DriverStatementList items={statement} isLoading={statementLoading} />
-
-        {/* Active Rides (driver) */}
-        {myActiveRides.length > 0 && (
-          <Card className="mb-6 border-primary/20">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Car className="h-5 w-5 text-primary" />
-                Corrida Ativa
-              </CardTitle>
-              <CardDescription>Gerencie a corrida em andamento e abra a navegação externa</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {myActiveRides.map((ride) => {
-                const navTarget = getDriverNavigationTarget(ride);
-                const statusLabel = rideStatusLabels[ride.status] ?? ride.status;
-
-                return (
-                  <Card key={ride.id} className="fui-ride-card">
-                    <CardContent className="pt-5 pb-4 space-y-4">
-                      <div className="flex items-center justify-between gap-2 flex-wrap">
-                        <StatusBadge variant={ride.status === "in_progress" ? "success" : "info"}>
-                          {statusLabel}
-                        </StatusBadge>
-                        <span className={`text-lg font-bold ${fuiBrand.text}`}>
-                          R$ {((ride.estimatedPrice || 0) / 100).toFixed(2)}
-                        </span>
-                      </div>
-
-                      <div className="space-y-2">
-                        <div className="flex items-start gap-2">
-                          <MapPin className={`h-4 w-4 mt-0.5 ${fuiRoute.originIcon}`} />
-                          <p className="text-sm">{ride.originAddress}</p>
-                        </div>
-                        <div className="flex items-start gap-2">
-                          <Navigation className={`h-4 w-4 mt-0.5 ${fuiRoute.destinationIcon}`} />
-                          <p className="text-sm">{ride.destinationAddress}</p>
-                        </div>
-                      </div>
-
-                      <DriverActiveRideMap
-                        origin={
-                          ride.originLat && ride.originLng
-                            ? { lat: Number(ride.originLat), lng: Number(ride.originLng) }
-                            : null
-                        }
-                        destination={
-                          ride.destinationLat && ride.destinationLng
-                            ? { lat: Number(ride.destinationLat), lng: Number(ride.destinationLng) }
-                            : null
-                        }
-                        vehicleType={ride.vehicleType}
-                      />
-
-                      <ExternalNavigationButtons target={navTarget} />
-
-                      <div className="flex flex-wrap gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setLocation(`/ride/${ride.id}`)}
-                        >
-                          Ver detalhes
-                        </Button>
-                        {ride.status === "accepted" && (
-                          <Button
-                            size="sm"
-                            className={fuiBrand.btn}
-                            disabled={startRide.isPending}
-                            onClick={() => startRide.mutate({ rideId: ride.id })}
-                          >
-                            {startRide.isPending ? (
-                              <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                            ) : null}
-                            Iniciar corrida
-                          </Button>
-                        )}
-                        {(ride.status === "in_progress" || ride.status === "accepted") && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="border-emerald-500/40 text-emerald-400"
-                            disabled={completeRide.isPending}
-                            onClick={() =>
-                              completeRide.mutate({
-                                rideId: ride.id,
-                                finalPrice: ride.estimatedPrice ?? 0,
-                              })
-                            }
-                          >
-                            {completeRide.isPending ? (
-                              <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                            ) : (
-                              <CheckCircle2 className="h-4 w-4 mr-2" />
-                            )}
-                            Concluir
-                          </Button>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </CardContent>
-          </Card>
-        )}
 
         {stats ? (
           <div className="grid grid-cols-2 gap-3 mb-6 max-w-md">
@@ -1361,6 +1356,7 @@ export default function DriverDashboard() {
         ride={overlayOffer}
         onAccept={handleImmediateAcceptClick}
         onDecline={handleImmediateDecline}
+        onExpired={handleOfferExpired}
         accepting={acceptImmediateRide.isPending}
       />
     </div>

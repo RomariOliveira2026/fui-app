@@ -74,13 +74,13 @@ export async function requestNotificationPermission(): Promise<string | null> {
 /**
  * Listen for foreground messages
  */
-export function onForegroundMessage(callback: (payload: any) => void) {
+export function onForegroundMessage(callback: (payload: any) => void): (() => void) | void {
   if (!messaging) {
     console.error("Firebase Messaging not initialized");
     return;
   }
 
-  onMessage(messaging, (payload) => {
+  return onMessage(messaging, (payload) => {
     console.log("Foreground message received:", payload);
     callback(payload);
   });

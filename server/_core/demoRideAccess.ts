@@ -5,6 +5,8 @@ import { buildDemoRideClientPayload, type DemoRideClientPayload } from "./demoRi
 import { getDemoRide, hydrateDemoRides, isDemoRideId } from "./demoRide";
 import { hydrateDemoRouteFromSnapshot } from "./demoRoutePaths";
 import { processDispatchForDemoRide } from "./dispatchEngine";
+import { restoreOperationalStateFromRide } from "./demoOperationalRide";
+import { restoreSimulationStateFromRide } from "./demoRideSimulation";
 
 /** Carrega corrida demo, reidratando do snapshot do cliente se necessário (Vercel/serverless). */
 export function fetchDemoRideDetailsForUser(
@@ -26,6 +28,11 @@ export function fetchDemoRideDetailsForUser(
   }
   if (!ride) {
     throw new TRPCError({ code: "NOT_FOUND", message: "Ride not found" });
+  }
+
+  if (ride.status === "accepted" || ride.status === "in_progress") {
+    restoreOperationalStateFromRide(ride);
+    restoreSimulationStateFromRide(ride);
   }
 
   const driverProfile = getDemoDriverProfileByUserId(userId);

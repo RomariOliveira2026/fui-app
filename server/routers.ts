@@ -15,8 +15,7 @@ import { utilityChatRouter } from "./routers/utilityChat";
 import { driverPremiumRouter } from "./routers/driverPremium";
 import { adminFinanceRouter } from "./routers/adminFinance";
 import { driverRegistrationRouter } from "./routers/driverRegistration";
-import { notifyDriversAboutRideOffer } from "./_core/driverOfferNotifications";
-import { getDispatcherOfferTimeoutMs } from "@shared/rideDispatcher";
+import { notifyRideOfferDispatch } from "./_core/dispatchNotifications";
 import { recordCancellationAudit } from "./_core/demoAdminFinance";
 import { applyFinanceMinimumPrice } from "./_core/platformFinance";
 import { recordRideLedgerEntry } from "./_core/financialLedger";
@@ -663,15 +662,7 @@ export const appRouter = router({
                 `[Dispatcher] ${dispatch.offersCreated} oferta(s) rodada ${dispatch.offerRound} para corrida demo #${ride.id} (${dispatch.eligibleCount} elegíveis)`
               );
               try {
-                await notifyDriversAboutRideOffer({
-                  rideId: ride.id,
-                  driverIds: dispatch.offeredDriverIds,
-                  vehicleType: input.vehicleType,
-                  originAddress: input.originAddress,
-                  destinationAddress: input.destinationAddress,
-                  estimatedPriceCents: finalEstimatedPrice,
-                  expiresAt: new Date(Date.now() + getDispatcherOfferTimeoutMs()),
-                });
+                await notifyRideOfferDispatch(ride.id, dispatch);
               } catch (error) {
                 console.warn("[Push] Falha ao notificar motoristas com oferta demo:", error);
               }
@@ -726,15 +717,7 @@ export const appRouter = router({
               input.originLng
             );
             if (dispatch.offeredDriverIds.length > 0) {
-              await notifyDriversAboutRideOffer({
-                rideId,
-                driverIds: dispatch.offeredDriverIds,
-                vehicleType: input.vehicleType,
-                originAddress: input.originAddress,
-                destinationAddress: input.destinationAddress,
-                estimatedPriceCents: finalEstimatedPrice,
-                expiresAt: new Date(Date.now() + getDispatcherOfferTimeoutMs()),
-              });
+              await notifyRideOfferDispatch(rideId, dispatch);
             }
           } catch (error) {
             console.error("[Dispatcher] Falha ao criar ofertas de produção:", error);

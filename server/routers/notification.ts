@@ -21,23 +21,35 @@ async function createNotificationWithPush(
   }
 ) {
   // Create in-app notification
-  await db.insert(notifications).values({
-    userId,
-    type: data.type,
-    title: data.title,
-    message: data.message,
-    actionUrl: data.actionUrl,
-    actionLabel: data.actionLabel,
-    metadata: data.metadata,
-  });
+  if (db) {
+    await db.insert(notifications).values({
+      userId,
+      type: data.type,
+      title: data.title,
+      message: data.message,
+      actionUrl: data.actionUrl,
+      actionLabel: data.actionLabel,
+      metadata: data.metadata,
+    });
+  }
 
   // Send push notification (non-blocking)
   try {
     const { notifyUser } = await import("../_core/fcm");
+    const metadata = data.metadata as
+      | { rideId?: number; event?: string; expiresAt?: string; offerRound?: number }
+      | undefined;
+    const fcmData: Record<string, string> = {};
+    if (data.actionUrl) fcmData.url = data.actionUrl;
+    if (metadata?.event) fcmData.event = metadata.event;
+    if (metadata?.rideId != null) fcmData.rideId = String(metadata.rideId);
+    if (metadata?.expiresAt) fcmData.expiresAt = metadata.expiresAt;
+    if (metadata?.offerRound != null) fcmData.offerRound = String(metadata.offerRound);
+
     await notifyUser(userId, {
       title: data.title,
       body: data.message,
-      data: data.actionUrl ? { url: data.actionUrl } : undefined,
+      data: Object.keys(fcmData).length > 0 ? fcmData : undefined,
     });
   } catch (e) {
     console.log(`[Notification] Push failed for user ${userId}:`, e);

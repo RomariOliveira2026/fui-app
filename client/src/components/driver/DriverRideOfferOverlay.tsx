@@ -28,6 +28,7 @@ type DriverRideOfferOverlayProps = {
   ride: DriverOfferRide | null;
   onAccept: (ride: DriverOfferRide) => void;
   onDecline: (ride: DriverOfferRide) => void;
+  onExpired?: (ride: DriverOfferRide) => void;
   accepting?: boolean;
 };
 
@@ -42,25 +43,33 @@ export default function DriverRideOfferOverlay({
   ride,
   onAccept,
   onDecline,
+  onExpired,
   accepting,
 }: DriverRideOfferOverlayProps) {
   const [remainingMs, setRemainingMs] = useState(0);
+  const [expired, setExpired] = useState(false);
 
   useEffect(() => {
     if (!ride?.offerExpiresAt) {
       setRemainingMs(45_000);
+      setExpired(false);
       return;
     }
 
     const tick = () => {
       const expires = new Date(ride.offerExpiresAt!).getTime();
-      setRemainingMs(Math.max(0, expires - Date.now()));
+      const next = Math.max(0, expires - Date.now());
+      setRemainingMs(next);
+      if (next <= 0 && !expired) {
+        setExpired(true);
+        onExpired?.(ride);
+      }
     };
 
     tick();
     const id = window.setInterval(tick, 250);
     return () => window.clearInterval(id);
-  }, [ride?.id, ride?.offerExpiresAt]);
+  }, [ride?.id, ride?.offerExpiresAt, expired, onExpired, ride]);
 
   if (!ride) return null;
 
@@ -115,17 +124,26 @@ export default function DriverRideOfferOverlay({
             <div
               className={cn(
                 "flex items-center justify-center gap-2 rounded-xl border px-4 py-3",
-                urgent ? "border-red-500/40 bg-red-500/10" : "border-primary/30 bg-primary/5"
+                expired
+                  ? "border-border bg-muted/40"
+                  : urgent
+                    ? "border-red-500/40 bg-red-500/10"
+                    : "border-primary/30 bg-primary/5"
               )}
             >
-              <Clock className={cn("h-5 w-5", urgent ? "text-red-400" : "text-primary")} />
+              <Clock
+                className={cn(
+                  "h-5 w-5",
+                  expired ? "text-muted-foreground" : urgent ? "text-red-400" : "text-primary"
+                )}
+              />
               <span
                 className={cn(
                   "text-3xl font-bold tabular-nums tracking-tight",
-                  urgent ? "text-red-400" : "text-primary"
+                  expired ? "text-muted-foreground" : urgent ? "text-red-400" : "text-primary"
                 )}
               >
-                {formatCountdown(remainingMs)}
+                {expired ? "Expirada" : formatCountdown(remainingMs)}
               </span>
             </div>
 
@@ -163,7 +181,7 @@ export default function DriverRideOfferOverlay({
               <Button
                 className={cn("h-12 font-bold", fuiBrand.btn)}
                 onClick={() => onAccept(ride)}
-                disabled={accepting || remainingMs <= 0}
+                disabled={accepting || remainingMs <= 0 || expired}
               >
                 {accepting ? "Aceitando…" : "Aceitar corrida"}
               </Button>

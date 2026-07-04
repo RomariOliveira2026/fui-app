@@ -11,6 +11,7 @@ import {
   getNotificationPermission,
   onForegroundMessage,
 } from "@/lib/firebase-config";
+import { emitRideOfferEvent, parseRideOfferPayload } from "@/lib/rideOfferEvents";
 
 export default function PushNotificationSetup() {
   const { canUsePrivateUserApi } = useAuth();
@@ -47,14 +48,23 @@ export default function PushNotificationSetup() {
     if (getNotificationPermission() === "granted") {
       onForegroundMessage((payload) => {
         console.log("Foreground message:", payload);
-        
-        // Show toast notification
+        const data = payload.data as Record<string, string | undefined> | undefined;
+        const offer = parseRideOfferPayload(data);
+        if (offer) {
+          emitRideOfferEvent(offer);
+          return;
+        }
+
         toast(payload.notification?.title || "Nova notificação", {
           description: payload.notification?.body,
-          action: payload.data?.url ? {
-            label: "Ver",
-            onClick: () => window.location.href = payload.data.url,
-          } : undefined,
+          action: data?.url
+            ? {
+                label: "Ver",
+                onClick: () => {
+                  window.location.href = data.url!;
+                },
+              }
+            : undefined,
         });
       });
     }

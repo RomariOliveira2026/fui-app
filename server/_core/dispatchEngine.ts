@@ -13,6 +13,7 @@ import {
 import { getDemoRide, getDemoRequestedRides } from "./demoRide";
 import { dispatchDemoRideOffers, dispatchProductionRideOffers } from "./rideDispatcher";
 import { isDemoRideId } from "./demoRide";
+import { notifyRideOfferDispatch } from "./dispatchNotifications";
 import * as db from "../db";
 
 export function buildDemoDispatchMeta(rideId: number): RideDispatchMeta {
@@ -88,6 +89,7 @@ export function processDispatchForDemoRide(rideId: number): boolean {
       `[Dispatcher] Auto-redispatch corrida demo #${rideId} · rodada ${result.offerRound}` +
         `${result.expandedPool ? " (ampliada)" : ""} · ${result.offersCreated} oferta(s)`
     );
+    void notifyRideOfferDispatch(rideId, result);
     return true;
   }
 
@@ -122,6 +124,10 @@ export async function processDispatchForProductionRide(rideId: number): Promise<
     ride.originLng,
     { offerRound, expandPool }
   );
+
+  if (result.offersCreated > 0) {
+    await notifyRideOfferDispatch(rideId, result);
+  }
 
   return result.offersCreated > 0;
 }

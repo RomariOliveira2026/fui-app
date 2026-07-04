@@ -78,6 +78,27 @@ function nextBearingWithHysteresis(prev: number | null, next: number): number {
   return next;
 }
 
+function buildRouteGeometryFingerprint(
+  origin: RequestRideMapPoint | null | undefined,
+  destination: RequestRideMapPoint | null | undefined,
+  routePath?: Array<{ lat: number; lng: number }> | null,
+  encodedPolyline?: string | null
+): string {
+  const path = routePath && routePath.length >= 2 ? routePath : null;
+  const pathKey = path
+    ? `${path.length}:${path[0]!.lat.toFixed(5)},${path[0]!.lng.toFixed(5)}:${path[path.length - 1]!.lat.toFixed(5)},${path[path.length - 1]!.lng.toFixed(5)}`
+    : "";
+  return [
+    origin?.lat.toFixed(6) ?? "",
+    origin?.lng.toFixed(6) ?? "",
+    destination?.lat.toFixed(6) ?? "",
+    destination?.lng.toFixed(6) ?? "",
+    pathKey,
+    encodedPolyline?.length ?? 0,
+    encodedPolyline?.slice(0, 48) ?? "",
+  ].join("|");
+}
+
 function buildRouteGeometry(
   origin: RequestRideMapPoint,
   destination: RequestRideMapPoint,
@@ -164,10 +185,18 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
   const etaAnchorRef = useRef({ at: Date.now(), seconds: 0 });
   const trackingPhaseRef = useRef(trackingPhase);
   const mapFitPaddingBottomRef = useRef(mapFitPaddingBottom);
+  const driverRef = useRef(driver);
+  const routeGeometryFingerprintRef = useRef("");
+  const syncDriverLayerRef = useRef<(() => void) | null>(null);
+  const ensureDriverAnimationRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     trackingPhaseRef.current = trackingPhase;
   }, [trackingPhase]);
+
+  useEffect(() => {
+    driverRef.current = driver;
+  }, [driver]);
 
   useEffect(() => {
     mapFitPaddingBottomRef.current = mapFitPaddingBottom;
@@ -247,7 +276,7 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
 
   const getBoundsPoints = useCallback((): [number, number][] => {
     const points: [number, number][] = [];
-    const displayDriver = driverDisplayRef.current ?? driver;
+    const displayDriver = driverDisplayRef.current ?? driverRef.current;
     const phase = trackingPhaseRef.current ?? "searching";
 
     if (
@@ -279,7 +308,7 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
     }
 
     return points;
-  }, [origin, destination, driver]);
+  }, [origin, destination]);
 
   const fitVisibleBounds = useCallback(
     (animate = false) => {
@@ -309,6 +338,18 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
   const syncStaticLayers = useCallback(() => {
     const map = mapRef.current;
     if (!map) return;
+
+    const fingerprint = buildRouteGeometryFingerprint(
+      origin,
+      destination,
+      routePath,
+      encodedPolyline
+    );
+    const hasExistingRoute = !!layersRef.current.route;
+    if (fingerprint === routeGeometryFingerprintRef.current && hasExistingRoute) {
+      return;
+    }
+    routeGeometryFingerprintRef.current = fingerprint;
 
     const layers = layersRef.current;
     if (layers.origin) map.removeLayer(layers.origin);
@@ -352,6 +393,8 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
     }
 
     fitVisibleBounds(false);
+    syncDriverLayerRef.current?.();
+    ensureDriverAnimationRef.current?.();
   }, [origin, destination, routePath, encodedPolyline, fitVisibleBounds]);
 
   const syncFleetLayers = useCallback(() => {
@@ -559,6 +602,9 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
 
     ensureDriverAnimation();
   }, [driver, fitVisibleBounds, startDriverAnimation, stopDriverAnimation, applyDisplayPosition, trackingPhase, vehicleType, ensureDriverAnimation]);
+
+  syncDriverLayerRef.current = syncDriverLayer;
+  ensureDriverAnimationRef.current = ensureDriverAnimation;
 
   useEffect(() => {
     syncStaticLayers();

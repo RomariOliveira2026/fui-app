@@ -7,6 +7,7 @@ import {
   redispatchDemoRideOffers,
   redispatchProductionRideOffers,
 } from "./dispatchEngine";
+import { notifyRideOfferDispatch } from "./dispatchNotifications";
 import { clearDemoDriverTrack } from "./demoDriverTracking";
 import { clearSimulationState } from "./demoRideSimulation";
 import * as db from "../db";
@@ -98,6 +99,7 @@ export async function adminRedispatchRide(
 
     expireDemoPendingOffersForRide(rideId);
     const result = redispatchDemoRideOffers(rideId);
+    void notifyRideOfferDispatch(rideId, result);
     return { ...result, offerRound: result.offerRound };
   }
 
@@ -113,6 +115,7 @@ export async function adminRedispatchRide(
   }
 
   const result = await redispatchProductionRideOffers(rideId);
+  await notifyRideOfferDispatch(rideId, result);
   return { ...result, offerRound: result.offerRound };
 }
 

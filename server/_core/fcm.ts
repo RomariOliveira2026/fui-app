@@ -80,7 +80,7 @@ export async function sendPushNotification(
               badge: notification.badge || "/icon-192.png",
             },
             fcmOptions: {
-              link: "/",
+              link: notification.data?.url || "/",
             },
           },
         });

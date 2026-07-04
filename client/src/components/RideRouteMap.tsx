@@ -160,6 +160,17 @@ export default function RideRouteMap({
     hasServerTripPath && !serverRouteIsFallback
       ? serverTripPath!
       : fetchedRoutePath ?? (hasServerTripPath ? serverTripPath! : null);
+  const stableRoutePath = useMemo(() => {
+    if (!routePath || routePath.length < 2) return routePath ?? null;
+    return routePath;
+  }, [
+    routePath,
+    routePath?.length,
+    routePath?.[0]?.lat,
+    routePath?.[0]?.lng,
+    routePath?.[routePath.length - 1]?.lat,
+    routePath?.[routePath.length - 1]?.lng,
+  ]);
   const mapDriver = showDriver ? driver : null;
 
   const tracking = getRideTrackingPresentation(rideLike, simulationPhase, null, routePath);
@@ -184,7 +195,7 @@ export default function RideRouteMap({
           driver={mapDriver}
           vehicleType={(vehicleType as DemoVehicleType | undefined) ?? undefined}
           encodedPolyline={encodedPolyline}
-          routePath={routePath}
+          routePath={stableRoutePath}
           trackingPhase={trackingPhase}
           driverEtaSeconds={liveDriverEtaSeconds ?? driverEtaSeconds ?? null}
           mapFitPaddingBottom={mapFitPaddingBottom}
