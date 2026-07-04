@@ -119,12 +119,16 @@ export function fuiSelectedTile(active: boolean) {
   );
 }
 
-/** Tela de corrida ao vivo — mapa fullscreen + painel inferior */
+/** Tela de corrida ao vivo — mapa fullscreen + painel inferior recolhível */
 export const fuiTrip = {
   sheet:
     "pointer-events-auto mx-auto w-full max-w-lg rounded-t-2xl border-t border-border bg-card/95 backdrop-blur-md shadow-[0_-8px_32px_rgba(0,0,0,0.35)]",
-  sheetInner: "max-h-[42vh] overflow-y-auto px-4 pb-5 pt-3 space-y-3",
-  sheetHandle: "mx-auto mb-3 h-1 w-10 rounded-full bg-border",
+  sheetInner: "px-4 pb-4 pt-2",
+  sheetInnerExpanded: "max-h-[38vh] overflow-y-auto space-y-3 pb-5",
+  sheetInnerCollapsed: "space-y-2",
+  sheetHandleBtn:
+    "mx-auto flex w-full flex-col items-center gap-1 py-2 text-muted-foreground transition-colors hover:text-foreground",
+  sheetHandle: "h-1 w-10 rounded-full bg-border",
   mapChrome: "absolute inset-0 z-0",
   topBar:
     "absolute top-0 left-0 right-0 z-20 flex items-center justify-between gap-3 px-4 pt-4 pointer-events-none",
