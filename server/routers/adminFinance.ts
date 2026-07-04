@@ -1,8 +1,7 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, protectedProcedure } from "../_core/trpc";
-import { ENV } from "../_core/env";
-import { isDemoPassenger } from "../_core/demoUser";
+import { canDemoPassengerUseAdminModules, isDemoPassenger } from "../_core/demoUser";
 import {
   approveDemoDriverReview,
   createDemoAdminCoupon,
@@ -15,6 +14,7 @@ import {
 } from "../_core/demoAdminFinance";
 import { getAdminFinancialSummary } from "../_core/adminFinanceReport";
 import { loadFinanceConfig, saveFinanceConfig } from "../_core/financeConfigStore";
+import { shouldUseDemoDataStore } from "../_core/databaseAvailability";
 import {
   FINANCE_SERVICE_KEYS,
   type PlatformFinanceConfig,
@@ -23,7 +23,7 @@ import * as db from "../db";
 
 function canAccessAdminFinance(ctx: { user: { role: string; openId: string } }): boolean {
   if (ctx.user.role === "admin") return true;
-  return !ENV.isProduction && isDemoPassenger(ctx.user);
+  return canDemoPassengerUseAdminModules(ctx.user);
 }
 
 const financeProcedure = protectedProcedure.use(({ ctx, next }) => {
@@ -94,38 +94,43 @@ export const adminFinanceRouter = router({
     }),
 
   getPendingDriverReviews: financeProcedure.query(async ({ ctx }) => {
-    if (isDemoPassenger(ctx.user) || !(await db.getDb())) {
+    if (await shouldUseDemoDataStore(ctx.user)) {
       return getDemoPendingDriverReviews();
     }
 
-    const dbInstance = await db.getDb();
-    if (!dbInstance) return [];
+    try {
+      const dbInstance = await db.getDb();
+      if (!dbInstance) return getDemoPendingDriverReviews();
 
-    const { driverProfiles, users } = await import("../../drizzle/schema");
-    const { eq } = await import("drizzle-orm");
+      const { driverProfiles, users } = await import("../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
 
-    const rows = await dbInstance
-      .select({ profile: driverProfiles, user: users })
-      .from(driverProfiles)
-      .innerJoin(users, eq(driverProfiles.userId, users.id))
-      .where(eq(driverProfiles.status, "pending"));
+      const rows = await dbInstance
+        .select({ profile: driverProfiles, user: users })
+        .from(driverProfiles)
+        .innerJoin(users, eq(driverProfiles.userId, users.id))
+        .where(eq(driverProfiles.status, "pending"));
 
-    return rows.map((row) => ({
-      driverId: row.profile.id,
-      userId: row.user.id,
-      name: row.user.name ?? "—",
-      email: row.user.email ?? undefined,
-      cpf: row.profile.cpf ?? undefined,
-      cnh: row.profile.cnh ?? undefined,
-      cnhImageUrl: row.profile.cnhImageUrl ?? undefined,
-      submittedAt: row.profile.createdAt.toISOString(),
-    }));
+      return rows.map((row) => ({
+        driverId: row.profile.id,
+        userId: row.user.id,
+        name: row.user.name ?? "—",
+        email: row.user.email ?? undefined,
+        cpf: row.profile.cpf ?? undefined,
+        cnh: row.profile.cnh ?? undefined,
+        cnhImageUrl: row.profile.cnhImageUrl ?? undefined,
+        submittedAt: row.profile.createdAt.toISOString(),
+      }));
+    } catch (error) {
+      console.warn("[adminFinance] getPendingDriverReviews failed:", error);
+      return getDemoPendingDriverReviews();
+    }
   }),
 
   approveDriverReview: financeProcedure
     .input(z.object({ driverId: z.number(), notes: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
-      if (isDemoPassenger(ctx.user) || !(await db.getDb())) {
+      if (await shouldUseDemoDataStore(ctx.user)) {
         const ok = approveDemoDriverReview(input.driverId);
         if (!ok) throw new TRPCError({ code: "NOT_FOUND", message: "Motorista não encontrado" });
         return { success: true };
@@ -142,7 +147,7 @@ export const adminFinanceRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      if (isDemoPassenger(ctx.user) || !(await db.getDb())) {
+      if (await shouldUseDemoDataStore(ctx.user)) {
         const ok = rejectDemoDriverReview(input.driverId);
         if (!ok) throw new TRPCError({ code: "NOT_FOUND", message: "Motorista não encontrado" });
         return { success: true };
@@ -152,22 +157,27 @@ export const adminFinanceRouter = router({
     }),
 
   getCoupons: financeProcedure.query(async ({ ctx }) => {
-    if (isDemoPassenger(ctx.user) || !(await db.getDb())) {
+    if (await shouldUseDemoDataStore(ctx.user)) {
       return getDemoAdminCoupons();
     }
-    const coupons = await db.getAllCoupons();
-    return coupons.map((c) => ({
-      id: c.id,
-      code: c.code,
-      description: c.description ?? undefined,
-      discountType: c.discountType as "percentage" | "fixed",
-      discountValue: c.discountValue,
-      maxUses: c.maxUses ?? undefined,
-      usedCount: c.usedCount,
-      validFrom: c.validFrom.toISOString(),
-      validUntil: c.validUntil.toISOString(),
-      isActive: c.isActive === 1,
-    }));
+    try {
+      const coupons = await db.getAllCoupons();
+      return coupons.map((c) => ({
+        id: c.id,
+        code: c.code,
+        description: c.description ?? undefined,
+        discountType: c.discountType as "percentage" | "fixed",
+        discountValue: c.discountValue,
+        maxUses: c.maxUses ?? undefined,
+        usedCount: c.usedCount,
+        validFrom: c.validFrom.toISOString(),
+        validUntil: c.validUntil.toISOString(),
+        isActive: c.isActive === 1,
+      }));
+    } catch (error) {
+      console.warn("[adminFinance] getCoupons failed:", error);
+      return getDemoAdminCoupons();
+    }
   }),
 
   createCoupon: financeProcedure
@@ -183,7 +193,7 @@ export const adminFinanceRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      if (isDemoPassenger(ctx.user) || !(await db.getDb())) {
+      if (await shouldUseDemoDataStore(ctx.user)) {
         return createDemoAdminCoupon({
           code: input.code,
           description: input.description,
@@ -213,7 +223,7 @@ export const adminFinanceRouter = router({
   toggleCoupon: financeProcedure
     .input(z.object({ id: z.number(), isActive: z.boolean() }))
     .mutation(async ({ ctx, input }) => {
-      if (isDemoPassenger(ctx.user) || !(await db.getDb())) {
+      if (await shouldUseDemoDataStore(ctx.user)) {
         const updated = toggleDemoAdminCoupon(input.id, input.isActive);
         if (!updated) throw new TRPCError({ code: "NOT_FOUND", message: "Cupom não encontrado" });
         return updated;

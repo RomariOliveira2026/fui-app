@@ -40,7 +40,7 @@ import {
   useDemoAdminFinanceHydration,
 } from "@/lib/useDemoAdminFinanceHydration";
 import type { FinanceServiceKey, PlatformFinanceConfig } from "@shared/adminFinance";
-import { FINANCE_SERVICE_KEYS } from "@shared/adminFinance";
+import { FINANCE_SERVICE_KEYS, buildDefaultFinanceConfig, mergeFinanceConfig } from "@shared/adminFinance";
 import FuiMetricCard from "@/components/fui/FuiMetricCard";
 import AdminDriverRegistrationPanel from "@/components/admin/AdminDriverRegistrationPanel";
 
@@ -52,6 +52,12 @@ const SERVICE_LABELS: Record<FinanceServiceKey, string> = {
   van: "Van",
   utilitario: "Utilitário",
 };
+
+function resolveFinanceConfig(raw: PlatformFinanceConfig | undefined): PlatformFinanceConfig {
+  const defaults = buildDefaultFinanceConfig();
+  if (!raw) return defaults;
+  return mergeFinanceConfig(defaults, raw);
+}
 
 function formatBrl(cents: number) {
   return `R$ ${(cents / 100).toFixed(2)}`;
@@ -73,27 +79,35 @@ export default function AdminFinance() {
   const [location, setLocation] = useLocation();
   const [activeTab, setActiveTab] = useState<FinanceTabValue>(readFinanceTabFromUrl);
   const utils = trpc.useUtils();
+  const allowed = canAccessAdminPanel(user);
 
-  useDemoAdminFinanceHydration(canAccessAdminPanel(user));
+  useDemoAdminFinanceHydration(allowed);
 
-  const { data: summary, isLoading: summaryLoading } = trpc.adminFinance.getFinancialSummary.useQuery(
-    undefined,
-    { enabled: canAccessAdminPanel(user), refetchInterval: 30_000 }
-  );
-  const { data: config, isLoading: configLoading } = trpc.adminFinance.getConfig.useQuery(undefined, {
-    enabled: canAccessAdminPanel(user),
+  const { data: summary, isLoading: summaryLoading, isError: summaryError } =
+    trpc.adminFinance.getFinancialSummary.useQuery(undefined, {
+      enabled: allowed,
+      refetchInterval: 30_000,
+    });
+  const {
+    data: configRaw,
+    isLoading: configLoading,
+    isError: configError,
+  } = trpc.adminFinance.getConfig.useQuery(undefined, {
+    enabled: allowed,
   });
   const { data: coupons, isLoading: couponsLoading } = trpc.adminFinance.getCoupons.useQuery(
     undefined,
-    { enabled: canAccessAdminPanel(user) }
+    { enabled: allowed }
   );
   const { data: pendingDrivers } = trpc.adminFinance.getPendingDriverReviews.useQuery(undefined, {
-    enabled: canAccessAdminPanel(user),
+    enabled: allowed,
   });
   const { data: cancellations } = trpc.adminFinance.getCancellationAudit.useQuery(
     { limit: 40 },
-    { enabled: canAccessAdminPanel(user) }
+    { enabled: allowed }
   );
+
+  const config = resolveFinanceConfig(configRaw);
 
   const updateConfig = trpc.adminFinance.updateConfig.useMutation({
     onSuccess: (data) => {
@@ -140,6 +154,12 @@ export default function AdminFinance() {
   const [rejectReason, setRejectReason] = useState<Record<number, string>>({});
 
   useEffect(() => {
+    if (!authLoading && !allowed) {
+      setLocation("/");
+    }
+  }, [authLoading, allowed, setLocation]);
+
+  useEffect(() => {
     setActiveTab(readFinanceTabFromUrl());
   }, [location]);
 
@@ -159,8 +179,7 @@ export default function AdminFinance() {
     persistDemoAdminFinanceSnapshot({ cancellationAudit: cancellations });
   }, [cancellations]);
 
-  if (!authLoading && !canAccessAdminPanel(user)) {
-    setLocation("/");
+  if (!authLoading && !allowed) {
     return null;
   }
 
@@ -172,8 +191,23 @@ export default function AdminFinance() {
     );
   }
 
+  if (configError || summaryError) {
+    return (
+      <div className="min-h-screen bg-background text-foreground">
+        <AppHeader title="Financeiro & Gestão" />
+        <div className="container max-w-lg mx-auto py-16 px-4 text-center space-y-4">
+          <p className="text-muted-foreground">
+            Não foi possível carregar os dados financeiros. Verifique sua sessão e tente novamente.
+          </p>
+          <Button onClick={() => void utils.adminFinance.getConfig.invalidate()}>
+            Tentar novamente
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   const updateCommission = (key: FinanceServiceKey, value: number) => {
-    if (!config) return;
     updateConfig.mutate({
       commission: { byService: { [key]: value } },
     } as never);
@@ -266,7 +300,7 @@ export default function AdminFinance() {
                 <CardHeader>
                   <CardTitle className="text-base">Comissão por modalidade (%)</CardTitle>
                   <CardDescription>
-                    Padrão: {config?.commission.defaultPercent ?? 15}%
+                    Padrão: {config.commission.defaultPercent}%
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
@@ -276,7 +310,7 @@ export default function AdminFinance() {
                       type="number"
                       min={0}
                       max={100}
-                      defaultValue={config?.commission.defaultPercent}
+                      defaultValue={config.commission.defaultPercent}
                       onBlur={(e) => {
                         const v = Number(e.target.value);
                         if (v >= 0 && v <= 100) {
@@ -293,7 +327,7 @@ export default function AdminFinance() {
                         min={0}
                         max={100}
                         className="w-24 h-8"
-                        defaultValue={config?.commission.byService[key]}
+                        defaultValue={config.commission.byService[key]}
                         onBlur={(e) => {
                           const v = Number(e.target.value);
                           if (v >= 0 && v <= 100) updateCommission(key, v);
@@ -308,14 +342,14 @@ export default function AdminFinance() {
                 <CardHeader>
                   <CardTitle className="text-base">Preço mínimo (demo)</CardTitle>
                   <CardDescription>
-                    Região: {config?.minimumPrices.regionLabel ?? "Centro"}
+                    Região: {config.minimumPrices.regionLabel}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <div className="space-y-1">
                     <Label>Região demo</Label>
                     <Input
-                      defaultValue={config?.minimumPrices.regionLabel}
+                      defaultValue={config.minimumPrices.regionLabel}
                       onBlur={(e) => {
                         if (e.target.value.trim()) {
                           updateConfig.mutate({
@@ -334,7 +368,7 @@ export default function AdminFinance() {
                         step={1}
                         className="w-28 h-8"
                         defaultValue={
-                          config?.minimumPrices.byService[key]
+                          config.minimumPrices.byService[key]
                             ? (config.minimumPrices.byService[key]! / 100).toFixed(0)
                             : ""
                         }
@@ -382,7 +416,7 @@ export default function AdminFinance() {
                             </TableCell>
                             <TableCell>
                               <Switch
-                                checked={c.isActive}
+                                checked={Boolean(c.isActive)}
                                 onCheckedChange={(checked) =>
                                   toggleCoupon.mutate({ id: c.id, isActive: checked })
                                 }

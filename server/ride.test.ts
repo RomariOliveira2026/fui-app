@@ -43,7 +43,7 @@ describe("Pricing System", () => {
 
     expect(result.estimatedPrice).toBeGreaterThan(0);
     expect(result.breakdown).toBeDefined();
-    expect(result.breakdown.basePrice).toBe(500); // R$ 5,00
+    expect(result.breakdown.basePrice).toBe(600); // R$ 6,00 (tarifa demo crível)
   });
 
   it("should calculate price for carro correctly", async () => {

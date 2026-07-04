@@ -275,6 +275,7 @@ export default function RideDetails() {
   const dispatchMeta = (ride as { dispatchMeta?: RideDispatchMeta }).dispatchMeta;
   const tripPath = (ride as { tripPath?: RoutePoint[] }).tripPath;
   const tripPathSource = (ride as { tripPathSource?: "osrm" | "fallback" }).tripPathSource;
+  const demoRoutePolyline = (ride as { demoRoutePolyline?: string }).demoRoutePolyline;
   const etaSecondsRemaining = (ride as { etaSecondsRemaining?: number }).etaSecondsRemaining;
   const tracking = getRideTrackingPresentation(
     ride,
@@ -319,6 +320,7 @@ export default function RideDetails() {
           tracking={tracking}
           tripPath={tripPath}
           tripPathSource={tripPathSource}
+          demoRoutePolyline={demoRoutePolyline}
           showDriverOnMap={showDriverOnMap}
           showDriverEnRoute={showDriverEnRoute}
           driver={
@@ -449,6 +451,7 @@ export default function RideDetails() {
             {/* Map + rastreamento premium */}
             <div className="space-y-3">
               <RideRouteMap
+                rideId={ride.id}
                 originLat={ride.originLat}
                 originLng={ride.originLng}
                 destinationLat={ride.destinationLat}
@@ -461,6 +464,7 @@ export default function RideDetails() {
                 simulationPhase={simRide.simulationPhase}
                 tripPath={tripPath}
                 tripPathSource={tripPathSource}
+                demoRoutePolyline={demoRoutePolyline}
                 driverEtaSeconds={etaSecondsRemaining ?? null}
               />
 

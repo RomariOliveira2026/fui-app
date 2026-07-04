@@ -5,7 +5,10 @@ import { notifications, users, fcmTokens } from "../../drizzle/schema";
 import { getDb } from "../db";
 import { TRPCError } from "@trpc/server";
 import { canDemoPassengerUseAdminModules } from "../_core/demoUser";
-import { ENV } from "../_core/env";
+import {
+  canFallbackToDemoAdminData,
+  isDatabaseQueryable,
+} from "../_core/databaseAvailability";
 
 // Helper: create in-app notification + push for a single user
 async function createNotificationWithPush(
@@ -71,7 +74,27 @@ const DEMO_ADMIN_STATS = {
 };
 
 function canUseDemoAdminData(user: { role: string; openId: string }): boolean {
-  return canDemoPassengerUseAdminModules(user) || ENV.betaDemo;
+  return canFallbackToDemoAdminData(user);
+}
+
+async function withDemoAdminFallback<T>(
+  user: { role: string; openId: string },
+  run: () => Promise<T>,
+  fallback: T
+): Promise<T> {
+  const dbOk = await isDatabaseQueryable();
+  if (!dbOk) {
+    if (canUseDemoAdminData(user)) return fallback;
+    throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+  }
+
+  try {
+    return await run();
+  } catch (error) {
+    console.warn("[Notification] Admin query failed:", error);
+    if (canUseDemoAdminData(user)) return fallback;
+    throw error;
+  }
 }
 
 export const notificationRouter = router({
@@ -233,80 +256,82 @@ export const notificationRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) {
-        if (canUseDemoAdminData(ctx.user)) {
-          return { success: true, sentCount: 0 };
-        }
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
-      }
+      return withDemoAdminFallback(
+        ctx.user,
+        async () => {
+          const db = await getDb();
+          if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
 
-      // Build user query based on segment
-      let targetUsers: { id: number }[];
-      
-      switch (input.segment) {
-        case "passengers":
-          targetUsers = await db
-            .select({ id: users.id })
-            .from(users)
-            .where(eq(users.role, "passenger"));
-          break;
-        case "drivers":
-          targetUsers = await db
-            .select({ id: users.id })
-            .from(users)
-            .where(eq(users.role, "driver"));
-          break;
-        case "active_last_30d":
-          const thirtyDaysAgo = new Date();
-          thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-          targetUsers = await db
-            .select({ id: users.id })
-            .from(users)
-            .where(sql`${users.lastSignedIn} >= ${thirtyDaysAgo}`);
-          break;
-        default: // "all"
-          targetUsers = await db.select({ id: users.id }).from(users);
-          break;
-      }
+          // Build user query based on segment
+          let targetUsers: { id: number }[];
 
-      if (targetUsers.length === 0) {
-        return { success: true, sentCount: 0 };
-      }
-
-      // Batch insert in-app notifications
-      const notificationValues = targetUsers.map((u) => ({
-        userId: u.id,
-        type: input.type as "promotion" | "system",
-        title: input.title,
-        message: input.message,
-        actionUrl: input.actionUrl,
-        actionLabel: input.actionLabel,
-      }));
-
-      // Insert in batches of 100
-      for (let i = 0; i < notificationValues.length; i += 100) {
-        const batch = notificationValues.slice(i, i + 100);
-        await db.insert(notifications).values(batch);
-      }
-
-      // Send push notifications (non-blocking, best effort)
-      const userIds = targetUsers.map((u) => u.id);
-      import("../_core/fcm").then(async ({ notifyUser }) => {
-        for (const userId of userIds.slice(0, 50)) { // Limit push to 50 at a time
-          try {
-            await notifyUser(userId, {
-              title: input.title,
-              body: input.message,
-              data: input.actionUrl ? { url: input.actionUrl } : undefined,
-            });
-          } catch (e) {
-            // Non-blocking, continue
+          switch (input.segment) {
+            case "passengers":
+              targetUsers = await db
+                .select({ id: users.id })
+                .from(users)
+                .where(eq(users.role, "passenger"));
+              break;
+            case "drivers":
+              targetUsers = await db
+                .select({ id: users.id })
+                .from(users)
+                .where(eq(users.role, "driver"));
+              break;
+            case "active_last_30d":
+              const thirtyDaysAgo = new Date();
+              thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+              targetUsers = await db
+                .select({ id: users.id })
+                .from(users)
+                .where(sql`${users.lastSignedIn} >= ${thirtyDaysAgo}`);
+              break;
+            default: // "all"
+              targetUsers = await db.select({ id: users.id }).from(users);
+              break;
           }
-        }
-      }).catch(() => {});
 
-      return { success: true, sentCount: targetUsers.length };
+          if (targetUsers.length === 0) {
+            return { success: true, sentCount: 0 };
+          }
+
+          // Batch insert in-app notifications
+          const notificationValues = targetUsers.map((u) => ({
+            userId: u.id,
+            type: input.type as "promotion" | "system",
+            title: input.title,
+            message: input.message,
+            actionUrl: input.actionUrl,
+            actionLabel: input.actionLabel,
+          }));
+
+          // Insert in batches of 100
+          for (let i = 0; i < notificationValues.length; i += 100) {
+            const batch = notificationValues.slice(i, i + 100);
+            await db.insert(notifications).values(batch);
+          }
+
+          // Send push notifications (non-blocking, best effort)
+          const userIds = targetUsers.map((u) => u.id);
+          import("../_core/fcm").then(async ({ notifyUser }) => {
+            for (const userId of userIds.slice(0, 50)) {
+              // Limit push to 50 at a time
+              try {
+                await notifyUser(userId, {
+                  title: input.title,
+                  body: input.message,
+                  data: input.actionUrl ? { url: input.actionUrl } : undefined,
+                });
+              } catch (e) {
+                // Non-blocking, continue
+              }
+            }
+          }).catch(() => {});
+
+          return { success: true, sentCount: targetUsers.length };
+        },
+        { success: true, sentCount: 0 }
+      );
     }),
 
   /**
@@ -324,66 +349,71 @@ export const notificationRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) {
-        if (canUseDemoAdminData(ctx.user)) {
+      return withDemoAdminFallback(
+        ctx.user,
+        async () => {
+          const db = await getDb();
+          if (!db) {
+            throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+          }
+
+          await createNotificationWithPush(db, input.userId, {
+            type: input.type,
+            title: input.title,
+            message: input.message,
+            actionUrl: input.actionUrl,
+            actionLabel: input.actionLabel,
+          });
+
           return { success: true };
-        }
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
-      }
-
-      await createNotificationWithPush(db, input.userId, {
-        type: input.type,
-        title: input.title,
-        message: input.message,
-        actionUrl: input.actionUrl,
-        actionLabel: input.actionLabel,
-      });
-
-      return { success: true };
+        },
+        { success: true }
+      );
     }),
 
   /**
    * Admin: Get notification stats
    */
   adminGetStats: adminProcedure.query(async ({ ctx }) => {
-    const db = await getDb();
-    if (!db) {
-      if (canUseDemoAdminData(ctx.user)) {
-        return DEMO_ADMIN_STATS;
-      }
-      throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
-    }
+    return withDemoAdminFallback(
+      ctx.user,
+      async () => {
+        const db = await getDb();
+        if (!db) {
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+        }
 
-    const [totalResult] = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(notifications);
+        const [totalResult] = await db
+          .select({ count: sql<number>`count(*)` })
+          .from(notifications);
 
-    const [unreadResult] = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(notifications)
-      .where(eq(notifications.isRead, false));
+        const [unreadResult] = await db
+          .select({ count: sql<number>`count(*)` })
+          .from(notifications)
+          .where(eq(notifications.isRead, false));
 
-    const [todayResult] = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(notifications)
-      .where(sql`DATE(${notifications.createdAt}) = CURDATE()`);
+        const [todayResult] = await db
+          .select({ count: sql<number>`count(*)` })
+          .from(notifications)
+          .where(sql`DATE(${notifications.createdAt}) = CURDATE()`);
 
-    // Count by type
-    const typeStats = await db
-      .select({
-        type: notifications.type,
-        count: sql<number>`count(*)`,
-      })
-      .from(notifications)
-      .groupBy(notifications.type);
+        const typeStats = await db
+          .select({
+            type: notifications.type,
+            count: sql<number>`count(*)`,
+          })
+          .from(notifications)
+          .groupBy(notifications.type);
 
-    return {
-      total: totalResult?.count || 0,
-      unread: unreadResult?.count || 0,
-      today: todayResult?.count || 0,
-      byType: typeStats,
-    };
+        return {
+          total: totalResult?.count || 0,
+          unread: unreadResult?.count || 0,
+          today: todayResult?.count || 0,
+          byType: typeStats,
+        };
+      },
+      DEMO_ADMIN_STATS
+    );
   }),
 
   /**
@@ -398,40 +428,41 @@ export const notificationRouter = router({
       })
     )
     .query(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) {
-        if (canUseDemoAdminData(ctx.user)) {
-          return [];
-        }
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
-      }
+      return withDemoAdminFallback(
+        ctx.user,
+        async () => {
+          const db = await getDb();
+          if (!db) {
+            throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+          }
 
-      const conditions: any[] = [];
-      
-      if (input.role !== "all") {
-        conditions.push(eq(users.role, input.role));
-      }
+          const conditions: any[] = [];
 
-      if (input.search) {
-        conditions.push(
-          sql`(${users.name} LIKE ${`%${input.search}%`} OR ${users.email} LIKE ${`%${input.search}%`})`
-        );
-      }
+          if (input.role !== "all") {
+            conditions.push(eq(users.role, input.role));
+          }
 
-      const result = await db
-        .select({
-          id: users.id,
-          name: users.name,
-          email: users.email,
-          role: users.role,
-          lastSignedIn: users.lastSignedIn,
-        })
-        .from(users)
-        .where(conditions.length > 0 ? and(...conditions) : undefined)
-        .orderBy(desc(users.lastSignedIn))
-        .limit(input.limit);
+          if (input.search) {
+            conditions.push(
+              sql`(${users.name} LIKE ${`%${input.search}%`} OR ${users.email} LIKE ${`%${input.search}%`})`
+            );
+          }
 
-      return result;
+          return db
+            .select({
+              id: users.id,
+              name: users.name,
+              email: users.email,
+              role: users.role,
+              lastSignedIn: users.lastSignedIn,
+            })
+            .from(users)
+            .where(conditions.length > 0 ? and(...conditions) : undefined)
+            .orderBy(desc(users.lastSignedIn))
+            .limit(input.limit);
+        },
+        []
+      );
     }),
 
   /**
@@ -440,32 +471,30 @@ export const notificationRouter = router({
   adminGetBroadcastHistory: adminProcedure
     .input(z.object({ limit: z.number().min(1).max(50).default(20) }))
     .query(async ({ ctx, input }) => {
-      const db = await getDb();
-      if (!db) {
-        if (canUseDemoAdminData(ctx.user)) {
-          return [];
-        }
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
-      }
+      return withDemoAdminFallback(
+        ctx.user,
+        async () => {
+          const db = await getDb();
+          if (!db) {
+            throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+          }
 
-      // Get distinct recent notifications by title+message (broadcasts)
-      const result = await db
-        .select({
-          type: notifications.type,
-          title: notifications.title,
-          message: notifications.message,
-          createdAt: notifications.createdAt,
-          recipientCount: sql<number>`count(DISTINCT ${notifications.userId})`,
-        })
-        .from(notifications)
-        .where(
-          inArray(notifications.type, ["promotion", "system"])
-        )
-        .groupBy(notifications.title, notifications.message, notifications.type, notifications.createdAt)
-        .orderBy(desc(notifications.createdAt))
-        .limit(input.limit);
-
-      return result;
+          return db
+            .select({
+              type: notifications.type,
+              title: notifications.title,
+              message: notifications.message,
+              createdAt: notifications.createdAt,
+              recipientCount: sql<number>`count(DISTINCT ${notifications.userId})`,
+            })
+            .from(notifications)
+            .where(inArray(notifications.type, ["promotion", "system"]))
+            .groupBy(notifications.title, notifications.message, notifications.type, notifications.createdAt)
+            .orderBy(desc(notifications.createdAt))
+            .limit(input.limit);
+        },
+        []
+      );
     }),
 });
 

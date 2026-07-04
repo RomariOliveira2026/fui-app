@@ -6,9 +6,12 @@ import {
   canAdminCancelRide,
   canAdminRedispatchRide,
   formatAdminDate,
+  formatAdminDuration,
   formatAdminPrice,
+  priorityAccentClass,
+  priorityDotClass,
 } from "@/lib/adminOperationalUi";
-import { MapPin, RefreshCw, XCircle } from "lucide-react";
+import { Clock, MapPin, RefreshCw, Timer, User, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type AdminRideListProps = {
@@ -61,11 +64,26 @@ export default function AdminRideList({
                 "w-full text-left rounded-lg border p-3 transition-colors cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
                 selectedId === ride.id
                   ? "border-primary/50 bg-primary/5 ring-1 ring-primary/20"
-                  : "border-border/60 bg-card/40 hover:bg-muted/30"
+                  : cn("border-border/60 bg-card/40 hover:bg-muted/30", priorityAccentClass(ride.priority))
               )}
             >
               <div className="flex items-start justify-between gap-2 mb-2">
-                <span className="font-semibold text-sm">#{ride.id}</span>
+                <span className="flex items-center gap-1.5 font-semibold text-sm">
+                  {ride.priority !== "normal" ? (
+                    <span
+                      className={cn(
+                        "inline-block h-2 w-2 rounded-full",
+                        priorityDotClass(ride.priority),
+                        ride.priority === "sos" && "animate-pulse"
+                      )}
+                      aria-hidden
+                    />
+                  ) : null}
+                  #{ride.id}
+                  <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                    {ride.categoryLabel}
+                  </span>
+                </span>
                 <RideStatusBadge status={ride.status} />
               </div>
               <div className="space-y-1 text-xs text-muted-foreground">
@@ -78,8 +96,39 @@ export default function AdminRideList({
                   <span className="line-clamp-1">{ride.destinationAddress}</span>
                 </p>
               </div>
-              <div className="flex items-center justify-between mt-2 text-xs">
-                <span className="capitalize text-muted-foreground">{ride.vehicleType}</span>
+              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+                <span className="flex items-center gap-1">
+                  <User className="h-3 w-3" />
+                  {ride.passengerName ?? "Passageiro"}
+                </span>
+                {ride.driverName ? (
+                  <span className="truncate">🚗 {ride.driverName}</span>
+                ) : (
+                  <span className="text-amber-500/90">Aguardando aceite</span>
+                )}
+                {ride.status === "in_progress" && ride.etaSeconds != null ? (
+                  <span className="flex items-center gap-1 text-emerald-500/90">
+                    <Timer className="h-3 w-3" />
+                    ETA {formatAdminDuration(ride.etaSeconds)}
+                  </span>
+                ) : null}
+                {ride.waitingSeconds > 0 ? (
+                  <span
+                    className={cn(
+                      "flex items-center gap-1",
+                      ride.priority === "critical"
+                        ? "text-orange-500"
+                        : ride.priority === "warning"
+                          ? "text-amber-500"
+                          : "text-muted-foreground"
+                    )}
+                  >
+                    <Clock className="h-3 w-3" />
+                    Espera {formatAdminDuration(ride.waitingSeconds)}
+                  </span>
+                ) : null}
+              </div>
+              <div className="flex items-center justify-between mt-1.5 text-xs">
                 <span className="font-medium text-foreground">
                   {formatAdminPrice(ride.finalPrice ?? ride.estimatedPrice)}
                 </span>

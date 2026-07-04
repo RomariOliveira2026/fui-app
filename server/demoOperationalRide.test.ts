@@ -8,6 +8,14 @@ vi.mock("@shared/demoOperationalRides", () => ({
   DEMO_OPERATIONAL_SEGMENT_MS: 800,
 }));
 
+vi.mock("@shared/demoSimulation", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@shared/demoSimulation")>();
+  return {
+    ...actual,
+    isDemoDriverSimulationEnabledServer: () => false,
+  };
+});
+
 vi.mock("./_core/demoFleet", () => ({
   ensureDemoFleetSeed: vi.fn(),
   findNearestAvailableFleetDriver: vi.fn(() => ({
@@ -48,6 +56,7 @@ vi.mock("./_core/demoRide", () => ({
 import {
   advanceOperationalDemoRide,
   clearAllOperationalDemoStates,
+  ensureOperationalTripStarted,
   getOperationalEtaSeconds,
   getOperationalPhase,
   registerOperationalDemoRide,
@@ -173,6 +182,41 @@ describe("demoOperationalRide", () => {
     ride = advanceOperationalDemoRide(getDemoRideFromStore());
     expect(ride.status).toBe("completed");
 
+    vi.useRealTimers();
+  });
+
+  it("aguarda início manual quando simulação DEV está ativa", async () => {
+    const simModule = await import("@shared/demoSimulation");
+    const spy = vi.spyOn(simModule, "isDemoDriverSimulationEnabledServer").mockReturnValue(true);
+
+    rideStore.set(
+      -43,
+      makeRide({
+        id: -43,
+        driverId: null,
+        vehicleId: null,
+        createdAt: new Date(0),
+      })
+    );
+    registerOperationalDemoRide(-43, "carro", "-10.685000", "-37.425000");
+    vi.advanceTimersByTime(1);
+
+    let ride = advanceOperationalDemoRide(rideStore.get(-43)!);
+    vi.advanceTimersByTime(30_000);
+    ride = advanceOperationalDemoRide(rideStore.get(-43)!);
+    expect(getOperationalPhase(ride.id)).toBe("arrived_pickup");
+    expect(ride.status).toBe("accepted");
+
+    vi.advanceTimersByTime(10_000);
+    ride = advanceOperationalDemoRide(rideStore.get(-43)!);
+    expect(ride.status).toBe("accepted");
+    expect(getOperationalPhase(ride.id)).toBe("arrived_pickup");
+
+    const started = ensureOperationalTripStarted(ride.id);
+    expect(started?.status).toBe("in_progress");
+    expect(getOperationalPhase(ride.id)).toBe("in_trip");
+
+    spy.mockRestore();
     vi.useRealTimers();
   });
 });

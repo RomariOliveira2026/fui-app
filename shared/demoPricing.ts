@@ -70,6 +70,28 @@ export type DemoRidePriceEstimate = {
   };
 };
 
+/** Tarifas configuráveis (ex.: pricing_config) que sobrescrevem os defaults demo. */
+export type PricingOverride = Partial<
+  Pick<DemoPricingRow, "basePrice" | "pricePerKm" | "pricePerMinute" | "minimumPrice">
+>;
+
+/** Resolve a linha de tarifa efetiva, aplicando overrides sobre os defaults demo. */
+export function resolveEffectivePricing(
+  vehicleType: DemoVehicleType,
+  override?: PricingOverride | null
+): DemoPricingRow | undefined {
+  const base = getDemoPricingByVehicleType(vehicleType);
+  if (!base) return undefined;
+  if (!override) return base;
+  return {
+    ...base,
+    basePrice: override.basePrice ?? base.basePrice,
+    pricePerKm: override.pricePerKm ?? base.pricePerKm,
+    pricePerMinute: override.pricePerMinute ?? base.pricePerMinute,
+    minimumPrice: override.minimumPrice ?? base.minimumPrice,
+  };
+}
+
 export function normalizeDemoRideMetrics(
   vehicleType: DemoVehicleType,
   distanceM: number,
@@ -94,9 +116,10 @@ export function normalizeDemoRideMetrics(
 export function estimateDemoRidePriceCents(
   vehicleType: DemoVehicleType,
   distanceM: number,
-  durationS: number
+  durationS: number,
+  override?: PricingOverride | null
 ): DemoRidePriceEstimate {
-  const pricing = getDemoPricingByVehicleType(vehicleType);
+  const pricing = resolveEffectivePricing(vehicleType, override);
   if (!pricing) {
     return {
       estimatedPrice: 0,

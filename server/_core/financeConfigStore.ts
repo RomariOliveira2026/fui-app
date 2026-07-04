@@ -8,7 +8,7 @@ import {
   getDemoFinanceConfig,
   updateDemoFinanceConfig,
 } from "./demoAdminFinance";
-import { isDemoPassenger } from "./demoUser";
+import { shouldUseDemoDataStore } from "./databaseAvailability";
 import * as db from "../db";
 
 let memoryCache: PlatformFinanceConfig | null = null;
@@ -16,25 +16,34 @@ let memoryCache: PlatformFinanceConfig | null = null;
 export async function loadFinanceConfig(
   user?: { openId: string; role?: string }
 ): Promise<PlatformFinanceConfig> {
-  const dbInstance = await db.getDb();
-  const useDemoStore =
-    !dbInstance || (user && !ENV.isProduction && isDemoPassenger(user));
-
-  if (useDemoStore) {
+  if (await shouldUseDemoDataStore(user)) {
     memoryCache = getDemoFinanceConfig();
     return memoryCache;
   }
 
-  const fromDb = await db.getPlatformFinanceConfig();
-  if (fromDb) {
-    memoryCache = fromDb;
-    return fromDb;
-  }
+  try {
+    const fromDb = await db.getPlatformFinanceConfig();
+    if (fromDb) {
+      const normalized = mergeFinanceConfig(
+        buildDefaultFinanceConfig(ENV.platformFeePercent),
+        fromDb
+      );
+      memoryCache = normalized;
+      return normalized;
+    }
 
-  const defaults = buildDefaultFinanceConfig(ENV.platformFeePercent);
-  await db.upsertPlatformFinanceConfig(defaults);
-  memoryCache = defaults;
-  return defaults;
+    const defaults = buildDefaultFinanceConfig(ENV.platformFeePercent);
+    await db.upsertPlatformFinanceConfig(defaults);
+    memoryCache = defaults;
+    return defaults;
+  } catch (error) {
+    console.warn("[financeConfig] DB read failed:", error);
+    if (!ENV.isProduction) {
+      memoryCache = getDemoFinanceConfig();
+      return memoryCache;
+    }
+    throw error;
+  }
 }
 
 export function getFinanceConfigSync(): PlatformFinanceConfig {
@@ -47,11 +56,7 @@ export async function saveFinanceConfig(
   patch: Partial<PlatformFinanceConfig>,
   user?: { openId: string; role?: string }
 ): Promise<PlatformFinanceConfig> {
-  const dbInstance = await db.getDb();
-  const useDemoStore =
-    !dbInstance || (user && !ENV.isProduction && isDemoPassenger(user));
-
-  if (useDemoStore) {
+  if (await shouldUseDemoDataStore(user)) {
     const next = updateDemoFinanceConfig(patch);
     memoryCache = next;
     return next;

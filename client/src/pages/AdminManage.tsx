@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
@@ -17,21 +18,15 @@ export default function AdminManage() {
   const { user, loading: authLoading } = useAuth();
   const [, setLocation] = useLocation();
   const utils = trpc.useUtils();
+  const allowed = canAccessAdminPanel(user);
 
-  if (!authLoading && !canAccessAdminPanel(user)) {
-    setLocation("/");
-    return null;
-  }
-
-  const { data: pendingDrivers, isLoading: loadingDrivers } = trpc.admin.getPendingDrivers.useQuery(
-    undefined,
-    { enabled: canAccessAdminPanel(user) }
-  );
-  const { data: allRides } = trpc.admin.getAllRides.useQuery(undefined, {
-    enabled: canAccessAdminPanel(user),
+  const { data: pendingDrivers, isLoading: loadingDrivers, isError: driversError } =
+    trpc.admin.getPendingDrivers.useQuery(undefined, { enabled: allowed });
+  const { data: allRides, isError: ridesError } = trpc.admin.getAllRides.useQuery(undefined, {
+    enabled: allowed,
   });
-  const { data: pricing } = trpc.pricing.getAll.useQuery(undefined, {
-    enabled: canAccessAdminPanel(user),
+  const { data: pricing, isError: pricingError } = trpc.pricing.getAll.useQuery(undefined, {
+    enabled: allowed,
   });
 
   const approveDriver = trpc.admin.approveDriver.useMutation({
@@ -50,6 +45,16 @@ export default function AdminManage() {
     onError: (error) => toast.error(error.message || "Erro ao rejeitar motorista"),
   });
 
+  useEffect(() => {
+    if (!authLoading && !allowed) {
+      setLocation("/");
+    }
+  }, [authLoading, allowed, setLocation]);
+
+  if (!authLoading && !allowed) {
+    return null;
+  }
+
   if (authLoading || loadingDrivers) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -61,6 +66,8 @@ export default function AdminManage() {
   const activeRides = allRides?.filter(
     (r) => r.status === "in_progress" || r.status === "accepted" || r.status === "requested"
   );
+
+  const hasQueryError = driversError || ridesError || pricingError;
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -94,6 +101,13 @@ export default function AdminManage() {
             </Button>
           </div>
         </div>
+
+        {hasQueryError ? (
+          <div className="mb-6 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-300">
+            Alguns dados não puderam ser carregados. No modo demo, use o painel Financeiro para
+            gestão completa.
+          </div>
+        ) : null}
 
         <Tabs defaultValue="drivers" className="space-y-4">
           <TabsList>
@@ -199,21 +213,23 @@ export default function AdminManage() {
 
           <TabsContent value="pricing">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {pricing?.map((config) => (
-                <Card key={config.vehicleType}>
-                  <CardHeader>
-                    <CardTitle className="capitalize">{config.vehicleType}</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-2 text-sm">
-                    <p>Base: R$ {(config.basePrice / 100).toFixed(2)}</p>
-                    <p>Por km: R$ {(config.pricePerKm / 100).toFixed(2)}</p>
-                    <Button variant="outline" className="w-full mt-2" disabled>
-                      <DollarSign className="w-4 h-4 mr-2" />
-                      Edição em breve
-                    </Button>
-                  </CardContent>
-                </Card>
-              )) ?? (
+              {pricing && pricing.length > 0 ? (
+                pricing.map((config) => (
+                  <Card key={config.vehicleType}>
+                    <CardHeader>
+                      <CardTitle className="capitalize">{config.vehicleType}</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2 text-sm">
+                      <p>Base: R$ {((config.basePrice ?? 0) / 100).toFixed(2)}</p>
+                      <p>Por km: R$ {((config.pricePerKm ?? 0) / 100).toFixed(2)}</p>
+                      <Button variant="outline" className="w-full mt-2" disabled>
+                        <DollarSign className="w-4 h-4 mr-2" />
+                        Edição em breve
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ))
+              ) : (
                 <Card>
                   <CardContent className="py-8 text-center text-muted-foreground">
                     Preços demo carregados via fallback local

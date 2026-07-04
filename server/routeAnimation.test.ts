@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   buildDriverPhasePath,
   densifyPath,
+  isLikelyStraightFallbackPath,
+  isUsableRoutePath,
+  maxPathSegmentMeters,
   pathTotalMeters,
   pointAtPathMeters,
   pointAtPathProgress,
@@ -66,6 +69,27 @@ describe("routeAnimation", () => {
     expect(haversineLike(destPath[0]!, atPickup)).toBeLessThan(30);
     expect(haversineLike(destPath[destPath.length - 1]!, DEST)).toBeLessThan(30);
     expect(progressAtNearestPoint(destPath, ORIGIN)).toBeLessThan(0.15);
+  });
+
+  it("identifica fallback A→B em linha reta", () => {
+    const straight = densifyPath([ORIGIN, DEST]);
+    const detour = { lat: -10.682, lng: -37.418 };
+    const viaRoad = densifyPath([ORIGIN, detour, DEST]);
+    expect(isLikelyStraightFallbackPath(straight, ORIGIN, DEST)).toBe(true);
+    expect(isLikelyStraightFallbackPath(viaRoad, ORIGIN, DEST)).toBe(false);
+  });
+
+  it("maxPathSegmentMeters detecta geometria simplificada demais", () => {
+    const sparse = [ORIGIN, { lat: -10.75, lng: -37.35 }, DEST];
+    expect(maxPathSegmentMeters(sparse)).toBeGreaterThan(650);
+  });
+
+  it("isUsableRoutePath aceita rota densa e rejeita fallback", () => {
+    const straight = densifyPath([ORIGIN, DEST]);
+    const detour = { lat: -10.682, lng: -37.418 };
+    const viaRoad = densifyPath([ORIGIN, detour, DEST]);
+    expect(isUsableRoutePath(straight, ORIGIN, DEST)).toBe(false);
+    expect(isUsableRoutePath(viaRoad, ORIGIN, DEST)).toBe(true);
   });
 });
 
