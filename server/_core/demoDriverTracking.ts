@@ -13,6 +13,7 @@ import {
   projectPointOnPath,
   type RoutePoint,
 } from "@shared/routeAnimation";
+import { buildSegmentTimingFromPath } from "@shared/demoRideProgression";
 import { getDemoRide, updateDemoRide } from "./demoRide";
 import { getDemoTripPath, registerDemoRoutePathUpgradeHandler } from "./demoRoutePaths";
 
@@ -59,18 +60,17 @@ function buildTrack(ride: Ride, phase: TrackPhase): DemoTrack {
   });
 
   const target = phase === "to_pickup" ? origin : destination;
-  const distanceM = Math.max(pathTotalMeters(path), 120);
-  const durationMs = Math.max(
-    MIN_SEGMENT_MS,
-    (distanceM / 1000 / DEMO_SPEED_KMH) * 3600 * 1000
-  );
+  const timing = buildSegmentTimingFromPath(path, current, {
+    minMs: MIN_SEGMENT_MS,
+    distanceMetersOverride: phase === "to_destination" ? Number(ride.distance ?? 0) : undefined,
+  });
 
   return {
     phase,
     path,
     target,
-    startedAtMs: Date.now(),
-    durationMs,
+    startedAtMs: timing.startedAtMs,
+    durationMs: timing.durationMs,
   };
 }
 

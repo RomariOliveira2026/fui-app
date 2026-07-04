@@ -19,6 +19,7 @@ import {
 } from "@shared/routeAnimation";
 import { adaptiveDriverCatchUpSpeedMps } from "@shared/demoRideProgression";
 import { haversineMeters } from "@shared/demoMaps";
+import { getClientDemoRideSpeedMultiplier } from "@/lib/demoRideEta";
 import {
   REQUEST_RIDE_MAP_DEFAULT_CENTER,
   REQUEST_RIDE_MAP_DEFAULT_ZOOM,
@@ -117,6 +118,12 @@ const MAX_DRIVER_SPEED_MPS = 38;
 /** Velocidade base quando não há ETA (~50 km/h visual). */
 const DEFAULT_CRUISE_MPS = 14;
 
+/** Zoom mínimo ao seguir o motorista em corrida longa. */
+const DRIVER_FOLLOW_MIN_ZOOM = 15;
+
+/** Metros à frente do motorista para enquadrar o mapa (sem mostrar rota inteira). */
+const DRIVER_LOOKAHEAD_M = 12_000;
+
 /** Tempo para alcançar o alvo do servidor quando há defasagem. */
 const PURSUIT_LAG_S = 0.65;
 
@@ -154,18 +161,44 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
   const driverBearingRef = useRef<number | null>(null);
   const bearingAnchorRef = useRef<RequestRideMapPoint | null>(null);
   const driverEtaRef = useRef<number | null>(null);
+  const etaAnchorRef = useRef({ at: Date.now(), seconds: 0 });
+  const trackingPhaseRef = useRef(trackingPhase);
   const mapFitPaddingBottomRef = useRef(mapFitPaddingBottom);
+
+  useEffect(() => {
+    trackingPhaseRef.current = trackingPhase;
+  }, [trackingPhase]);
 
   useEffect(() => {
     mapFitPaddingBottomRef.current = mapFitPaddingBottom;
   }, [mapFitPaddingBottom]);
 
   useEffect(() => {
-    driverEtaRef.current =
-      driverEtaSeconds != null && Number.isFinite(driverEtaSeconds) && driverEtaSeconds > 0
-        ? driverEtaSeconds
-        : null;
+    if (driverEtaSeconds != null && Number.isFinite(driverEtaSeconds) && driverEtaSeconds > 0) {
+      driverEtaRef.current = driverEtaSeconds;
+      etaAnchorRef.current = { at: Date.now(), seconds: driverEtaSeconds };
+    } else {
+      driverEtaRef.current = null;
+    }
   }, [driverEtaSeconds]);
+
+  function getLiveDriverEtaSeconds(): number | null {
+    const anchor = etaAnchorRef.current;
+    if (anchor.seconds <= 0) return driverEtaRef.current;
+    const elapsed = (Date.now() - anchor.at) / 1000;
+    return Math.max(1, anchor.seconds - elapsed);
+  }
+
+  function isContinuousTrackingPhase(
+    phase: RequestRideMapViewProps["trackingPhase"]
+  ): boolean {
+    return (
+      phase === "en_route" ||
+      phase === "arriving" ||
+      phase === "waiting_pickup" ||
+      phase === "in_trip"
+    );
+  }
 
   function resolveDriverSpeedMps(displayM: number, targetM: number): number {
     const pathTotal = pathTotalRef.current;
@@ -175,9 +208,16 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
     const gap = Math.max(0, targetM - displayM);
     let cruise = DEFAULT_CRUISE_MPS;
 
-    const eta = driverEtaRef.current;
+    const eta = getLiveDriverEtaSeconds();
     if (eta != null && eta > 0) {
       cruise = Math.max(10, Math.min(MAX_DRIVER_SPEED_MPS, remaining / eta));
+    } else if (remaining > 50_000) {
+      // Rotas intermunicipais: velocidade mínima visível sem depender do poll do servidor.
+      const demoMultiplier = Math.max(1, getClientDemoRideSpeedMultiplier());
+      cruise = Math.max(
+        cruise,
+        Math.min(MAX_DRIVER_SPEED_MPS, remaining / Math.max(180 / demoMultiplier, 45))
+      );
     } else {
       cruise = linearSpeedAtMeters(remaining, DEFAULT_CRUISE_MPS);
     }
@@ -196,21 +236,34 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
     pathTotalRef.current = pathTotalMeters(tripPathRef.current);
   }
 
-  function isContinuousTrackingPhase(
-    phase: RequestRideMapViewProps["trackingPhase"]
-  ): boolean {
-    return (
-      phase === "en_route" ||
-      phase === "arriving" ||
-      phase === "waiting_pickup" ||
-      phase === "in_trip"
-    );
-  }
+  const followDriverCamera = useCallback((pos: RequestRideMapPoint) => {
+    const map = mapRef.current;
+    if (!map || !isValidPoint(pos)) return;
+    if (!isContinuousTrackingPhase(trackingPhaseRef.current)) return;
+
+    const zoom = Math.max(map.getZoom(), DRIVER_FOLLOW_MIN_ZOOM);
+    map.setView(toLatLngPair(pos), zoom, { animate: false });
+  }, []);
 
   const getBoundsPoints = useCallback((): [number, number][] => {
     const points: [number, number][] = [];
     const displayDriver = driverDisplayRef.current ?? driver;
-    const phase = trackingPhase ?? "searching";
+    const phase = trackingPhaseRef.current ?? "searching";
+
+    if (
+      isContinuousTrackingPhase(phase) &&
+      isValidPoint(displayDriver) &&
+      tripPathRef.current.length >= 2
+    ) {
+      points.push(toLatLngPair(displayDriver));
+      const displayM = displayMetersRef.current;
+      const lookAhead = Math.min(
+        pathTotalRef.current,
+        displayM + (phase === "in_trip" ? DRIVER_LOOKAHEAD_M : 4_500)
+      );
+      points.push(toLatLngPair(pointAtPathMeters(tripPathRef.current, lookAhead)));
+      return points;
+    }
 
     if (isValidPoint(displayDriver)) points.push(toLatLngPair(displayDriver));
     if (isValidPoint(origin)) points.push(toLatLngPair(origin));
@@ -226,7 +279,7 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
     }
 
     return points;
-  }, [origin, destination, driver, trackingPhase]);
+  }, [origin, destination, driver]);
 
   const fitVisibleBounds = useCallback(
     (animate = false) => {
@@ -239,7 +292,11 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
         map.fitBounds(L.latLngBounds(boundsPoints), {
           paddingTopLeft: L.point(52, 52),
           paddingBottomRight: L.point(52, bottomPad),
-          maxZoom: trackingPhase === "en_route" || trackingPhase === "arriving" ? 16 : 15,
+          maxZoom: isContinuousTrackingPhase(trackingPhaseRef.current)
+            ? DRIVER_FOLLOW_MIN_ZOOM + 1
+            : trackingPhase === "en_route" || trackingPhase === "arriving"
+              ? 16
+              : 15,
           animate,
         });
       } else if (boundsPoints.length === 1) {
@@ -339,6 +396,7 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
     const pos = pointAtPathMeters(path, clamped);
     driverDisplayRef.current = pos;
     marker.setLatLng(toLatLngPair(pos));
+    followDriverCamera(pos);
 
     const movedEnough =
       !bearingAnchorRef.current ||
@@ -355,7 +413,7 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
       driverBearingRef.current = bearing;
       marker.getElement()?.style.setProperty("--fui-driver-bearing", `${bearing}deg`);
     }
-  }, []);
+  }, [followDriverCamera]);
 
   const tickDriverAnimation = useCallback(() => {
     const path = tripPathRef.current;
@@ -388,13 +446,13 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
 
     if (
       pathTotalRef.current - nextDisplay > STOP_EPSILON_M &&
-      isContinuousTrackingPhase(trackingPhase)
+      isContinuousTrackingPhase(trackingPhaseRef.current)
     ) {
       animFrameRef.current = requestAnimationFrame(tickDriverAnimation);
     } else {
       animFrameRef.current = null;
     }
-  }, [applyDisplayPosition, stopDriverAnimation, trackingPhase]);
+  }, [applyDisplayPosition, stopDriverAnimation]);
 
   const startDriverAnimation = useCallback(() => {
     if (animFrameRef.current != null) return;
@@ -404,14 +462,14 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
 
   const ensureDriverAnimation = useCallback(() => {
     if (
-      !isContinuousTrackingPhase(trackingPhase) ||
+      !isContinuousTrackingPhase(trackingPhaseRef.current) ||
       tripPathRef.current.length < 2 ||
       pathTotalRef.current - displayMetersRef.current <= STOP_EPSILON_M
     ) {
       return;
     }
     startDriverAnimation();
-  }, [startDriverAnimation, trackingPhase]);
+  }, [startDriverAnimation]);
 
   const syncDriverLayer = useCallback(() => {
     const map = mapRef.current;

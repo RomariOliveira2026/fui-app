@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { RequestRideMap } from "@/components/RequestRideMap";
 import { trpc } from "@/lib/trpc";
+import { useLiveEtaSeconds } from "@/lib/useLiveEtaSeconds";
 import {
   getRideTrackingPresentation,
   resolveRideTrackingPhase,
@@ -103,6 +104,14 @@ export default function RideRouteMap({
 
   const showDriver = shouldShowDriverOnMap(rideLike) && !!driver;
 
+  const liveDriverEtaSeconds = useLiveEtaSeconds(
+    driverEtaSeconds ?? undefined,
+    showDriver &&
+      (trackingPhase === "in_trip" ||
+        trackingPhase === "en_route" ||
+        trackingPhase === "arriving")
+  );
+
   const [encodedPolyline, setEncodedPolyline] = useState<string | null>(null);
   const [fetchedRoutePath, setFetchedRoutePath] = useState<MapPoint[] | null>(null);
 
@@ -169,7 +178,7 @@ export default function RideRouteMap({
           encodedPolyline={encodedPolyline}
           routePath={routePath}
           trackingPhase={trackingPhase}
-          driverEtaSeconds={driverEtaSeconds}
+          driverEtaSeconds={liveDriverEtaSeconds ?? driverEtaSeconds ?? null}
           mapFitPaddingBottom={mapFitPaddingBottom}
         />
         {showDriver && tracking?.showLivePulse ? (
