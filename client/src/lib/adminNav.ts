@@ -1,6 +1,12 @@
 /** Rotas e estado ativo da navegação hub da Central Operacional. */
 
-export type AdminNavId = "finance" | "manage" | "analytics" | "notifications" | "coupons";
+export type AdminNavId =
+  | "finance"
+  | "manage"
+  | "analytics"
+  | "notifications"
+  | "coupons"
+  | "campaigns";
 
 export const ADMIN_NAV_ROUTES: Record<AdminNavId, string> = {
   finance: "/admin/finance",
@@ -8,6 +14,7 @@ export const ADMIN_NAV_ROUTES: Record<AdminNavId, string> = {
   analytics: "/admin?view=intelligence",
   notifications: "/admin/notifications",
   coupons: "/admin/finance?tab=coupons",
+  campaigns: "/admin/campaigns",
 };
 
 /** Navega para um módulo admin — preserva ?view= na Central (wouter ignora query string). */
@@ -41,6 +48,7 @@ export function resolveAdminNavActive(
   }
   if (pathname === "/admin/manage") return "manage";
   if (pathname === "/admin/notifications") return "notifications";
+  if (pathname === "/admin/campaigns") return "campaigns";
   if (pathname === "/admin") {
     return params.get("view") === "intelligence" ? "analytics" : null;
   }

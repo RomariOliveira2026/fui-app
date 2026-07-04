@@ -14,6 +14,8 @@ import { utilityProviderRouter } from "./routers/utilityProvider";
 import { utilityChatRouter } from "./routers/utilityChat";
 import { driverPremiumRouter } from "./routers/driverPremium";
 import { adminFinanceRouter } from "./routers/adminFinance";
+import { adminCampaignsRouter } from "./routers/adminCampaigns";
+import { campaignsRouter } from "./routers/campaigns";
 import { driverRegistrationRouter } from "./routers/driverRegistration";
 import { notifyRideOfferDispatch } from "./_core/dispatchNotifications";
 import { applyDemoCoupon, markDemoCouponUsed, recordCancellationAudit } from "./_core/demoAdminFinance";
@@ -243,6 +245,8 @@ export const appRouter = router({
   utilityChat: utilityChatRouter,
   driverPremium: driverPremiumRouter,
   adminFinance: adminFinanceRouter,
+  adminCampaigns: adminCampaignsRouter,
+  campaigns: campaignsRouter,
   driverRegistration: driverRegistrationRouter,
 
   user: router({

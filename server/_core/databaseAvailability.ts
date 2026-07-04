@@ -4,11 +4,23 @@ import { isDemoPassenger } from "./demoUser";
 import { getDb } from "../db";
 
 let probeCache: { ok: boolean; checkedAt: number } | null = null;
+let loggedProbeFailure = false;
 const PROBE_TTL_MS = 15_000;
+
+function probeErrorMessage(error: unknown): string {
+  if (error && typeof error === "object") {
+    const cause = (error as { cause?: { sqlMessage?: string; message?: string } }).cause;
+    if (cause?.sqlMessage) return cause.sqlMessage;
+    if (cause?.message) return cause.message;
+  }
+  if (error instanceof Error) return error.message;
+  return String(error);
+}
 
 /** Test-only: clears cached DB probe result. */
 export function resetDatabaseProbeCacheForTests(): void {
   probeCache = null;
+  loggedProbeFailure = false;
 }
 
 /** True when Drizzle can run a trivial query (MySQL up + reachable). */
@@ -29,8 +41,18 @@ export async function isDatabaseQueryable(): Promise<boolean> {
     probeCache = { ok: true, checkedAt: now };
     return true;
   } catch (error) {
-    console.warn("[Database] Health probe failed:", error);
     probeCache = { ok: false, checkedAt: now };
+    if (!loggedProbeFailure) {
+      loggedProbeFailure = true;
+      const detail = probeErrorMessage(error);
+      if (!ENV.isProduction) {
+        console.info(
+          `[Database] MySQL indisponível (${detail}) — usando stores demo em dev local`
+        );
+      } else {
+        console.warn(`[Database] Health probe failed: ${detail}`);
+      }
+    }
     return false;
   }
 }

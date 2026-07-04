@@ -127,6 +127,13 @@
       "when": 1774078522316,
       "tag": "0017_clammy_blindfold",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "5",
+      "when": 1774080000000,
+      "tag": "0018_media_campaigns",
+      "breakpoints": true
     }
   ]
 }

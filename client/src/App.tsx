@@ -43,6 +43,7 @@ const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
 const AdminManage = lazy(() => import("./pages/AdminManage"));
 const AdminNotifications = lazy(() => import("./pages/AdminNotifications"));
 const AdminFinance = lazy(() => import("./pages/AdminFinance"));
+const AdminCampaigns = lazy(() => import("./pages/AdminCampaigns"));
 const PaymentCheckout = lazy(() => import("./pages/PaymentCheckout"));
 const LicenseLanding = lazy(() => import("./pages/LicenseLanding"));
 
@@ -90,6 +91,7 @@ function Router() {
       <Route path="/admin/analytics" component={AdminAnalyticsRedirect} />
       <Route path="/admin/notifications">{() => <LazyRoute component={AdminNotifications} />}</Route>
       <Route path="/admin/finance">{() => <LazyRoute component={AdminFinance} />}</Route>
+      <Route path="/admin/campaigns">{() => <LazyRoute component={AdminCampaigns} />}</Route>
       <Route path={"/request-ride"} component={RequestRide} />
       <Route path="/ride/:id" component={RideDetails} />
       <Route path="/ride-history" component={RideHistory} />

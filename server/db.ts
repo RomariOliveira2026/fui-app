@@ -40,7 +40,22 @@ import {
   financialLedger,
   driverApplications,
   type DriverApplicationRow,
+  mediaPartners,
+  mediaCampaigns,
+  campaignEvents,
 } from "../drizzle/schema";
+import type {
+  CampaignAnalyticsSummary,
+  CampaignCreative,
+  CampaignInput,
+  CampaignStatus,
+  HomeMediaSlot,
+  MediaCampaign,
+  MediaPartner,
+  MediaPlacement,
+  PartnerInput,
+} from "@shared/adminCampaigns";
+import { PREMIUM_PLACEMENTS } from "@shared/adminCampaigns";
 import type { PlatformFinanceConfig } from "@shared/adminFinance";
 import type { DriverPremiumPreferences } from "@shared/driverPremium";
 import type { FinancialLedgerEntry } from "@shared/financialLedger";
@@ -2361,4 +2376,264 @@ export async function updateDriverApplicationStatus(
   } catch {
     /* fallback memória */
   }
+}
+
+// ============= MEDIA PARTNERS & CAMPAIGNS =============
+
+function rowToPartner(row: typeof mediaPartners.$inferSelect): MediaPartner {
+  return {
+    id: row.id,
+    name: row.name,
+    brandLabel: row.brandLabel ?? undefined,
+    contactName: row.contactName ?? undefined,
+    contactEmail: row.contactEmail ?? undefined,
+    contactWhatsapp: row.contactWhatsapp ?? undefined,
+    city: row.city,
+    state: row.state,
+    category: row.category,
+    status: row.status,
+    notes: row.notes ?? undefined,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+function rowToCampaign(row: typeof mediaCampaigns.$inferSelect): MediaCampaign {
+  return {
+    id: row.id,
+    partnerId: row.partnerId,
+    name: row.name,
+    category: row.category,
+    status: row.status,
+    targetCities: (row.targetCities as string[]) ?? [],
+    budgetCents: row.budgetCents ?? undefined,
+    startsAt: row.startsAt.toISOString(),
+    endsAt: row.endsAt.toISOString(),
+    creatives: (row.creatives as CampaignCreative[]) ?? [],
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+export async function getMediaPartners(): Promise<MediaPartner[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db.select().from(mediaPartners).orderBy(desc(mediaPartners.updatedAt));
+  return rows.map(rowToPartner);
+}
+
+export async function createMediaPartner(input: PartnerInput): Promise<MediaPartner> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const [result] = await db.insert(mediaPartners).values({
+    name: input.name,
+    brandLabel: input.brandLabel,
+    contactName: input.contactName,
+    contactEmail: input.contactEmail || null,
+    contactWhatsapp: input.contactWhatsapp,
+    city: input.city,
+    state: input.state,
+    category: input.category,
+    status: input.status,
+    notes: input.notes,
+  }).$returningId();
+  const rows = await db.select().from(mediaPartners).where(eq(mediaPartners.id, result.id)).limit(1);
+  return rowToPartner(rows[0]!);
+}
+
+export async function updateMediaPartner(
+  id: number,
+  patch: Partial<PartnerInput>
+): Promise<MediaPartner | null> {
+  const db = await getDb();
+  if (!db) return null;
+  await db.update(mediaPartners).set({
+    ...patch,
+    contactEmail: patch.contactEmail === "" ? null : patch.contactEmail,
+    updatedAt: new Date(),
+  }).where(eq(mediaPartners.id, id));
+  const rows = await db.select().from(mediaPartners).where(eq(mediaPartners.id, id)).limit(1);
+  return rows[0] ? rowToPartner(rows[0]) : null;
+}
+
+export async function getMediaCampaigns(): Promise<MediaCampaign[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db.select().from(mediaCampaigns).orderBy(desc(mediaCampaigns.updatedAt));
+  return rows.map(rowToCampaign);
+}
+
+function mapCreativesForDb(campaignId: number, inputs: CampaignInput["creatives"]): CampaignCreative[] {
+  return inputs.map((c, index) => ({
+    id: Date.now() + index,
+    campaignId,
+    placement: c.placement,
+    headline: c.headline,
+    subheadline: c.subheadline,
+    ctaLabel: c.ctaLabel,
+    actionUrl: c.actionUrl,
+    imageUrl: c.imageUrl || undefined,
+    accentColor: c.accentColor,
+    sortOrder: c.sortOrder ?? index,
+    isPremium: PREMIUM_PLACEMENTS.includes(c.placement),
+  }));
+}
+
+export async function createMediaCampaign(input: CampaignInput): Promise<MediaCampaign> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const [result] = await db.insert(mediaCampaigns).values({
+    partnerId: input.partnerId,
+    name: input.name,
+    category: input.category,
+    status: input.status,
+    targetCities: input.targetCities,
+    budgetCents: input.budgetCents,
+    startsAt: new Date(input.startsAt),
+    endsAt: new Date(input.endsAt),
+    creatives: mapCreativesForDb(0, input.creatives),
+  }).$returningId();
+  const rows = await db.select().from(mediaCampaigns).where(eq(mediaCampaigns.id, result.id)).limit(1);
+  const campaign = rowToCampaign(rows[0]!);
+  campaign.creatives = mapCreativesForDb(campaign.id, input.creatives);
+  await db.update(mediaCampaigns).set({ creatives: campaign.creatives }).where(eq(mediaCampaigns.id, campaign.id));
+  return campaign;
+}
+
+export async function updateMediaCampaign(
+  id: number,
+  patch: Partial<CampaignInput> & { status?: CampaignStatus }
+): Promise<MediaCampaign | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const updateSet: Record<string, unknown> = { updatedAt: new Date() };
+  if (patch.name) updateSet.name = patch.name;
+  if (patch.category) updateSet.category = patch.category;
+  if (patch.status) updateSet.status = patch.status;
+  if (patch.targetCities) updateSet.targetCities = patch.targetCities;
+  if (patch.budgetCents != null) updateSet.budgetCents = patch.budgetCents;
+  if (patch.startsAt) updateSet.startsAt = new Date(patch.startsAt);
+  if (patch.endsAt) updateSet.endsAt = new Date(patch.endsAt);
+  if (patch.creatives) updateSet.creatives = mapCreativesForDb(id, patch.creatives);
+  await db.update(mediaCampaigns).set(updateSet).where(eq(mediaCampaigns.id, id));
+  const rows = await db.select().from(mediaCampaigns).where(eq(mediaCampaigns.id, id)).limit(1);
+  return rows[0] ? rowToCampaign(rows[0]) : null;
+}
+
+export async function updateMediaCampaignStatus(
+  id: number,
+  status: CampaignStatus
+): Promise<MediaCampaign | null> {
+  return updateMediaCampaign(id, { status });
+}
+
+export async function insertCampaignEvent(payload: {
+  campaignId: number;
+  creativeId: number;
+  partnerId: number;
+  eventType: "impression" | "click";
+  placement: MediaPlacement;
+  city?: string;
+  userId?: number;
+}): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.insert(campaignEvents).values({
+    campaignId: payload.campaignId,
+    creativeId: payload.creativeId,
+    partnerId: payload.partnerId,
+    eventType: payload.eventType,
+    placement: payload.placement,
+    city: payload.city,
+    userId: payload.userId,
+  });
+}
+
+export async function getCampaignAnalyticsSummary(): Promise<CampaignAnalyticsSummary> {
+  const db = await getDb();
+  if (!db) {
+    return {
+      totalImpressions: 0,
+      totalClicks: 0,
+      overallCtr: 0,
+      activeCampaigns: 0,
+      activePartners: 0,
+      byCampaign: [],
+      byPlacement: [],
+    };
+  }
+
+  const [impressions] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(campaignEvents)
+    .where(eq(campaignEvents.eventType, "impression"));
+  const [clicks] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(campaignEvents)
+    .where(eq(campaignEvents.eventType, "click"));
+
+  const totalImpressions = impressions?.count ?? 0;
+  const totalClicks = clicks?.count ?? 0;
+
+  const [activeCampaigns] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(mediaCampaigns)
+    .where(eq(mediaCampaigns.status, "active"));
+  const [activePartners] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(mediaPartners)
+    .where(eq(mediaPartners.status, "active"));
+
+  return {
+    totalImpressions,
+    totalClicks,
+    overallCtr: totalImpressions > 0 ? totalClicks / totalImpressions : 0,
+    activeCampaigns: activeCampaigns?.count ?? 0,
+    activePartners: activePartners?.count ?? 0,
+    byCampaign: [],
+    byPlacement: [],
+  };
+}
+
+export async function getActiveHomeMedia(city: string, category?: string): Promise<HomeMediaSlot[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const now = new Date();
+  const rows = await db
+    .select()
+    .from(mediaCampaigns)
+    .where(eq(mediaCampaigns.status, "active"));
+
+  const partners = await getMediaPartners();
+  const partnerMap = new Map(partners.map((p) => [p.id, p]));
+  const normalizedCity = city.trim().toLowerCase();
+  const slots: HomeMediaSlot[] = [];
+
+  for (const row of rows) {
+    const campaign = rowToCampaign(row);
+    if (category && campaign.category !== category) continue;
+    if (now < new Date(campaign.startsAt) || now > new Date(campaign.endsAt)) continue;
+    if (
+      campaign.targetCities.length > 0 &&
+      !campaign.targetCities.some((c) => c.trim().toLowerCase() === normalizedCity)
+    ) {
+      continue;
+    }
+    const partner = partnerMap.get(campaign.partnerId);
+    if (!partner || partner.status !== "active") continue;
+    for (const creative of campaign.creatives) {
+      slots.push({
+        placement: creative.placement,
+        partnerId: campaign.partnerId,
+        creative: {
+          ...creative,
+          partnerName: partner.brandLabel ?? partner.name,
+          campaignName: campaign.name,
+          category: campaign.category,
+        },
+      });
+    }
+  }
+
+  return slots;
 }

@@ -47,6 +47,7 @@ import PassengerRecentRides from "@/components/passenger/PassengerRecentRides";
 import { repeatRide, saveRidePrefill, clearRidePrefill, isCompleteRidePrefill } from "@/lib/ridePrefill";
 import PassengerSavedAddressesPanel from "@/components/passenger/PassengerSavedAddressesPanel";
 import PassengerSummaryCards from "@/components/passenger/PassengerSummaryCards";
+import PassengerMediaCampaigns from "@/components/passenger/PassengerMediaCampaigns";
 import { cn } from "@/lib/utils";
 import { usePassengerDashboardData } from "@/lib/usePassengerDashboardData";
 import { resolveDriverLandingPath } from "@shared/driverLanding";
@@ -119,6 +120,8 @@ function LoggedInHome() {
 
           <main className="mx-auto max-w-screen-xl space-y-6 px-4 pb-10 pt-2">
             <PassengerGreeting name={dashboard.displayUser?.name} />
+
+            <PassengerMediaCampaigns />
 
             {dashboard.activeRide ? (
               <PassengerActiveRideCard
@@ -435,6 +438,12 @@ function VisitorHome() {
               </div>
             </div>
           </div>
+        </div>
+      </section>
+
+      <section className="pb-8 px-4">
+        <div className="container mx-auto max-w-3xl">
+          <PassengerMediaCampaigns compact />
         </div>
       </section>
 

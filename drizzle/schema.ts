@@ -599,3 +599,84 @@ export const driverApplications = mysqlTable("driver_applications", {
 
 export type DriverApplicationRow = typeof driverApplications.$inferSelect;
 export type InsertDriverApplicationRow = typeof driverApplications.$inferInsert;
+
+/**
+ * Parceiros comerciais / anunciantes locais (Rodada 3 Onda 2).
+ */
+export const mediaPartners = mysqlTable("media_partners", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 160 }).notNull(),
+  brandLabel: varchar("brandLabel", { length: 160 }),
+  contactName: varchar("contactName", { length: 120 }),
+  contactEmail: varchar("contactEmail", { length: 320 }),
+  contactWhatsapp: varchar("contactWhatsapp", { length: 20 }),
+  city: varchar("city", { length: 80 }).notNull(),
+  state: varchar("state", { length: 2 }).notNull(),
+  category: mysqlEnum("category", [
+    "food",
+    "retail",
+    "services",
+    "mobility",
+    "events",
+    "local_business",
+    "corporate",
+  ]).notNull(),
+  status: mysqlEnum("status", ["prospect", "active", "paused"]).default("prospect").notNull(),
+  notes: text("notes"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type MediaPartnerRow = typeof mediaPartners.$inferSelect;
+export type InsertMediaPartnerRow = typeof mediaPartners.$inferInsert;
+
+/**
+ * Campanhas de mídia por cidade/categoria.
+ */
+export const mediaCampaigns = mysqlTable("media_campaigns", {
+  id: int("id").autoincrement().primaryKey(),
+  partnerId: int("partnerId").notNull(),
+  name: varchar("name", { length: 160 }).notNull(),
+  category: mysqlEnum("category", [
+    "food",
+    "retail",
+    "services",
+    "mobility",
+    "events",
+    "local_business",
+    "corporate",
+  ]).notNull(),
+  status: mysqlEnum("status", ["draft", "scheduled", "active", "paused", "ended"])
+    .default("draft")
+    .notNull(),
+  targetCities: json("targetCities").$type<string[]>().default([]),
+  budgetCents: int("budgetCents"),
+  startsAt: timestamp("startsAt").notNull(),
+  endsAt: timestamp("endsAt").notNull(),
+  creatives: json("creatives").$type<
+    import("../shared/adminCampaigns").CampaignCreative[]
+  >(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type MediaCampaignRow = typeof mediaCampaigns.$inferSelect;
+export type InsertMediaCampaignRow = typeof mediaCampaigns.$inferInsert;
+
+/**
+ * Analytics básico — impressões e cliques por campanha/criativo.
+ */
+export const campaignEvents = mysqlTable("campaign_events", {
+  id: int("id").autoincrement().primaryKey(),
+  campaignId: int("campaignId").notNull(),
+  creativeId: int("creativeId").notNull(),
+  partnerId: int("partnerId").notNull(),
+  eventType: mysqlEnum("eventType", ["impression", "click"]).notNull(),
+  placement: varchar("placement", { length: 32 }).notNull(),
+  city: varchar("city", { length: 80 }),
+  userId: int("userId"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type CampaignEventRow = typeof campaignEvents.$inferSelect;
+export type InsertCampaignEventRow = typeof campaignEvents.$inferInsert;

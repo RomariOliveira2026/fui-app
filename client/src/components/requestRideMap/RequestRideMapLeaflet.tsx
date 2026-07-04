@@ -170,6 +170,7 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
   trackingPhase,
   driverEtaSeconds,
   mapFitPaddingBottom = 52,
+  zoomControlPosition,
 }: RequestRideMapViewProps) {
   const mapRef = useRef<L.Map | null>(null);
   const layersRef = useRef<{
@@ -652,6 +653,7 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
       className={cn("rounded-lg border border-border", className)}
       initialCenter={defaultCenter}
       initialZoom={REQUEST_RIDE_MAP_DEFAULT_ZOOM}
+      zoomControlPosition={zoomControlPosition}
       onMapReady={(map) => {
         mapRef.current = map;
         syncStaticLayers();

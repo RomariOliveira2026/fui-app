@@ -169,9 +169,15 @@ export default function RideRouteMap({
           trackingPhase={trackingPhase}
           driverEtaSeconds={liveDriverEtaSeconds ?? driverEtaSeconds ?? null}
           mapFitPaddingBottom={mapFitPaddingBottom}
+          zoomControlPosition={isFullscreen ? "bottomright" : undefined}
         />
         {showDriver && tracking?.showLivePulse ? (
-          <div className="pointer-events-none absolute left-3 top-3 flex items-center gap-2 rounded-full border border-border bg-background/90 px-3 py-1.5 text-xs font-medium text-foreground backdrop-blur-sm">
+          <div
+            className={cn(
+              "pointer-events-none absolute flex items-center gap-2 rounded-full border border-border bg-background/90 px-3 py-1.5 text-xs font-medium text-foreground backdrop-blur-sm",
+              isFullscreen ? "left-4 top-[3.75rem]" : "left-3 top-3"
+            )}
+          >
             <span className="relative flex h-2 w-2">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary/50" />
               <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />

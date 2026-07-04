@@ -190,6 +190,8 @@ interface LeafletMapProps {
   initialCenter?: [number, number]; // [lat, lng]
   initialZoom?: number;
   onMapReady?: (map: L.Map) => void;
+  /** Posição dos botões +/- — use bottomright em telas com botão voltar no topo. */
+  zoomControlPosition?: L.ControlPosition;
 }
 
 /**
@@ -208,6 +210,7 @@ const LeafletMapInner = memo(function LeafletMapInner({
   initialCenter = [BRAZIL_MAP_CENTER.lat, BRAZIL_MAP_CENTER.lng],
   initialZoom = STREET_LEVEL_MAP_ZOOM,
   onMapReady,
+  zoomControlPosition = "topleft",
 }: LeafletMapProps) {
   // Ref for the outer wrapper that React manages
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -239,9 +242,11 @@ const LeafletMapInner = memo(function LeafletMapInner({
       const map = L.map(mapDiv, {
         center: initialCenter,
         zoom: initialZoom,
-        zoomControl: true,
+        zoomControl: false,
         attributionControl: true,
       });
+
+      L.control.zoom({ position: zoomControlPosition }).addTo(map);
 
       setupLayeredBaseMap(map);
 

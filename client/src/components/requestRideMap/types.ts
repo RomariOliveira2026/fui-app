@@ -37,6 +37,8 @@ export type RequestRideMapViewProps = {
   driverEtaSeconds?: number | null;
   /** Padding inferior do fitBounds (px) — evita que o painel cubra o carro. */
   mapFitPaddingBottom?: number;
+  /** Evita sobrepor botão voltar na corrida ao vivo. */
+  zoomControlPosition?: "topleft" | "topright" | "bottomleft" | "bottomright";
 };
 
 /** Centro padrão do mapa até o GPS do usuário (visão Brasil). */

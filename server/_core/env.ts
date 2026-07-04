@@ -17,4 +17,6 @@ export const ENV = {
   supportWhatsApp: process.env.VITE_SUPPORT_WHATSAPP ?? "",
   /** Beta demo na Vercel: passageiro demo quando não há sessão OAuth. */
   betaDemo: process.env.BETA_DEMO === "true",
+  /** URL pública canônica (domínio próprio ou Vercel). */
+  appUrl: process.env.VITE_APP_URL ?? "",
 };

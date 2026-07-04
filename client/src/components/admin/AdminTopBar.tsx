@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { Bell, BarChart3, RefreshCw, Settings, Tag, Wallet } from "lucide-react";
+import { Bell, BarChart3, Megaphone, RefreshCw, Settings, Tag, Wallet } from "lucide-react";
 import { useLocation } from "wouter";
 import { adminLiveBadge, adminSectionSubtitle } from "@/lib/adminShell";
 import {
@@ -27,6 +27,7 @@ const NAV_ITEMS: Array<{
   { id: "manage", label: "Gestão", icon: Settings },
   { id: "analytics", label: "Analytics", icon: BarChart3 },
   { id: "notifications", label: "Notificações", icon: Bell },
+  { id: "campaigns", label: "Mídia", icon: Megaphone },
   { id: "coupons", label: "Cupons", icon: Tag },
 ];
 
