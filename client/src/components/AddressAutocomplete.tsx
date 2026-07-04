@@ -9,10 +9,10 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { filterDemoPlaces, findDemoPlaceByPlaceId, findDemoPlaceByText } from "@shared/demoMaps";
 import { findSergipeKnownPlace, findSergipeKnownPlaceByPlaceId } from "@shared/sergipeKnownPlaces";
-import { BRAZIL_MAP_CENTER, DEFAULT_OPERATION_CENTER, rankByLocality } from "@shared/mapDefaults";
+import { BRAZIL_MAP_CENTER, getDefaultOperationCenter, rankByLocality } from "@shared/mapDefaults";
+import { WL } from "@/whitelabel";
 
 const MIN_QUERY_LENGTH = 2;
-import { WL } from "@/whitelabel";
 import type { AddressHistoryItem } from "@/lib/addressHistory";
 import {
   filterHistoryByQuery,
@@ -138,7 +138,7 @@ export function AddressAutocomplete({
     locationBias && Number.isFinite(locationBias.lat) && Number.isFinite(locationBias.lng)
       ? locationBias
       : WL.city
-        ? DEFAULT_OPERATION_CENTER
+        ? getDefaultOperationCenter(WL.city)
         : BRAZIL_MAP_CENTER;
 
   const locationBiasParam = effectiveBias

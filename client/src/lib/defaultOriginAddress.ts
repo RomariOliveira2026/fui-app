@@ -3,7 +3,11 @@ import {
   FUI_HISTORY_ORIGIN_KEY,
   type AddressHistoryItem,
 } from "@/lib/addressHistory";
-import { DEFAULT_PASSENGER_HOME } from "@shared/defaultHomeAddress";
+import {
+  getDefaultPassengerHome,
+} from "@shared/defaultHomeAddress";
+import type { SergipeCityHome } from "@shared/sergipeOperatingCities";
+import { WL } from "@/whitelabel";
 
 export type DefaultOriginSelection = {
   address: string;
@@ -11,21 +15,23 @@ export type DefaultOriginSelection = {
   coords: { lat: number; lng: number };
 };
 
+function homeToSelection(home: SergipeCityHome): DefaultOriginSelection {
+  return {
+    address: home.address,
+    placeId: home.placeId,
+    coords: { lat: home.lat, lng: home.lng },
+  };
+}
+
 /** Coloca a residência padrão no topo do histórico de origem. */
-export function seedDefaultOriginHistory(): AddressHistoryItem[] {
+export function seedDefaultOriginHistory(appCity?: string): AddressHistoryItem[] {
+  const home = getDefaultPassengerHome(appCity ?? WL.city);
   return addAddressHistory(FUI_HISTORY_ORIGIN_KEY, {
-    address: DEFAULT_PASSENGER_HOME.address,
-    placeId: DEFAULT_PASSENGER_HOME.placeId,
+    address: home.address,
+    placeId: home.placeId,
   });
 }
 
-export function getDefaultOriginSelection(): DefaultOriginSelection {
-  return {
-    address: DEFAULT_PASSENGER_HOME.address,
-    placeId: DEFAULT_PASSENGER_HOME.placeId,
-    coords: {
-      lat: DEFAULT_PASSENGER_HOME.lat,
-      lng: DEFAULT_PASSENGER_HOME.lng,
-    },
-  };
+export function getDefaultOriginSelection(appCity?: string): DefaultOriginSelection {
+  return homeToSelection(getDefaultPassengerHome(appCity ?? WL.city));
 }

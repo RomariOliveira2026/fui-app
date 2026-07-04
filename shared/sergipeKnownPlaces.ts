@@ -1,6 +1,7 @@
 /** Endereços conhecidos de Sergipe — fallback quando Nominatim não resolve. */
 
 import { stripAccents } from "./addressGeocoding";
+import { resolveCitySlugFromAddress, type SergipeCitySlug } from "./sergipeOperatingCities";
 
 export type SergipeKnownPlace = {
   /** Substrings para match (minúsculas, sem acento). */
@@ -255,6 +256,125 @@ export const SERGIPE_KNOWN_PLACES: SergipeKnownPlace[] = [
     displayName: "Rodoviária, Itaporanga D'Ajuda/SE",
     placeId: "sergipe:itaporanga:rodoviaria",
   },
+  // ── Nossa Senhora do Socorro ─────────────────────────────────────────────
+  {
+    matchTerms: ["centro nossa senhora do socorro", "centro socorro", "socorro centro"],
+    lat: -10.855,
+    lng: -37.126,
+    displayName: "Centro, Nossa Senhora do Socorro/SE",
+    placeId: "sergipe:nossa-senhora-do-socorro:centro",
+  },
+  {
+    matchTerms: [
+      "rodoviaria nossa senhora do socorro",
+      "rodoviária socorro",
+      "terminal rodoviario socorro",
+    ],
+    lat: -10.8486,
+    lng: -37.132,
+    displayName: "Terminal Rodoviário, Nossa Senhora do Socorro/SE",
+    placeId: "sergipe:nossa-senhora-do-socorro:rodoviaria",
+  },
+  {
+    matchTerms: ["hospital eugenio maia socorro", "hospital socorro"],
+    lat: -10.8578,
+    lng: -37.1245,
+    displayName: "Hospital Eugênio Maia, Nossa Senhora do Socorro/SE",
+    placeId: "sergipe:nossa-senhora-do-socorro:hospital-eugenio-maia",
+  },
+  // ── Lagarto ───────────────────────────────────────────────────────────────
+  {
+    matchTerms: ["centro lagarto", "lagarto centro"],
+    lat: -10.9174,
+    lng: -37.6509,
+    displayName: "Centro, Lagarto/SE",
+    placeId: "sergipe:lagarto:centro",
+  },
+  {
+    matchTerms: ["rodoviaria lagarto", "rodoviária lagarto", "terminal rodoviario lagarto"],
+    lat: -10.9142,
+    lng: -37.6548,
+    displayName: "Terminal Rodoviário, Lagarto/SE",
+    placeId: "sergipe:lagarto:rodoviaria",
+  },
+  {
+    matchTerms: ["hospital de lagarto", "hospital lagarto"],
+    lat: -10.9165,
+    lng: -37.6482,
+    displayName: "Hospital de Lagarto/SE",
+    placeId: "sergipe:lagarto:hospital",
+  },
+  // ── Nossa Senhora da Glória ───────────────────────────────────────────────
+  {
+    matchTerms: ["centro nossa senhora da gloria", "centro gloria", "gloria centro"],
+    lat: -10.2189,
+    lng: -37.4189,
+    displayName: "Centro, Nossa Senhora da Glória/SE",
+    placeId: "sergipe:nossa-senhora-da-gloria:centro",
+  },
+  {
+    matchTerms: [
+      "rodoviaria nossa senhora da gloria",
+      "rodoviária gloria",
+      "terminal rodoviario gloria",
+    ],
+    lat: -10.2156,
+    lng: -37.4221,
+    displayName: "Terminal Rodoviário, Nossa Senhora da Glória/SE",
+    placeId: "sergipe:nossa-senhora-da-gloria:rodoviaria",
+  },
+  // ── Estância ──────────────────────────────────────────────────────────────
+  {
+    matchTerms: ["centro estancia", "centro estância", "estancia centro"],
+    lat: -11.2681,
+    lng: -37.438,
+    displayName: "Centro, Estância/SE",
+    placeId: "sergipe:estancia:centro",
+  },
+  {
+    matchTerms: ["rodoviaria estancia", "rodoviária estância"],
+    lat: -11.2654,
+    lng: -37.4412,
+    displayName: "Terminal Rodoviário, Estância/SE",
+    placeId: "sergipe:estancia:rodoviaria",
+  },
+  {
+    matchTerms: ["praia do sauipe", "sauipe estancia", "costa dos coqueiros"],
+    lat: -11.195,
+    lng: -37.365,
+    displayName: "Praia do Sauípe, Estância/SE",
+    placeId: "sergipe:estancia:praia-sauipe",
+  },
+  // ── Propriá ───────────────────────────────────────────────────────────────
+  {
+    matchTerms: ["centro propria", "centro propriá", "propria centro"],
+    lat: -10.2118,
+    lng: -36.8406,
+    displayName: "Centro, Propriá/SE",
+    placeId: "sergipe:propria:centro",
+  },
+  {
+    matchTerms: ["rodoviaria propria", "rodoviária propriá"],
+    lat: -10.2095,
+    lng: -36.8442,
+    displayName: "Terminal Rodoviário, Propriá/SE",
+    placeId: "sergipe:propria:rodoviaria",
+  },
+  // ── Tobias Barreto ────────────────────────────────────────────────────────
+  {
+    matchTerms: ["centro tobias barreto", "tobias barreto centro"],
+    lat: -11.1838,
+    lng: -37.9944,
+    displayName: "Centro, Tobias Barreto/SE",
+    placeId: "sergipe:tobias-barreto:centro",
+  },
+  {
+    matchTerms: ["rodoviaria tobias barreto", "rodoviária tobias barreto"],
+    lat: -11.1812,
+    lng: -37.9981,
+    displayName: "Terminal Rodoviário, Tobias Barreto/SE",
+    placeId: "sergipe:tobias-barreto:rodoviaria",
+  },
 ];
 
 const GENERIC_MATCH_TOKENS = new Set([
@@ -278,6 +398,12 @@ const GENERIC_MATCH_TOKENS = new Set([
   "banese",
   "banco",
   "estado",
+  "lagarto",
+  "socorro",
+  "gloria",
+  "estancia",
+  "propria",
+  "tobias",
 ]);
 
 function normalizeForMatch(text: string): string {
@@ -288,31 +414,15 @@ function normalizeForMatch(text: string): string {
     .trim();
 }
 
-type SergipePlaceCity = "aracaju" | "itabaiana" | "itaporanga";
-
-function getSergipePlaceCity(place: SergipeKnownPlace): SergipePlaceCity | null {
-  if (place.placeId.includes(":itabaiana:") || place.placeId.startsWith("demo-")) {
-    return "itabaiana";
-  }
-  if (place.placeId.includes(":itaporanga:")) {
-    return "itaporanga";
-  }
-  if (place.placeId.includes(":aracaju:")) {
-    return "aracaju";
-  }
-  const displayNorm = normalizeForMatch(place.displayName);
-  if (displayNorm.includes("itaporanga")) return "itaporanga";
-  if (displayNorm.includes("itabaiana")) return "itabaiana";
-  if (displayNorm.includes("aracaju")) return "aracaju";
-  return null;
+function getSergipePlaceCity(place: SergipeKnownPlace): SergipeCitySlug | null {
+  if (place.placeId.startsWith("demo-")) return "itabaiana";
+  const idMatch = place.placeId.match(/^sergipe:([^:]+):/);
+  if (idMatch?.[1]) return idMatch[1] as SergipeCitySlug;
+  return resolveCitySlugFromAddress(place.displayName);
 }
 
-function getQueryCityHint(query: string): SergipePlaceCity | null {
-  const normalized = normalizeForMatch(query);
-  if (/\bitaporanga\b/.test(normalized)) return "itaporanga";
-  if (/\bitabaiana\b/.test(normalized)) return "itabaiana";
-  if (/\baracaju\b/.test(normalized)) return "aracaju";
-  return null;
+function getQueryCityHint(query: string): SergipeCitySlug | null {
+  return resolveCitySlugFromAddress(query);
 }
 
 function tokenizeForMatch(text: string): string[] {
@@ -360,7 +470,10 @@ export function scoreSergipePlaceMatch(
     }
   }
 
-  if (place.placeId.includes(":itabaiana:") || place.placeId.startsWith("demo-")) {
+  if (
+    place.placeId.includes(":itabaiana:") ||
+    place.placeId.startsWith("demo-")
+  ) {
     if (normalized.includes("itaporanga") && queryCity === "itaporanga") {
       return 0;
     }

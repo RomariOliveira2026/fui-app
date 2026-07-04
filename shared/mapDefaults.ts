@@ -1,39 +1,60 @@
 /** Centro geográfico aproximado do Brasil — fallback do mapa até o GPS do usuário. */
+import { getGeocodingCityForApp, getOperationCenterForApp } from "./sergipeOperatingCities";
+
 export const BRAZIL_MAP_CENTER = {
   lat: -14.235004,
   lng: -51.92528,
 } as const;
 
-/** Centro operacional padrão (Itabaiana/SE) — viés de autocomplete quando não há GPS. */
-export const DEFAULT_OPERATION_CENTER = {
-  lat: -10.685,
-  lng: -37.425,
-} as const;
+
+function resolveBuildTimeAppCity(): string | undefined {
+  if (typeof process !== "undefined" && process.env.VITE_APP_CITY?.trim()) {
+    return process.env.VITE_APP_CITY.trim();
+  }
+  try {
+    const viteCity = (import.meta as ImportMeta & { env?: { VITE_APP_CITY?: string } })
+      .env?.VITE_APP_CITY;
+    return viteCity?.trim() || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Centro operacional para viés de mapa/autocomplete. */
+export function getDefaultOperationCenter(appCity?: string | null): { lat: number; lng: number } {
+  return getOperationCenterForApp(appCity ?? resolveBuildTimeAppCity());
+}
+
+/** Centro operacional padrão (build-time ou Itabaiana). */
+export const DEFAULT_OPERATION_CENTER = getDefaultOperationCenter();
 
 /**
  * Cidade padrão legada (operação local Sergipe).
  * Em modo nacional (sem VITE_APP_CITY) o geocoding não usa este fallback.
  */
-export const DEFAULT_GEOCODING_CITY = "Itabaiana";
+export const DEFAULT_GEOCODING_CITY = getGeocodingCityForApp();
 
 export { resolveGeocodingScope, resolveHintCity, type GeocodingScope } from "./geocodingScope";
 
 /** Distância em metros até o centro operacional padrão. */
-export function distanceToOperationalCenterMeters(lat: number, lng: number): number {
-  const dLat = (lat - DEFAULT_OPERATION_CENTER.lat) * 111_320;
+export function distanceToOperationalCenterMeters(
+  lat: number,
+  lng: number,
+  center = DEFAULT_OPERATION_CENTER
+): number {
+  const dLat = (lat - center.lat) * 111_320;
   const dLng =
-    (lng - DEFAULT_OPERATION_CENTER.lng) *
-    111_320 *
-    Math.cos((DEFAULT_OPERATION_CENTER.lat * Math.PI) / 180);
+    (lng - center.lng) * 111_320 * Math.cos((center.lat * Math.PI) / 180);
   return Math.hypot(dLat, dLng);
 }
 
 export function isNearOperationalCenter(
   lat: number,
   lng: number,
-  radiusMeters = 450
+  radiusMeters = 450,
+  center = DEFAULT_OPERATION_CENTER
 ): boolean {
-  return distanceToOperationalCenterMeters(lat, lng) <= radiusMeters;
+  return distanceToOperationalCenterMeters(lat, lng, center) <= radiusMeters;
 }
 
 /** Viewbox aproximado de Sergipe para viés regional no Nominatim. */

@@ -1,17 +1,23 @@
 /** Endereços salvos demo — persistência local (sem tabela saved_addresses). */
 
-import { DEFAULT_PASSENGER_HOME } from "@shared/defaultHomeAddress";
+import { getDefaultPassengerHome } from "@shared/defaultHomeAddress";
+import { WL } from "@/whitelabel";
 
 export const FUI_DEMO_SAVED_ADDRESSES_KEY = "fui_demo_saved_addresses";
 const FUI_DEMO_SAVED_ADDRESS_ID_KEY = "fui_demo_saved_address_next_id";
 
-/** Casa padrão — residência do passageiro em Itabaiana. */
-export const DEFAULT_DEMO_HOME_ADDRESS = {
-  label: "home" as const,
-  address: DEFAULT_PASSENGER_HOME.address,
-  lat: String(DEFAULT_PASSENGER_HOME.lat),
-  lng: String(DEFAULT_PASSENGER_HOME.lng),
-};
+/** Casa padrão — residência conforme VITE_APP_CITY. */
+export function getDefaultDemoHomeAddress() {
+  const h = getDefaultPassengerHome(WL.city);
+  return {
+    label: "home" as const,
+    address: h.address,
+    lat: String(h.lat),
+    lng: String(h.lng),
+  };
+}
+
+export const DEFAULT_DEMO_HOME_ADDRESS = getDefaultDemoHomeAddress();
 
 export type DemoSavedAddress = {
   id: number;
@@ -100,11 +106,12 @@ export function deleteDemoSavedAddress(id: number): DemoSavedAddress[] {
 
 /** Garante endereço Casa no demo — sempre sincronizado com a residência padrão. */
 export function ensureDemoHomeAddressSeed(): DemoSavedAddress[] {
+  const seed = getDefaultDemoHomeAddress();
   return saveDemoSavedAddress({
-    label: DEFAULT_DEMO_HOME_ADDRESS.label,
-    address: DEFAULT_DEMO_HOME_ADDRESS.address,
-    lat: DEFAULT_DEMO_HOME_ADDRESS.lat,
-    lng: DEFAULT_DEMO_HOME_ADDRESS.lng,
+    label: seed.label,
+    address: seed.address,
+    lat: seed.lat,
+    lng: seed.lng,
     userId: 0,
   });
 }

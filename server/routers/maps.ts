@@ -16,7 +16,7 @@ import {
   searchPlacesWithNominatim,
   sleepMs,
 } from "../_core/nominatim";
-import { DEFAULT_OPERATION_CENTER, extractCityFromAddress, rankByLocality, resolveGeocodingScope, resolveHintCity } from "@shared/mapDefaults";
+import { getDefaultOperationCenter, extractCityFromAddress, rankByLocality, resolveGeocodingScope, resolveHintCity } from "@shared/mapDefaults";
 import { findSergipeKnownPlace, findSergipeKnownPlaceByPlaceId, searchSergipeKnownPlaces } from "@shared/sergipeKnownPlaces";
 import { calculateDrivingRouteWithOsrm } from "../_core/osrmRoute";
 import { calculatePassengerRoute } from "../_core/passengerRoute";
@@ -224,8 +224,9 @@ export const mapsRouter = router({
       const scope = resolveGeocodingScope(ENV.appCity);
       const city = scope.operationalCity ?? "";
       const hasLocalOperation = scope.useRegionalViewbox;
+      const opCenter = getDefaultOperationCenter(ENV.appCity);
       const defaultLocation = hasLocalOperation
-        ? `${DEFAULT_OPERATION_CENTER.lat},${DEFAULT_OPERATION_CENTER.lng}`
+        ? `${opCenter.lat},${opCenter.lng}`
         : undefined;
       const location = params.location ?? defaultLocation;
       const radius = params.radius ?? (hasLocalOperation ? 25000 : 50000);

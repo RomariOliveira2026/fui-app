@@ -84,7 +84,7 @@ import {
   getDefaultOriginSelection,
   seedDefaultOriginHistory,
 } from "@/lib/defaultOriginAddress";
-import { DEFAULT_PASSENGER_HOME } from "@shared/defaultHomeAddress";
+import { getDefaultPassengerHome } from "@shared/defaultHomeAddress";
 import {
   consumePostAuthRedirect,
   hasDriverSignupIntent,
@@ -607,8 +607,8 @@ function LoggedInHome() {
                   savedAddresses={savedAddresses}
                   prioritySuggestions={[
                     {
-                      address: DEFAULT_PASSENGER_HOME.address,
-                      placeId: DEFAULT_PASSENGER_HOME.placeId,
+                      address: getDefaultPassengerHome(WL.city).address,
+                      placeId: getDefaultPassengerHome(WL.city).placeId,
                     },
                   ]}
                   locationBias={locationBias}
