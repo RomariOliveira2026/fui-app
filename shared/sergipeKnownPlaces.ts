@@ -375,6 +375,93 @@ export const SERGIPE_KNOWN_PLACES: SergipeKnownPlace[] = [
     displayName: "Terminal Rodoviário, Tobias Barreto/SE",
     placeId: "sergipe:tobias-barreto:rodoviaria",
   },
+  // ── Maceió (AL) ───────────────────────────────────────────────────────────
+  {
+    matchTerms: ["centro maceio", "centro maceió", "maceio centro"],
+    lat: -9.6658,
+    lng: -35.7353,
+    displayName: "Centro, Maceió/AL",
+    placeId: "sergipe:maceio:centro",
+  },
+  {
+    matchTerms: [
+      "rodoviaria maceio",
+      "rodoviária maceió",
+      "terminal rodoviario maceio",
+      "terminal joao barreto maceio",
+    ],
+    lat: -9.6479,
+    lng: -35.7223,
+    displayName: "Terminal Rodoviário João Barreto, Maceió/AL",
+    placeId: "sergipe:maceio:rodoviaria",
+  },
+  {
+    matchTerms: [
+      "parque shopping maceio",
+      "parque shopping maceió",
+      "shopping maceio",
+    ],
+    lat: -9.6362,
+    lng: -35.7038,
+    displayName: "Parque Shopping Maceió, Maceió/AL",
+    placeId: "sergipe:maceio:parque-shopping",
+  },
+  {
+    matchTerms: [
+      "aeroporto maceio",
+      "aeroporto maceió",
+      "aeroporto zumbi dos palmares",
+      "zumbi dos palmares maceio",
+    ],
+    lat: -9.5108,
+    lng: -35.7917,
+    displayName: "Aeroporto Zumbi dos Palmares, Maceió/AL",
+    placeId: "sergipe:maceio:aeroporto",
+  },
+  {
+    matchTerms: ["hospital universitario maceio", "hu maceio", "hospital maceio"],
+    lat: -9.6572,
+    lng: -35.7358,
+    displayName: "Hospital Universitário, Maceió/AL",
+    placeId: "sergipe:maceio:hospital-universitario",
+  },
+  // ── Petrolina (PE) ────────────────────────────────────────────────────────
+  {
+    matchTerms: ["centro petrolina", "petrolina centro"],
+    lat: -9.3891,
+    lng: -40.503,
+    displayName: "Centro, Petrolina/PE",
+    placeId: "sergipe:petrolina:centro",
+  },
+  {
+    matchTerms: [
+      "rodoviaria petrolina",
+      "rodoviária petrolina",
+      "terminal rodoviario petrolina",
+    ],
+    lat: -9.396,
+    lng: -40.5015,
+    displayName: "Terminal Rodoviário, Petrolina/PE",
+    placeId: "sergipe:petrolina:rodoviaria",
+  },
+  {
+    matchTerms: [
+      "orla petrolina",
+      "beira rio petrolina",
+      "beira rio sao francisco petrolina",
+    ],
+    lat: -9.3915,
+    lng: -40.4982,
+    displayName: "Orla da Beira Rio, Petrolina/PE",
+    placeId: "sergipe:petrolina:orla-beira-rio",
+  },
+  {
+    matchTerms: ["hospital agamenon magalhaes petrolina", "ham petrolina"],
+    lat: -9.3834,
+    lng: -40.5098,
+    displayName: "Hospital Agamenon Magalhães, Petrolina/PE",
+    placeId: "sergipe:petrolina:hospital-agamenon",
+  },
 ];
 
 const GENERIC_MATCH_TOKENS = new Set([
@@ -404,6 +491,8 @@ const GENERIC_MATCH_TOKENS = new Set([
   "estancia",
   "propria",
   "tobias",
+  "maceio",
+  "petrolina",
 ]);
 
 function normalizeForMatch(text: string): string {

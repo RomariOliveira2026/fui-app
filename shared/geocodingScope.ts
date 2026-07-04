@@ -40,7 +40,7 @@ function extractCityHintFromAddress(address: string): string | undefined {
   }
 
   const sergipeMatch = normalized.match(
-    /\b(Aracaju|Itabaiana|Itaporanga\s+D['']?\s*Ajuda|Estância|Estancia|Lagarto|Propriá|Propria|Nossa Senhora do Socorro|São Cristóvão|Sao Cristovao|Barra dos Coqueiros|Laranjeiras|Simão Dias|Simao Dias|Tobias Barreto|Capela|Boquim|Glória|Gloria|Porto da Folha)\b/i
+    /\b(Aracaju|Itabaiana|Itaporanga\s+D['']?\s*Ajuda|Estância|Estancia|Lagarto|Propriá|Propria|Nossa Senhora do Socorro|Maceió|Maceio|Petrolina|São Cristóvão|Sao Cristovao|Barra dos Coqueiros|Laranjeiras|Simão Dias|Simao Dias|Tobias Barreto|Capela|Boquim|Glória|Gloria|Porto da Folha)\b/i
   );
   if (sergipeMatch?.[1]) {
     if (/itaporanga/i.test(sergipeMatch[1])) return "Itaporanga D'Ajuda";

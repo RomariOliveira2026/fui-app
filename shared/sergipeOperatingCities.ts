@@ -1,5 +1,5 @@
 /**
- * Cidades de operação em Sergipe — ordem de expansão do Fui!
+ * Cidades de operação do Fui! (Sergipe e expansão regional).
  * Configure VITE_APP_CITY com displayName ou alias para ativar defaults locais.
  */
 
@@ -13,6 +13,8 @@ export type SergipeCitySlug =
   | "estancia"
   | "propria"
   | "tobias-barreto"
+  | "maceio"
+  | "petrolina"
   | "itabaiana"
   | "itaporanga";
 
@@ -25,6 +27,8 @@ export const SERGIPE_EXPANSION_ORDER: SergipeCitySlug[] = [
   "estancia",
   "propria",
   "tobias-barreto",
+  "maceio",
+  "petrolina",
 ];
 
 export type SergipeCityHome = {
@@ -37,7 +41,7 @@ export type SergipeCityHome = {
 export type SergipeOperatingCity = {
   slug: SergipeCitySlug;
   displayName: string;
-  state: "SE";
+  state: "SE" | "AL" | "PE";
   center: { lat: number; lng: number };
   defaultHome: SergipeCityHome;
   /** Nomes aceitos em VITE_APP_CITY e endereços digitados. */
@@ -163,6 +167,32 @@ export const SERGIPE_OPERATING_CITIES: SergipeOperatingCity[] = [
     aliases: ["tobias barreto", "tobias"],
   },
   {
+    slug: "maceio",
+    displayName: "Maceió",
+    state: "AL",
+    center: { lat: -9.6658, lng: -35.7353 },
+    defaultHome: {
+      address: "Terminal Rodoviário João Barreto, Maceió/AL",
+      placeId: "sergipe:maceio:rodoviaria",
+      lat: -9.6479,
+      lng: -35.7223,
+    },
+    aliases: ["maceio", "maceió", "mcz"],
+  },
+  {
+    slug: "petrolina",
+    displayName: "Petrolina",
+    state: "PE",
+    center: { lat: -9.3891, lng: -40.503 },
+    defaultHome: {
+      address: "Centro, Petrolina/PE",
+      placeId: "sergipe:petrolina:centro",
+      lat: -9.3891,
+      lng: -40.503,
+    },
+    aliases: ["petrolina", "petrolina pe"],
+  },
+  {
     slug: "itabaiana",
     displayName: "Itabaiana",
     state: "SE",
@@ -218,6 +248,8 @@ export function resolveCitySlugFromAddress(address: string): SergipeCitySlug | n
   if (/\bgloria\b/.test(normalized)) return "nossa-senhora-da-gloria";
   if (/\bsocorro\b/.test(normalized)) return "nossa-senhora-do-socorro";
   if (/\blagarto\b/.test(normalized)) return "lagarto";
+  if (/\bmaceio\b/.test(normalized)) return "maceio";
+  if (/\bpetrolina\b/.test(normalized)) return "petrolina";
 
   for (const city of SERGIPE_OPERATING_CITIES) {
     const key = normCityKey(city.displayName);

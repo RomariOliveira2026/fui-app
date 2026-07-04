@@ -17,6 +17,8 @@ describe("sergipeOperatingCities", () => {
       "estancia",
       "propria",
       "tobias-barreto",
+      "maceio",
+      "petrolina",
     ]);
   });
 
@@ -31,9 +33,18 @@ describe("sergipeOperatingCities", () => {
     expect(resolveOperatingCity("Tobias Barreto")?.slug).toBe("tobias-barreto");
   });
 
+  it("resolve Maceió e Petrolina", () => {
+    expect(resolveOperatingCity("Maceió")?.slug).toBe("maceio");
+    expect(resolveOperatingCity("MCZ")?.slug).toBe("maceio");
+    expect(resolveOperatingCity("Petrolina")?.state).toBe("PE");
+    expect(getDefaultPassengerHome("Maceió").placeId).toBe("sergipe:maceio:rodoviaria");
+  });
+
   it("detecta cidade no endereço digitado", () => {
     expect(resolveCitySlugFromAddress("Centro, Estância/SE")).toBe("estancia");
     expect(resolveCitySlugFromAddress("Rodoviária Propriá")).toBe("propria");
+    expect(resolveCitySlugFromAddress("Parque Shopping, Maceió/AL")).toBe("maceio");
+    expect(resolveCitySlugFromAddress("Orla Beira Rio, Petrolina")).toBe("petrolina");
   });
 });
 
@@ -52,5 +63,10 @@ describe("sergipeKnownPlaces — cidades expandidas", () => {
   it("autocomplete lista POIs de Socorro", () => {
     const results = searchSergipeKnownPlaces("hospital socorro", 3);
     expect(results.some((p) => p.placeId.includes("nossa-senhora-do-socorro"))).toBe(true);
+  });
+
+  it("resolve aeroporto de Maceió sem confundir com Aracaju", () => {
+    const place = findSergipeKnownPlace("aeroporto maceio");
+    expect(place?.placeId).toBe("sergipe:maceio:aeroporto");
   });
 });
