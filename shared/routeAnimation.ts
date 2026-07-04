@@ -20,6 +20,19 @@ export function pathTotalMeters(path: RoutePoint[]): number {
   return cum[cum.length - 1] ?? 0;
 }
 
+/** Maior trecho reto entre vértices consecutivos (detecta overview simplificado demais). */
+export function maxPathSegmentMeters(path: RoutePoint[]): number {
+  if (path.length < 2) return 0;
+  let max = 0;
+  for (let i = 1; i < path.length; i++) {
+    max = Math.max(max, haversineMeters(path[i - 1]!, path[i]!));
+  }
+  return max;
+}
+
+/** Não interpola linearmente trechos longos — evita cordas atravessando terreno. */
+export const MAX_DENSIFY_SEGMENT_M = 800;
+
 /** Insere pontos intermediários para animação suave ao longo da rota. */
 export function densifyPath(path: RoutePoint[], maxStepMeters = DEFAULT_STEP_METERS): RoutePoint[] {
   if (path.length < 2) return path.slice();
@@ -30,6 +43,10 @@ export function densifyPath(path: RoutePoint[], maxStepMeters = DEFAULT_STEP_MET
     const b = path[i]!;
     const segM = haversineMeters(a, b);
     if (segM <= maxStepMeters) {
+      out.push(b);
+      continue;
+    }
+    if (segM > MAX_DENSIFY_SEGMENT_M) {
       out.push(b);
       continue;
     }
@@ -231,6 +248,44 @@ export function trimPathFromMeters(path: RoutePoint[], fromMeters: number): Rout
 /** Rota base síncrona (fallback) quando não há OSRM em cache. */
 export function buildFallbackTripPath(origin: RoutePoint, destination: RoutePoint): RoutePoint[] {
   return densifyPath([origin, destination], APPROACH_STEP_METERS);
+}
+
+/** Detecta polyline A→B (fallback haversine) vs geometria de via real. */
+export function isLikelyStraightFallbackPath(
+  path: RoutePoint[],
+  origin?: RoutePoint | null,
+  destination?: RoutePoint | null
+): boolean {
+  if (path.length < 2) return true;
+
+  if (origin && destination) {
+    const straight = haversineMeters(origin, destination);
+    const total = pathTotalMeters(path);
+    if (straight > 80 && total <= straight * 1.035) return true;
+  }
+
+  const unique = new Set(path.map((p) => `${p.lat.toFixed(4)},${p.lng.toFixed(4)}`));
+  return unique.size <= 2;
+}
+
+/**
+ * Geometria utilizável no mapa/simulação — rejeita só fallback A→B e overview
+ * simplificado demais (poucos vértices + cordas longas).
+ */
+export function isUsableRoutePath(
+  path: RoutePoint[],
+  origin?: RoutePoint | null,
+  destination?: RoutePoint | null
+): boolean {
+  if (path.length < 2) return false;
+  if (isLikelyStraightFallbackPath(path, origin, destination)) return false;
+
+  const maxSeg = maxPathSegmentMeters(path);
+  if (maxSeg > 12_000) return false;
+  if (path.length < 20 && maxSeg > 4_000) return false;
+  if (path.length < 8 && maxSeg > 1_500) return false;
+
+  return true;
 }
 
 /** Velocidade visual linear recomendada (~40 km/h). */

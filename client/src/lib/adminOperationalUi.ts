@@ -114,6 +114,51 @@ export function canAdminRedispatchRide(
   return status === "requested" && (driverId == null || driverId === 0);
 }
 
+export function canAdminAssignRide(
+  status: string,
+  driverId?: number | null
+): boolean {
+  return status === "requested" && (driverId == null || driverId === 0);
+}
+
+/** Formata segundos em rótulo curto (ETA / espera). */
+export function formatAdminDuration(seconds: number | null | undefined): string {
+  if (seconds == null) return "—";
+  if (seconds < 60) return `${Math.max(0, Math.round(seconds))}s`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes} min`;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return m > 0 ? `${h}h ${m}min` : `${h}h`;
+}
+
+/** Classes de destaque por prioridade operacional. */
+export function priorityAccentClass(priority: string): string {
+  switch (priority) {
+    case "sos":
+      return "border-red-500/70 bg-red-500/10 ring-1 ring-red-500/40";
+    case "critical":
+      return "border-orange-500/60 bg-orange-500/[0.07] ring-1 ring-orange-500/25";
+    case "warning":
+      return "border-amber-400/50 bg-amber-400/[0.06]";
+    default:
+      return "";
+  }
+}
+
+export function priorityDotClass(priority: string): string {
+  switch (priority) {
+    case "sos":
+      return "bg-red-500";
+    case "critical":
+      return "bg-orange-500";
+    case "warning":
+      return "bg-amber-400";
+    default:
+      return "bg-emerald-400/70";
+  }
+}
+
 export function formatAdminDate(iso: string | null | undefined): string {
   if (!iso) return "—";
   return new Date(iso).toLocaleString("pt-BR", {

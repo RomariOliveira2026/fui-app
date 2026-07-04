@@ -5,6 +5,7 @@ import { isDemoDriverSimulationEnabledServer } from "@shared/demoSimulation";
 import { isDemoOperationalRidesEnabledServer } from "@shared/demoOperationalRides";
 import {
   advanceOperationalDemoRide,
+  ensureOperationalTripStarted,
   getOperationalPhase,
   isOperationalDriverNearPickup,
 } from "./demoOperationalRide";
@@ -192,8 +193,14 @@ export function simulationStartRide(rideId: number): Ride | undefined {
   if (!isDemoDriverSimulationEnabledServer()) return undefined;
 
   const ride = getDemoRide(rideId);
+  if (!ride) return undefined;
+
+  if (isDemoOperationalRidesEnabledServer()) {
+    if (getOperationalPhase(rideId) !== "arrived_pickup") return undefined;
+    return ensureOperationalTripStarted(rideId);
+  }
+
   if (
-    !ride ||
     (ride.status !== "accepted" && ride.status !== "in_progress") ||
     !isDemoSimulationDriverId(ride.driverId)
   ) {

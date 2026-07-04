@@ -11,6 +11,7 @@ import { createDriverLiveMarker, createVehicleLiveIcon } from "@/components/map/
 import { decodePolyline } from "@/lib/polyline";
 import {
   densifyPath,
+  isUsableRoutePath,
   linearSpeedAtMeters,
   pathTotalMeters,
   pointAtPathMeters,
@@ -99,27 +100,36 @@ function buildRouteGeometryFingerprint(
   ].join("|");
 }
 
+function densifyRouteForDisplay(path: RoutePoint[]): RoutePoint[] {
+  if (path.length < 2) return path;
+  return densifyPath(path, 15);
+}
+
 function buildRouteGeometry(
   origin: RequestRideMapPoint,
   destination: RequestRideMapPoint,
   routePath?: Array<{ lat: number; lng: number }> | null,
   encodedPolyline?: string | null
 ): RoutePoint[] {
-  if (routePath && routePath.length >= 2) {
-    return densifyPath(routePath, 15);
-  }
-
+  let polylinePath: RoutePoint[] | null = null;
   if (encodedPolyline) {
     try {
       const decoded = decodePolyline(encodedPolyline);
-      if (decoded.length >= 2) {
-        return densifyPath(decoded, 15);
-      }
+      if (decoded.length >= 2) polylinePath = decoded;
     } catch {
-      // Linha direta abaixo
+      // Sem geometria válida
     }
   }
-  return densifyPath([origin, destination], 12);
+
+  if (routePath && routePath.length >= 2 && isUsableRoutePath(routePath, origin, destination)) {
+    return densifyRouteForDisplay(routePath);
+  }
+
+  if (polylinePath && isUsableRoutePath(polylinePath, origin, destination)) {
+    return densifyRouteForDisplay(polylinePath);
+  }
+
+  return [];
 }
 
 const defaultCenter: [number, number] = [
@@ -221,12 +231,7 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
   function isContinuousTrackingPhase(
     phase: RequestRideMapViewProps["trackingPhase"]
   ): boolean {
-    return (
-      phase === "en_route" ||
-      phase === "arriving" ||
-      phase === "waiting_pickup" ||
-      phase === "in_trip"
-    );
+    return phase === "en_route" || phase === "arriving" || phase === "in_trip";
   }
 
   function resolveDriverSpeedMps(displayM: number, targetM: number): number {
@@ -235,6 +240,8 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
     if (remaining <= STOP_EPSILON_M) return 0;
 
     const gap = Math.max(0, targetM - displayM);
+    if (gap <= STOP_EPSILON_M) return 0;
+
     let cruise = DEFAULT_CRUISE_MPS;
 
     const eta = getLiveDriverEtaSeconds();
@@ -251,14 +258,10 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
       cruise = linearSpeedAtMeters(remaining, DEFAULT_CRUISE_MPS);
     }
 
-    if (gap > STOP_EPSILON_M) {
-      return Math.min(
-        MAX_DRIVER_SPEED_MPS,
-        Math.max(cruise, adaptiveDriverCatchUpSpeedMps(gap, DEFAULT_CRUISE_MPS, PURSUIT_LAG_S))
-      );
-    }
-
-    return cruise;
+    return Math.min(
+      MAX_DRIVER_SPEED_MPS,
+      Math.max(cruise, adaptiveDriverCatchUpSpeedMps(gap, DEFAULT_CRUISE_MPS, PURSUIT_LAG_S))
+    );
   }
 
   function syncPathMetrics() {
@@ -383,13 +386,15 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
       tripPathRef.current = geometry;
       syncPathMetrics();
 
-      const drawGeometry = geometry.map((p) => [p.lat, p.lng] as [number, number]);
+      if (geometry.length >= 2) {
+        const drawGeometry = geometry.map((p) => [p.lat, p.lng] as [number, number]);
       layersRef.current.route = drawRoute(map, drawGeometry, {
         color: "#D97706",
         weight: 5,
-        opacity: 0.85,
+        opacity: 0.72,
         fitBounds: false,
       });
+      }
     }
 
     fitVisibleBounds(false);
@@ -531,6 +536,23 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
     }
 
     if (tripPathRef.current.length < 2) {
+      if (layersRef.current.driver && prevVehicleTypeRef.current !== vehicleType) {
+        layersRef.current.driver.setIcon(createVehicleLiveIcon(vehicleType));
+        prevVehicleTypeRef.current = vehicleType;
+      }
+
+      if (!layersRef.current.driver) {
+        prevVehicleTypeRef.current = vehicleType;
+        layersRef.current.driver = createDriverLiveMarker(map, toLatLngPair(driver), {
+          title: "Motorista ao vivo",
+          vehicleType,
+        });
+        fitVisibleBounds(true);
+      } else {
+        layersRef.current.driver.setLatLng(toLatLngPair(driver));
+      }
+      driverDisplayRef.current = driver;
+      followDriverCamera(driver);
       return;
     }
     const path = tripPathRef.current;
@@ -568,7 +590,7 @@ export const RequestRideMapLeaflet = memo(function RequestRideMapLeaflet({
       return;
     }
 
-    if (phaseChanged) {
+    if (phaseChanged || trackingPhase === "waiting_pickup") {
       stopDriverAnimation();
       driverBearingRef.current = null;
       bearingAnchorRef.current = null;

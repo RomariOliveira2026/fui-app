@@ -1,10 +1,9 @@
 import { encodeDemoPolyline, haversineMeters } from "@shared/demoMaps";
+import { isUsableRoutePath, maxPathSegmentMeters } from "@shared/routeAnimation";
 
 const OSRM_BASE = "https://router.project-osrm.org";
-const DEFAULT_TIMEOUT_MS = 12_000;
-const LONG_ROUTE_TIMEOUT_MS = 25_000;
-/** Acima disso usa overview=simplified (menor payload, mais rápido na Vercel). */
-const LONG_ROUTE_STRAIGHT_M = 40_000;
+const DEFAULT_TIMEOUT_MS = 15_000;
+const LONG_ROUTE_TIMEOUT_MS = 45_000;
 const HAVERSINE_ROAD_FACTOR = 1.25;
 const AVG_SPEED_KMH = 45;
 
@@ -39,13 +38,8 @@ function formatDuration(seconds: number): string {
 
 function resolveOsrmTimeoutMs(origin: RoutePoint, destination: RoutePoint): number {
   const straightM = haversineMeters(origin, destination);
-  if (straightM >= LONG_ROUTE_STRAIGHT_M) return LONG_ROUTE_TIMEOUT_MS;
+  if (straightM >= 25_000) return LONG_ROUTE_TIMEOUT_MS;
   return DEFAULT_TIMEOUT_MS;
-}
-
-function resolveOsrmOverview(origin: RoutePoint, destination: RoutePoint): "full" | "simplified" {
-  const straightM = haversineMeters(origin, destination);
-  return straightM >= LONG_ROUTE_STRAIGHT_M ? "simplified" : "full";
 }
 
 function haversineRoute(origin: RoutePoint, destination: RoutePoint): OsrmRouteResult {
@@ -105,6 +99,144 @@ async function fetchOsrmRoute(url: string, timeoutMs: number): Promise<Response>
   }
 }
 
+type OsrmRoutePayload = {
+  distance: number;
+  duration: number;
+  geometry?: { coordinates?: Array<[number, number]> };
+  legs?: Array<{
+    steps?: Array<{
+      geometry?: { coordinates?: Array<[number, number]> };
+    }>;
+  }>;
+};
+
+function coordsToPath(coords: Array<[number, number]>): RoutePoint[] {
+  return coords.map(([lng, lat]) => ({ lat, lng }));
+}
+
+function mergeStepGeometries(route: OsrmRoutePayload): RoutePoint[] {
+  const merged: RoutePoint[] = [];
+  for (const leg of route.legs ?? []) {
+    for (const step of leg.steps ?? []) {
+      const coords = step.geometry?.coordinates;
+      if (!coords?.length) continue;
+      for (const [lng, lat] of coords) {
+        const point = { lat, lng };
+        const prev = merged[merged.length - 1];
+        if (!prev || prev.lat !== point.lat || prev.lng !== point.lng) {
+          merged.push(point);
+        }
+      }
+    }
+  }
+  return merged;
+}
+
+function extractBestRoutePath(route: OsrmRoutePayload): RoutePoint[] {
+  const fromSteps = mergeStepGeometries(route);
+  if (fromSteps.length >= 2) return fromSteps;
+
+  const coords = route.geometry?.coordinates;
+  if (coords?.length) return coordsToPath(coords);
+  return [];
+}
+
+function buildOsrmResult(
+  routePath: RoutePoint[],
+  distanceM: number,
+  durationS: number,
+  origin: RoutePoint,
+  destination: RoutePoint
+): OsrmRouteResult {
+  return {
+    distance: { text: formatDistance(distanceM), value: distanceM },
+    duration: { text: formatDuration(durationS), value: durationS },
+    startLocation: routePath[0] ?? origin,
+    endLocation: routePath[routePath.length - 1] ?? destination,
+    overviewPolyline: encodeDemoPolyline(routePath),
+    routePath,
+    usedHaversineFallback: false,
+  };
+}
+
+function routeQualityScore(
+  path: RoutePoint[],
+  origin: RoutePoint,
+  destination: RoutePoint
+): number {
+  if (!isUsableRoutePath(path, origin, destination)) return -1;
+  return path.length * 10 - maxPathSegmentMeters(path);
+}
+
+function pickBetterOsrmResult(
+  current: OsrmRouteResult | null,
+  candidate: OsrmRouteResult | null
+): OsrmRouteResult | null {
+  if (!candidate) return current;
+  if (!current) return candidate;
+
+  const origin = candidate.routePath[0] ?? current.routePath[0]!;
+  const destination =
+    candidate.routePath[candidate.routePath.length - 1] ??
+    current.routePath[current.routePath.length - 1]!;
+
+  const currentScore = routeQualityScore(current.routePath, origin, destination);
+  const candidateScore = routeQualityScore(candidate.routePath, origin, destination);
+  if (candidateScore > currentScore) return candidate;
+  return current;
+}
+
+async function requestOsrmRoute(
+  coordStr: string,
+  timeoutMs: number,
+  withSteps: boolean
+): Promise<OsrmRouteResult | null> {
+  const url =
+    `${OSRM_BASE}/route/v1/driving/${coordStr}` +
+    `?overview=full&geometries=geojson&steps=${withSteps ? "true" : "false"}`;
+
+  const response = await fetchOsrmRoute(url, timeoutMs);
+  if (!response.ok) return null;
+
+  const data = (await response.json()) as {
+    code?: string;
+    routes?: OsrmRoutePayload[];
+  };
+
+  const route = data.routes?.[0];
+  if (data.code !== "Ok" || !route) return null;
+
+  const routePath = extractBestRoutePath(route);
+  if (routePath.length < 2) return null;
+
+  const distanceM = Math.max(Math.round(route.distance), 1);
+  const durationS = Math.max(Math.round(route.duration), 1);
+  const origin = routePath[0]!;
+  const destination = routePath[routePath.length - 1]!;
+
+  return buildOsrmResult(routePath, distanceM, durationS, origin, destination);
+}
+
+/** Calcula rota driving via OSRM com geometria completa (full + steps se necessário). */
+export async function calculateDrivingRouteWithOsrm(
+  origin: RoutePoint,
+  destination: RoutePoint
+): Promise<OsrmRouteResult> {
+  const coordStr = `${origin.lng},${origin.lat};${destination.lng},${destination.lat}`;
+  const timeoutMs = resolveOsrmTimeoutMs(origin, destination);
+
+  try {
+    let best: OsrmRouteResult | null = null;
+    best = pickBetterOsrmResult(best, await requestOsrmRoute(coordStr, timeoutMs, false));
+    best = pickBetterOsrmResult(best, await requestOsrmRoute(coordStr, timeoutMs, true));
+    if (best) return best;
+  } catch (error) {
+    console.warn("[osrm] route failed:", error);
+  }
+
+  return haversineRoute(origin, destination);
+}
+
 /** Rota com múltiplos waypoints (origem → paradas → destino). */
 export async function calculateDrivingRouteWithWaypoints(
   waypoints: RoutePoint[]
@@ -117,104 +249,16 @@ export async function calculateDrivingRouteWithWaypoints(
   }
 
   const coordStr = waypoints.map((p) => `${p.lng},${p.lat}`).join(";");
-  const overview = resolveOsrmOverview(waypoints[0]!, waypoints[waypoints.length - 1]!);
-  const url =
-    `${OSRM_BASE}/route/v1/driving/${coordStr}` +
-    `?overview=${overview}&geometries=geojson&steps=false`;
   const timeoutMs = resolveOsrmTimeoutMs(waypoints[0]!, waypoints[waypoints.length - 1]!);
 
   try {
-    const response = await fetchOsrmRoute(url, timeoutMs);
-    if (!response.ok) {
-      console.warn("[osrm] multi-waypoint HTTP error:", response.status);
-      return haversineMultiRoute(waypoints);
-    }
-
-    const data = (await response.json()) as {
-      code?: string;
-      routes?: Array<{
-        distance: number;
-        duration: number;
-        geometry?: { coordinates?: Array<[number, number]> };
-      }>;
-    };
-
-    const route = data.routes?.[0];
-    const coords = route?.geometry?.coordinates;
-    if (data.code !== "Ok" || !route || !coords?.length) {
-      console.warn("[osrm] multi-waypoint no route returned");
-      return haversineMultiRoute(waypoints);
-    }
-
-    const routePath: RoutePoint[] = coords.map(([lng, lat]) => ({ lat, lng }));
-    const distanceM = Math.max(Math.round(route.distance), 1);
-    const durationS = Math.max(Math.round(route.duration), 1);
-
-    return {
-      distance: { text: formatDistance(distanceM), value: distanceM },
-      duration: { text: formatDuration(durationS), value: durationS },
-      startLocation: routePath[0] ?? waypoints[0]!,
-      endLocation: routePath[routePath.length - 1] ?? waypoints[waypoints.length - 1]!,
-      overviewPolyline: encodeDemoPolyline(routePath),
-      routePath,
-      usedHaversineFallback: false,
-    };
+    let best: OsrmRouteResult | null = null;
+    best = pickBetterOsrmResult(best, await requestOsrmRoute(coordStr, timeoutMs, false));
+    best = pickBetterOsrmResult(best, await requestOsrmRoute(coordStr, timeoutMs, true));
+    if (best) return best;
   } catch (error) {
     console.warn("[osrm] multi-waypoint route failed:", error);
-    return haversineMultiRoute(waypoints);
   }
-}
 
-/** Calcula rota driving via OSRM; fallback haversine apenas se OSRM falhar. */
-export async function calculateDrivingRouteWithOsrm(
-  origin: RoutePoint,
-  destination: RoutePoint
-): Promise<OsrmRouteResult> {
-  const overview = resolveOsrmOverview(origin, destination);
-  const timeoutMs = resolveOsrmTimeoutMs(origin, destination);
-  const url =
-    `${OSRM_BASE}/route/v1/driving/` +
-    `${origin.lng},${origin.lat};${destination.lng},${destination.lat}` +
-    `?overview=${overview}&geometries=geojson&steps=false`;
-
-  try {
-    const response = await fetchOsrmRoute(url, timeoutMs);
-    if (!response.ok) {
-      console.warn("[osrm] HTTP error:", response.status);
-      return haversineRoute(origin, destination);
-    }
-
-    const data = (await response.json()) as {
-      code?: string;
-      routes?: Array<{
-        distance: number;
-        duration: number;
-        geometry?: { coordinates?: Array<[number, number]> };
-      }>;
-    };
-
-    const route = data.routes?.[0];
-    const coords = route?.geometry?.coordinates;
-    if (data.code !== "Ok" || !route || !coords?.length) {
-      console.warn("[osrm] no route returned");
-      return haversineRoute(origin, destination);
-    }
-
-    const routePath: RoutePoint[] = coords.map(([lng, lat]) => ({ lat, lng }));
-    const distanceM = Math.max(Math.round(route.distance), 1);
-    const durationS = Math.max(Math.round(route.duration), 1);
-
-    return {
-      distance: { text: formatDistance(distanceM), value: distanceM },
-      duration: { text: formatDuration(durationS), value: durationS },
-      startLocation: routePath[0] ?? origin,
-      endLocation: routePath[routePath.length - 1] ?? destination,
-      overviewPolyline: encodeDemoPolyline(routePath),
-      routePath,
-      usedHaversineFallback: false,
-    };
-  } catch (error) {
-    console.warn("[osrm] route failed:", error);
-    return haversineRoute(origin, destination);
-  }
+  return haversineMultiRoute(waypoints);
 }

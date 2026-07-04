@@ -192,6 +192,54 @@ export function getDemoAdminCoupons(): DemoAdminCoupon[] {
   return Array.from(demoCoupons.values()).sort((a, b) => a.code.localeCompare(b.code));
 }
 
+export function getDemoCouponByCode(code: string): DemoAdminCoupon | undefined {
+  ensureDemoCouponSeeds();
+  const normalized = code.trim().toUpperCase();
+  return Array.from(demoCoupons.values()).find((c) => c.code === normalized);
+}
+
+export type DemoCouponApplication = {
+  coupon: DemoAdminCoupon;
+  discountAmount: number;
+  finalPrice: number;
+};
+
+/**
+ * Valida e aplica um cupom demo sobre um valor (em centavos).
+ * Retorna null se o cupom não existir/for inválido para o contexto.
+ */
+export function applyDemoCoupon(
+  code: string | null | undefined,
+  rideValueCents: number
+): DemoCouponApplication | null {
+  if (!code) return null;
+  const coupon = getDemoCouponByCode(code);
+  if (!coupon || !coupon.isActive) return null;
+
+  const now = new Date();
+  if (now < new Date(coupon.validFrom) || now > new Date(coupon.validUntil)) return null;
+  if (coupon.maxUses && coupon.usedCount >= coupon.maxUses) return null;
+
+  let discountAmount =
+    coupon.discountType === "percentage"
+      ? Math.round((rideValueCents * coupon.discountValue) / 100)
+      : coupon.discountValue;
+  discountAmount = Math.min(Math.max(discountAmount, 0), rideValueCents);
+
+  return {
+    coupon,
+    discountAmount,
+    finalPrice: rideValueCents - discountAmount,
+  };
+}
+
+/** Incrementa o contador de uso de um cupom demo (após corrida criada). */
+export function markDemoCouponUsed(couponId: number): void {
+  const coupon = demoCoupons.get(couponId);
+  if (!coupon) return;
+  demoCoupons.set(couponId, { ...coupon, usedCount: coupon.usedCount + 1 });
+}
+
 export function createDemoAdminCoupon(
   input: Omit<DemoAdminCoupon, "id" | "usedCount" | "isActive"> & { isActive?: boolean }
 ): DemoAdminCoupon {

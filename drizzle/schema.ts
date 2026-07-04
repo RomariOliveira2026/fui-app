@@ -125,6 +125,10 @@ export const rides = mysqlTable("rides", {
   // Timestamps
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  // Operational stage timestamps (Rodada 3 — timeline operacional)
+  acceptedAt: timestamp("acceptedAt"), // motorista aceitou a oferta
+  arrivedAt: timestamp("arrivedAt"), // motorista chegou ao embarque
+  startedAt: timestamp("startedAt"), // corrida iniciada (in_progress)
   completedAt: timestamp("completedAt"),
   cancelledAt: timestamp("cancelledAt"),
   scheduledFor: timestamp("scheduledFor"), // For scheduled rides

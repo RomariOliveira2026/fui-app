@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { RequestRideMap } from "@/components/RequestRideMap";
-import { trpc } from "@/lib/trpc";
 import { useLiveEtaSeconds } from "@/lib/useLiveEtaSeconds";
+import { useRideRouteGeometry } from "@/lib/useRideRouteGeometry";
 import {
   getRideTrackingPresentation,
   resolveRideTrackingPhase,
@@ -24,6 +24,7 @@ function parseMapPoint(
 }
 
 type RideRouteMapProps = {
+  rideId?: number;
   originLat?: string | number | null;
   originLng?: string | number | null;
   destinationLat?: string | number | null;
@@ -38,6 +39,8 @@ type RideRouteMapProps = {
   tripPath?: MapPoint[] | null;
   /** Indica se tripPath ainda é linha reta (aguardando OSRM). */
   tripPathSource?: "osrm" | "fallback" | null;
+  /** Polyline OSRM persistida — usada quando tripPath ainda é fallback. */
+  demoRoutePolyline?: string | null;
   /** ETA restante (s) para animação contínua do motorista no mapa. */
   driverEtaSeconds?: number | null;
   /** Padding inferior do fitBounds quando mapa fullscreen com painel embaixo. */
@@ -47,6 +50,7 @@ type RideRouteMapProps = {
 
 /** Mapa premium de rastreamento — marcador ao vivo, rota e enquadramento inteligente. */
 export default function RideRouteMap({
+  rideId,
   originLat,
   originLng,
   destinationLat,
@@ -59,11 +63,11 @@ export default function RideRouteMap({
   simulationPhase,
   tripPath: serverTripPath,
   tripPathSource,
+  demoRoutePolyline,
   driverEtaSeconds,
   mapFitPaddingBottom,
   className,
 }: RideRouteMapProps) {
-  const utils = trpc.useUtils();
   const origin = useMemo(
     () => parseMapPoint(originLat, originLng),
     [originLat, originLng]
@@ -115,65 +119,31 @@ export default function RideRouteMap({
         trackingPhase === "arriving")
   );
 
-  const [encodedPolyline, setEncodedPolyline] = useState<string | null>(null);
-  const [fetchedRoutePath, setFetchedRoutePath] = useState<MapPoint[] | null>(null);
-
-  const hasServerTripPath = !!serverTripPath && serverTripPath.length >= 2;
-  const serverRouteIsFallback = tripPathSource === "fallback";
-  const shouldFetchRoute =
-    !!origin && !!destination && (!hasServerTripPath || serverRouteIsFallback);
-
-  useEffect(() => {
-    if (!shouldFetchRoute) {
-      setEncodedPolyline(null);
-      setFetchedRoutePath(null);
-      return;
+  const { routePath, encodedPolyline, hasRealRoute } = useRideRouteGeometry(
+    origin,
+    destination,
+    {
+      rideId,
+      serverPath: serverTripPath,
+      serverSource: tripPathSource,
+      demoRoutePolyline,
+      enabled: !!origin && !!destination,
     }
+  );
 
-    setEncodedPolyline(null);
-    setFetchedRoutePath(null);
+  const showRouteLine =
+    hasRealRoute &&
+    trackingPhase !== "waiting_pickup" &&
+    trackingPhase !== "searching";
 
-    let active = true;
-    (async () => {
-      try {
-        const route = await utils.maps.directions.fetch({
-          origin: `${origin!.lat},${origin!.lng}`,
-          destination: `${destination!.lat},${destination!.lng}`,
-        });
-        if (!active || !route) return;
-        setEncodedPolyline(route.overviewPolyline ?? null);
-        const path = (route as { routePath?: MapPoint[] }).routePath;
-        if (path && path.length >= 2) {
-          setFetchedRoutePath(path);
-        }
-      } catch {
-        // RequestRideMap desenha fallback A→B densificado
-      }
-    })();
-
-    return () => {
-      active = false;
-    };
-  }, [origin, destination, shouldFetchRoute, utils]);
-
-  const routePath =
-    hasServerTripPath && !serverRouteIsFallback
-      ? serverTripPath!
-      : fetchedRoutePath ?? (hasServerTripPath ? serverTripPath! : null);
-  const stableRoutePath = useMemo(() => {
-    if (!routePath || routePath.length < 2) return routePath ?? null;
-    return routePath;
-  }, [
-    routePath,
-    routePath?.length,
-    routePath?.[0]?.lat,
-    routePath?.[0]?.lng,
-    routePath?.[routePath.length - 1]?.lat,
-    routePath?.[routePath.length - 1]?.lng,
-  ]);
   const mapDriver = showDriver ? driver : null;
 
-  const tracking = getRideTrackingPresentation(rideLike, simulationPhase, null, routePath);
+  const tracking = getRideTrackingPresentation(
+    rideLike,
+    simulationPhase,
+    null,
+    showRouteLine ? routePath : null
+  );
   const isFullscreen = Boolean(className?.includes("h-full"));
 
   return (
@@ -194,8 +164,8 @@ export default function RideRouteMap({
           destination={destination}
           driver={mapDriver}
           vehicleType={(vehicleType as DemoVehicleType | undefined) ?? undefined}
-          encodedPolyline={encodedPolyline}
-          routePath={stableRoutePath}
+          encodedPolyline={showRouteLine ? encodedPolyline : null}
+          routePath={showRouteLine ? routePath : null}
           trackingPhase={trackingPhase}
           driverEtaSeconds={liveDriverEtaSeconds ?? driverEtaSeconds ?? null}
           mapFitPaddingBottom={mapFitPaddingBottom}

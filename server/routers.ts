@@ -16,7 +16,7 @@ import { driverPremiumRouter } from "./routers/driverPremium";
 import { adminFinanceRouter } from "./routers/adminFinance";
 import { driverRegistrationRouter } from "./routers/driverRegistration";
 import { notifyRideOfferDispatch } from "./_core/dispatchNotifications";
-import { recordCancellationAudit } from "./_core/demoAdminFinance";
+import { applyDemoCoupon, markDemoCouponUsed, recordCancellationAudit } from "./_core/demoAdminFinance";
 import { applyFinanceMinimumPrice } from "./_core/platformFinance";
 import { recordRideLedgerEntry } from "./_core/financialLedger";
 import { driverProcedure } from "./_core/driverProcedure";
@@ -36,7 +36,7 @@ import {
   getDemoOperationalIntelligence,
   getProductionOperationalIntelligence,
 } from "./_core/operationalIntelligence";
-import { adminCancelRide, adminRedispatchRide } from "./_core/adminRideActions";
+import { adminAssignRide, adminCancelRide, adminRedispatchRide } from "./_core/adminRideActions";
 import {
   attachDispatchMeta,
   processDispatchForDemoRide,
@@ -587,6 +587,7 @@ export const appRouter = router({
         duration: z.number(),
         estimatedPrice: z.number(),
         paymentMethod: z.enum(["pix", "card", "cash"]),
+        couponCode: z.string().optional(),
         // Carpool fields
         isShared: z.boolean().optional(),
         maxPassengers: z.number().optional(),
@@ -613,7 +614,13 @@ export const appRouter = router({
 
         // Demo local: corrida em memória — evita insert com passengerId=0 no MySQL
         if (isDemoPassenger(ctx.user)) {
-          let finalEstimatedPrice = credibleEstimate.estimatedPrice;
+          const couponApplication = applyDemoCoupon(
+            input.couponCode,
+            credibleEstimate.estimatedPrice
+          );
+          let finalEstimatedPrice = couponApplication
+            ? couponApplication.finalPrice
+            : credibleEstimate.estimatedPrice;
           let pricePerPassenger: number | undefined;
 
           if (input.isShared && input.maxPassengers && input.maxPassengers > 1) {
@@ -628,9 +635,13 @@ export const appRouter = router({
             currentPassengers: 1,
             shareToken: `demo-${Date.now()}`,
             paymentStatus: input.paymentMethod === "cash" ? "paid" : "pending",
-            discountAmount: 0,
+            couponId: couponApplication?.coupon.id ?? null,
+            couponCode: couponApplication ? couponApplication.coupon.code : undefined,
+            discountAmount: couponApplication?.discountAmount ?? 0,
             passengerPremiumMeta,
           });
+
+          if (couponApplication) markDemoCouponUsed(couponApplication.coupon.id);
 
           await ensureDemoRoutePath(ride);
 
@@ -788,6 +799,7 @@ export const appRouter = router({
             driverId: ctx.driverProfile.id,
             vehicleId: input.vehicleId,
             status: "accepted",
+            acceptedAt: new Date(),
             driverCurrentLat: startCoords.driverCurrentLat,
             driverCurrentLng: startCoords.driverCurrentLng,
           });
@@ -825,6 +837,7 @@ export const appRouter = router({
           driverId: ctx.driverProfile.id,
           vehicleId: input.vehicleId,
           status: "accepted",
+          acceptedAt: new Date(),
           ...(driverLocation
             ? {
                 driverCurrentLat: driverLocation.lat,
@@ -880,7 +893,7 @@ export const appRouter = router({
           }
 
           if (isDemoOperationalRidesEnabledServer()) {
-            const updated = updateDemoRide(input.rideId, { status: "in_progress" });
+            const updated = updateDemoRide(input.rideId, { status: "in_progress", startedAt: new Date() });
             if (updated) {
               ensureOperationalTripStarted(input.rideId);
               const fresh = getDemoRide(input.rideId);
@@ -895,7 +908,7 @@ export const appRouter = router({
             return { success: true };
           }
 
-          const updated = updateDemoRide(input.rideId, { status: "in_progress" });
+          const updated = updateDemoRide(input.rideId, { status: "in_progress", startedAt: new Date() });
           if (updated) {
             resetDemoDriverTrackPhase(input.rideId, updated, "to_destination");
             syncDemoRideState(updated);
@@ -910,6 +923,7 @@ export const appRouter = router({
 
         await db.updateRide(input.rideId, {
           status: "in_progress",
+          startedAt: new Date(),
         });
 
         // Send in-app + push notification to passenger
@@ -1204,7 +1218,7 @@ export const appRouter = router({
       }))
       .query(async ({ ctx, input }) => {
         if (isDemoRideId(input.rideId)) {
-          return fetchDemoRideDetailsForUser(
+          return await fetchDemoRideDetailsForUser(
             input.rideId,
             ctx.user.id,
             input.demoSnapshot
@@ -1233,7 +1247,7 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ ctx, input }) => {
-        return fetchDemoRideDetailsForUser(
+        return await fetchDemoRideDetailsForUser(
           input.rideId,
           ctx.user.id,
           input.demoSnapshot
@@ -1654,7 +1668,13 @@ export const appRouter = router({
         const centralEstimate = estimateDemoRidePriceCents(
           input.vehicleType,
           input.distance,
-          input.duration
+          input.duration,
+          {
+            basePrice: config.basePrice,
+            pricePerKm: config.pricePerKm,
+            pricePerMinute: config.pricePerMinute,
+            minimumPrice: config.minimumPrice,
+          }
         );
         const afterTariff = Math.max(centralEstimate.estimatedPrice, config.minimumPrice);
         const finalPrice = applyFinanceMinimumPrice(
@@ -1829,7 +1849,13 @@ export const appRouter = router({
             duration: input.duration ?? 0,
             estimatedPrice: input.estimatedPrice ?? 0,
           });
-          const finalPrice = credibleEstimate.estimatedPrice;
+          const couponApplication = applyDemoCoupon(
+            scheduleInput.couponCode,
+            credibleEstimate.estimatedPrice
+          );
+          const finalPrice = couponApplication
+            ? couponApplication.finalPrice
+            : credibleEstimate.estimatedPrice;
           let recurringScheduleId: number | undefined;
 
           if (recurrenceRule) {
@@ -1879,12 +1905,15 @@ export const appRouter = router({
             status: "requested",
             scheduledFor: scheduleInput.scheduledFor,
             isScheduled: "yes",
-            couponCode: scheduleInput.couponCode,
+            couponId: couponApplication?.coupon.id ?? null,
+            couponCode: couponApplication ? couponApplication.coupon.code : scheduleInput.couponCode,
             paymentStatus: "pending",
-            discountAmount: 0,
+            discountAmount: couponApplication?.discountAmount ?? 0,
             shareToken: `demo-sched-${Date.now()}`,
             passengerPremiumMeta,
           });
+
+          if (couponApplication) markDemoCouponUsed(couponApplication.coupon.id);
 
           await ensureDemoRoutePath(ride);
 
@@ -1932,7 +1961,12 @@ export const appRouter = router({
         const distance = osrmData.routes[0].distance || 0; // meters
         const duration = osrmData.routes[0].duration || 0; // seconds
 
-        const centralEstimate = estimateDemoRidePriceCents(input.vehicleType, distance, duration);
+        const centralEstimate = estimateDemoRidePriceCents(input.vehicleType, distance, duration, {
+          basePrice: pricing.basePrice,
+          pricePerKm: pricing.pricePerKm,
+          pricePerMinute: pricing.pricePerMinute,
+          minimumPrice: pricing.minimumPrice,
+        });
         const estimatedPrice = Math.max(centralEstimate.estimatedPrice, pricing.minimumPrice);
 
         // Apply coupon if provided
@@ -2391,6 +2425,20 @@ export const appRouter = router({
         vehicleType: z.enum(["moto", "carro", "van", "utilitario"]),
       }))
       .query(async ({ input, ctx }) => {
+        // Demo local: valida contra o catálogo de cupons em memória.
+        if (ctx.user && isDemoPassenger(ctx.user)) {
+          const application = applyDemoCoupon(input.code, input.rideValue);
+          if (!application) {
+            throw new TRPCError({ code: "NOT_FOUND", message: "Cupom inválido ou expirado" });
+          }
+          return {
+            valid: true,
+            coupon: application.coupon,
+            discountAmount: application.discountAmount,
+            finalPrice: application.finalPrice,
+          };
+        }
+
         const coupon = await db.getCouponByCode(input.code);
         if (!coupon) {
           throw new TRPCError({ code: "NOT_FOUND", message: "Cupom não encontrado" });
@@ -2740,6 +2788,45 @@ export const appRouter = router({
         return adminRedispatchRide(input.rideId, isDemoPassenger(ctx.user));
       }),
 
+    assignRide: protectedProcedure
+      .input(z.object({ rideId: z.number(), driverId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        if (!canAccessAdminOperational(ctx)) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Acesso negado" });
+        }
+        return adminAssignRide(input.rideId, input.driverId, isDemoPassenger(ctx.user));
+      }),
+
+    getActiveSosAlerts: protectedProcedure.query(async ({ ctx }) => {
+      if (!canAccessAdminOperational(ctx)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Acesso negado" });
+      }
+      const dbInstance = await db.getDb();
+      if (!dbInstance) return [];
+      try {
+        return await db.getActiveSosAlerts();
+      } catch (error) {
+        console.error("[Admin] Falha ao carregar SOS ativos:", error);
+        return [];
+      }
+    }),
+
+    resolveSos: protectedProcedure
+      .input(
+        z.object({
+          alertId: z.number(),
+          status: z.enum(["resolved", "false_alarm"]),
+          notes: z.string().optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        if (!canAccessAdminOperational(ctx)) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Acesso negado" });
+        }
+        const ok = await db.resolveSosAlert(input.alertId, ctx.user.id, input.status, input.notes);
+        return { success: ok };
+      }),
+
     getStats: protectedProcedure.query(async ({ ctx }) => {
       if (ctx.user.role !== "admin") {
         throw new TRPCError({ code: "FORBIDDEN", message: "Acesso negado" });
@@ -2771,13 +2858,19 @@ export const appRouter = router({
       };
     }),
 
-    getPendingDrivers: adminProcedure.query(async () => {
+    getPendingDrivers: protectedProcedure.query(async ({ ctx }) => {
+      if (!canAccessAdminOperational(ctx)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Acesso negado" });
+      }
+
       const db_instance = await db.getDb();
-      if (!db_instance) return [];
-      
+      if (!db_instance || isDemoPassenger(ctx.user)) {
+        return [];
+      }
+
       const { driverProfiles, users } = await import("../drizzle/schema");
       const { eq } = await import("drizzle-orm");
-      
+
       return await db_instance
         .select({
           profile: driverProfiles,
@@ -2850,7 +2943,20 @@ export const appRouter = router({
         return { success: true };
       }),
 
-    getAllRides: adminProcedure.query(async () => {
+    getAllRides: protectedProcedure.query(async ({ ctx }) => {
+      if (!canAccessAdminOperational(ctx)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Acesso negado" });
+      }
+
+      const db_instance = await db.getDb();
+      if (!db_instance || isDemoPassenger(ctx.user)) {
+        return getAllDemoRides().filter((r) =>
+          (["requested", "accepted", "in_progress"] as const).includes(
+            r.status as "requested" | "accepted" | "in_progress"
+          )
+        );
+      }
+
       return await db.getActiveRides();
     }),
   }),

@@ -18,6 +18,7 @@ type RideLiveTripViewProps = {
   tracking: RideTrackingPresentation;
   tripPath?: RoutePoint[];
   tripPathSource?: "osrm" | "fallback" | null;
+  demoRoutePolyline?: string | null;
   showDriverOnMap: boolean;
   showDriverEnRoute: boolean;
   driver?: RideDriverInfo;
@@ -37,6 +38,7 @@ export default function RideLiveTripView({
   tracking,
   tripPath,
   tripPathSource,
+  demoRoutePolyline,
   showDriverOnMap,
   showDriverEnRoute,
   driver,
@@ -56,6 +58,7 @@ export default function RideLiveTripView({
     <div className="relative h-screen w-screen overflow-hidden bg-background">
       <div className={fuiTrip.mapChrome}>
         <RideRouteMap
+          rideId={ride.id}
           className="h-full w-full !rounded-none border-0"
           originLat={ride.originLat}
           originLng={ride.originLng}
@@ -69,6 +72,7 @@ export default function RideLiveTripView({
           simulationPhase={ride.simulationPhase}
           tripPath={tripPath}
           tripPathSource={tripPathSource}
+          demoRoutePolyline={demoRoutePolyline}
           driverEtaSeconds={ride.etaSecondsRemaining ?? null}
           mapFitPaddingBottom={mapFitPaddingBottom}
         />

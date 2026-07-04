@@ -146,6 +146,45 @@ export async function calculateRoute(
 // MAP COMPONENT (DOM-Isolated from React)
 // ==========================================
 
+/** Pane da rota — abaixo dos rótulos de ruas/rodovias. */
+export const ROUTE_MAP_PANE = "fui-route-pane";
+/** Pane dos rótulos Carto — acima da rota laranja. */
+export const LABELS_MAP_PANE = "fui-labels-pane";
+
+const CARTO_ATTRIBUTION =
+  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>';
+
+/** Base sem rótulos + camada de nomes por cima da rota (via/pane). */
+export function setupLayeredBaseMap(map: L.Map): void {
+  if (!map.getPane(ROUTE_MAP_PANE)) {
+    map.createPane(ROUTE_MAP_PANE);
+    const routePane = map.getPane(ROUTE_MAP_PANE);
+    if (routePane) routePane.style.zIndex = "350";
+  }
+
+  if (!map.getPane(LABELS_MAP_PANE)) {
+    map.createPane(LABELS_MAP_PANE);
+    const labelsPane = map.getPane(LABELS_MAP_PANE);
+    if (labelsPane) {
+      labelsPane.style.zIndex = "450";
+      labelsPane.style.pointerEvents = "none";
+    }
+  }
+
+  L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png", {
+    attribution: CARTO_ATTRIBUTION,
+    maxZoom: 20,
+    subdomains: "abcd",
+  }).addTo(map);
+
+  L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png", {
+    attribution: CARTO_ATTRIBUTION,
+    maxZoom: 20,
+    subdomains: "abcd",
+    pane: LABELS_MAP_PANE,
+  }).addTo(map);
+}
+
 interface LeafletMapProps {
   className?: string;
   initialCenter?: [number, number]; // [lat, lng]
@@ -204,11 +243,7 @@ const LeafletMapInner = memo(function LeafletMapInner({
         attributionControl: true,
       });
 
-      // Add OpenStreetMap tile layer
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-        maxZoom: 19,
-      }).addTo(map);
+      setupLayeredBaseMap(map);
 
       mapInstanceRef.current = map;
 
@@ -347,10 +382,15 @@ export function drawRoute(
     fitBounds?: boolean;
   }
 ): L.Polyline {
+  const routePane = map.getPane(ROUTE_MAP_PANE) ? ROUTE_MAP_PANE : undefined;
   const polyline = L.polyline(geometry, {
     color: options?.color || "#F39200",
     weight: options?.weight || 5,
-    opacity: options?.opacity || 0.8,
+    opacity: options?.opacity ?? 0.72,
+    lineCap: "round",
+    lineJoin: "round",
+    pane: routePane,
+    interactive: false,
   }).addTo(map);
 
   if (options?.fitBounds !== false) {

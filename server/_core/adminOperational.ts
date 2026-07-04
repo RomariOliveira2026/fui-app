@@ -1,10 +1,15 @@
 import type { Ride } from "../../drizzle/schema";
 import {
   ADMIN_MAP_DEFAULT_CENTER,
+  ADMIN_WAIT_CRITICAL_SECONDS,
+  ADMIN_WAIT_WARNING_SECONDS,
+  getRideCategoryLabel,
+  type AdminOperationalAlert,
   type AdminOperationalDriver,
   type AdminOperationalMetrics,
   type AdminOperationalOverview,
   type AdminOperationalRide,
+  type AdminRidePriority,
   type AdminDriverOperationalStatus,
 } from "@shared/adminOperational";
 import { DEMO_PLACES } from "@shared/demoMaps";
@@ -52,6 +57,45 @@ function resolveDriverOperationalStatus(
   return "offline";
 }
 
+function formatWaitLabel(seconds: number): string {
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 1) return `${seconds}s`;
+  return `${minutes} min`;
+}
+
+/** Calcula prioridade + motivo para triagem na fila operacional. */
+function resolveRidePriority(
+  ride: Ride,
+  waitingSeconds: number
+): { priority: AdminRidePriority; reason: string | null } {
+  if (ride.sosActivated) {
+    return { priority: "sos", reason: "SOS acionado pelo passageiro" };
+  }
+  if (ride.status === "requested" && ride.driverId == null) {
+    if (waitingSeconds >= ADMIN_WAIT_CRITICAL_SECONDS) {
+      return {
+        priority: "critical",
+        reason: `Aguardando aceite há ${formatWaitLabel(waitingSeconds)}`,
+      };
+    }
+    if (waitingSeconds >= ADMIN_WAIT_WARNING_SECONDS) {
+      return {
+        priority: "warning",
+        reason: `Aguardando aceite há ${formatWaitLabel(waitingSeconds)}`,
+      };
+    }
+  }
+  return { priority: "normal", reason: null };
+}
+
+/** ETA restante (s) em corrida em andamento, a partir de duração e início. */
+function resolveEtaSeconds(ride: Ride): number | null {
+  if (ride.status !== "in_progress" || !ride.duration) return null;
+  const startedMs = ride.startedAt ? new Date(ride.startedAt).getTime() : Date.now();
+  const elapsed = (Date.now() - startedMs) / 1000;
+  return Math.max(0, Math.round(ride.duration - elapsed));
+}
+
 function rideToOperational(ride: Ride, driverName: string | null, passengerName: string | null): AdminOperationalRide | null {
   const originLat = parseCoord(ride.originLat);
   const originLng = parseCoord(ride.originLng);
@@ -61,10 +105,17 @@ function rideToOperational(ride: Ride, driverName: string | null, passengerName:
     return null;
   }
 
+  const waitingSeconds =
+    ride.status === "requested" && ride.driverId == null
+      ? Math.max(0, Math.round((Date.now() - new Date(ride.createdAt).getTime()) / 1000))
+      : 0;
+  const { priority, reason } = resolveRidePriority(ride, waitingSeconds);
+
   return {
     id: ride.id,
     status: ride.status,
     vehicleType: ride.vehicleType,
+    categoryLabel: getRideCategoryLabel(ride.vehicleType),
     originAddress: ride.originAddress,
     destinationAddress: ride.destinationAddress,
     originLat,
@@ -76,10 +127,48 @@ function rideToOperational(ride: Ride, driverName: string | null, passengerName:
     passengerName,
     estimatedPrice: ride.estimatedPrice ?? null,
     finalPrice: ride.finalPrice ?? null,
+    distanceMeters: ride.distance ?? null,
+    durationSeconds: ride.duration ?? null,
+    etaSeconds: resolveEtaSeconds(ride),
     createdAt: ride.createdAt.toISOString(),
+    acceptedAt: ride.acceptedAt?.toISOString() ?? null,
+    arrivedAt: ride.arrivedAt?.toISOString() ?? null,
+    startedAt: ride.startedAt?.toISOString() ?? null,
     completedAt: ride.completedAt?.toISOString() ?? null,
+    cancelledAt: ride.cancelledAt?.toISOString() ?? null,
+    waitingSeconds,
+    priority,
+    priorityReason: reason,
+    sosActive: ride.sosActivated ?? false,
     areaLabel: inferAreaLabel(ride.originAddress),
   };
+}
+
+const PRIORITY_WEIGHT: Record<AdminRidePriority, number> = {
+  sos: 0,
+  critical: 1,
+  warning: 2,
+  normal: 3,
+};
+
+/** Deriva alertas ordenados por severidade a partir das corridas. */
+function buildAlerts(rides: AdminOperationalRide[]): AdminOperationalAlert[] {
+  return rides
+    .filter((r) => r.priority !== "normal")
+    .sort((a, b) => PRIORITY_WEIGHT[a.priority] - PRIORITY_WEIGHT[b.priority])
+    .map((r) => ({
+      id: `${r.priority}-${r.id}`,
+      rideId: r.id,
+      priority: r.priority,
+      title:
+        r.priority === "sos"
+          ? `SOS — corrida #${r.id}`
+          : r.priority === "critical"
+            ? `Corrida #${r.id} em risco`
+            : `Corrida #${r.id} aguardando`,
+      detail: r.priorityReason ?? `${r.categoryLabel} · ${r.areaLabel}`,
+      createdAt: r.createdAt,
+    }));
 }
 
 function computeMetrics(rides: AdminOperationalRide[], drivers: AdminOperationalDriver[]): AdminOperationalMetrics {
@@ -203,6 +292,7 @@ export function getDemoOperationalOverview(): AdminOperationalOverview {
     metrics: computeMetrics(rides, drivers),
     rides,
     drivers,
+    alerts: buildAlerts(rides),
     updatedAt: new Date().toISOString(),
   };
 }
@@ -279,6 +369,7 @@ export async function getProductionOperationalOverview(): Promise<AdminOperation
     metrics: computeMetrics(rides, drivers),
     rides,
     drivers,
+    alerts: buildAlerts(rides),
     updatedAt: new Date().toISOString(),
   };
   } catch (error) {

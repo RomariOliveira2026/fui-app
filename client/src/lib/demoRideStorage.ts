@@ -53,7 +53,23 @@ export function stripDemoRideForStorage(ride: Ride): Ride {
   delete copy.simulationPhase;
   delete copy.etaSecondsRemaining;
   delete copy.dispatchMeta;
+  // demoRoutePolyline + tripPathSource permanecem para reidratar OSRM no serverless
   return copy as Ride;
+}
+
+/** Persiste polyline OSRM no snapshot local (reidrata serverless). */
+export function persistDemoRoutePolyline(
+  rideId: number,
+  polyline: string,
+  source: "osrm" | "fallback" = "osrm"
+): void {
+  const snapshot = loadDemoRides().find((ride) => ride.id === rideId);
+  if (!snapshot) return;
+  upsertDemoRide({
+    ...snapshot,
+    demoRoutePolyline: polyline,
+    tripPathSource: source,
+  } as Ride & { demoRoutePolyline: string; tripPathSource: string });
 }
 
 export function upsertDemoRide(ride: Ride): void {

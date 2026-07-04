@@ -1,5 +1,6 @@
 import type { Ride } from "../../drizzle/schema";
 import type { DemoSimulationPhase } from "@shared/demoSimulation";
+import { isDemoDriverSimulationEnabledServer } from "@shared/demoSimulation";
 import {
   DEMO_OPERATIONAL_ACCEPT_DELAY_MS,
   DEMO_OPERATIONAL_PICKUP_WAIT_MS,
@@ -250,6 +251,7 @@ function operationalAcceptRideWithMatch(
     driverId: match.profile.id,
     vehicleId: match.vehicle.id,
     status: "accepted",
+    acceptedAt: ride.acceptedAt ?? new Date(),
     paymentStatus: ride.paymentMethod === "cash" ? "paid" : "paid",
     driverCurrentLat: start.lat.toFixed(6),
     driverCurrentLng: start.lng.toFixed(6),
@@ -289,6 +291,8 @@ function startOperationalTrip(rideId: number): Ride | undefined {
 
   return updateDemoRide(rideId, {
     status: "in_progress",
+    arrivedAt: ride.arrivedAt ?? new Date(),
+    startedAt: ride.startedAt ?? new Date(),
     driverCurrentLat: start.lat.toFixed(6),
     driverCurrentLng: start.lng.toFixed(6),
   });
@@ -382,6 +386,7 @@ export function advanceOperationalDemoRide(ride: Ride): Ride {
       });
       updated =
         updateDemoRide(ride.id, {
+          arrivedAt: updated.arrivedAt ?? new Date(),
           driverCurrentLat: pathEnd.lat.toFixed(6),
           driverCurrentLng: pathEnd.lng.toFixed(6),
         }) ?? updated;
@@ -390,10 +395,13 @@ export function advanceOperationalDemoRide(ride: Ride): Ride {
   }
 
   if (state.phase === "arrived_pickup") {
-    const arrivedAt = state.arrivedPickupAtMs ?? Date.now();
-    if (Date.now() - arrivedAt >= DEMO_OPERATIONAL_PICKUP_WAIT_MS) {
-      const started = startOperationalTrip(ride.id);
-      if (started) return started;
+    // Painel DEV "Iniciar corrida" controla o embarque manualmente.
+    if (!isDemoDriverSimulationEnabledServer()) {
+      const arrivedAt = state.arrivedPickupAtMs ?? Date.now();
+      if (Date.now() - arrivedAt >= DEMO_OPERATIONAL_PICKUP_WAIT_MS) {
+        const started = startOperationalTrip(ride.id);
+        if (started) return started;
+      }
     }
     return ride;
   }

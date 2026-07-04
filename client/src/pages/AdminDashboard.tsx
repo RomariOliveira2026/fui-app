@@ -17,6 +17,7 @@ import AdminMap from "@/components/admin/AdminMap";
 import AdminRideList from "@/components/admin/AdminRideList";
 import AdminDriverList from "@/components/admin/AdminDriverList";
 import AdminRideDetailsSheet from "@/components/admin/AdminRideDetailsSheet";
+import AdminAlertsPanel from "@/components/admin/AdminAlertsPanel";
 import AdminDriverDetailsSheet from "@/components/admin/AdminDriverDetailsSheet";
 import AdminIntelligencePanel from "@/components/admin/AdminIntelligencePanel";
 import AdminPanelErrorBoundary from "@/components/admin/AdminPanelErrorBoundary";
@@ -94,6 +95,14 @@ export default function AdminDashboard() {
     onError: (err) => toast.error(err.message),
   });
 
+  const assignRideMutation = trpc.admin.assignRide.useMutation({
+    onSuccess: () => {
+      toast.success("Motorista designado pela central");
+      void utils.admin.getOperationalOverview.invalidate();
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
   const filteredRides = useMemo(
     () => filterAdminRides(overview?.rides ?? [], filters),
     [overview?.rides, filters]
@@ -118,6 +127,11 @@ export default function AdminDashboard() {
     setDriverSheetOpen(false);
   };
 
+  const handleOpenRideById = (rideId: number) => {
+    const ride = overview?.rides.find((r) => r.id === rideId);
+    if (ride) handleSelectRide(ride);
+  };
+
   const handleAdminCancelRide = (ride: AdminOperationalRide) => {
     cancelRideMutation.mutate({
       rideId: ride.id,
@@ -128,6 +142,16 @@ export default function AdminDashboard() {
   const handleAdminRedispatchRide = (ride: AdminOperationalRide) => {
     redispatchRideMutation.mutate({ rideId: ride.id });
   };
+
+  const handleAdminAssignRide = (ride: AdminOperationalRide, driverId: number) => {
+    assignRideMutation.mutate({ rideId: ride.id, driverId });
+  };
+
+  useEffect(() => {
+    if (!rideDetails || !overview) return;
+    const fresh = overview.rides.find((r) => r.id === rideDetails.id);
+    if (fresh && fresh !== rideDetails) setRideDetails(fresh);
+  }, [overview, rideDetails]);
 
   const handleSelectDriver = (driver: AdminOperationalDriver) => {
     setSelection({ type: "driver", id: driver.id });
@@ -206,7 +230,13 @@ export default function AdminDashboard() {
                 />
               </div>
 
-              <div className="xl:col-span-3 xl:sticky xl:top-4">
+              <div className="xl:col-span-3 xl:sticky xl:top-4 space-y-4">
+                {overview ? (
+                  <AdminAlertsPanel
+                    alerts={overview.alerts}
+                    onSelectRide={handleOpenRideById}
+                  />
+                ) : null}
                 <div className={cn(adminPanelCard, "overflow-hidden")}>
                   <div className="px-4 py-3.5 border-b border-border/50 bg-muted/10">
                     <h2 className={adminSectionTitle}>Fila operacional</h2>
@@ -263,8 +293,11 @@ export default function AdminDashboard() {
         onOpenChange={setRideSheetOpen}
         onCancel={handleAdminCancelRide}
         onRedispatch={handleAdminRedispatchRide}
+        onAssign={handleAdminAssignRide}
+        availableDrivers={overview?.drivers ?? []}
         isCancelPending={cancelRideMutation.isPending}
         isRedispatchPending={redispatchRideMutation.isPending}
+        isAssignPending={assignRideMutation.isPending}
       />
       <AdminDriverDetailsSheet
         driver={driverDetails}

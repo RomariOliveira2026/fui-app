@@ -3,17 +3,17 @@ import type { Ride } from "../../drizzle/schema";
 import { getDemoDriverProfileByUserId } from "./demoDriver";
 import { buildDemoRideClientPayload, type DemoRideClientPayload } from "./demoRideClientMeta";
 import { getDemoRide, hydrateDemoRides, isDemoRideId } from "./demoRide";
-import { hydrateDemoRouteFromSnapshot } from "./demoRoutePaths";
+import { ensureDemoRoutePath, getDemoTripPathSource, hydrateDemoRouteFromSnapshot } from "./demoRoutePaths";
 import { processDispatchForDemoRide } from "./dispatchEngine";
 import { restoreOperationalStateFromRide } from "./demoOperationalRide";
 import { restoreSimulationStateFromRide } from "./demoRideSimulation";
 
 /** Carrega corrida demo, reidratando do snapshot do cliente se necessário (Vercel/serverless). */
-export function fetchDemoRideDetailsForUser(
+export async function fetchDemoRideDetailsForUser(
   rideId: number,
   userId: number,
   demoSnapshot?: unknown
-): DemoRideClientPayload {
+): Promise<DemoRideClientPayload> {
   if (!isDemoRideId(rideId)) {
     throw new TRPCError({ code: "BAD_REQUEST", message: "Not a demo ride" });
   }
@@ -45,5 +45,14 @@ export function fetchDemoRideDetailsForUser(
 
   processDispatchForDemoRide(rideId);
   ride = getDemoRide(rideId)!;
+
+  if (
+    (ride.status === "accepted" || ride.status === "in_progress" || ride.status === "requested") &&
+    getDemoTripPathSource(rideId) !== "osrm"
+  ) {
+    await ensureDemoRoutePath(ride);
+    ride = getDemoRide(rideId)!;
+  }
+
   return buildDemoRideClientPayload(ride);
 }

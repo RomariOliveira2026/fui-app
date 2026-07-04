@@ -9,6 +9,8 @@ import {
   resolveServiceKeyForRide,
   splitGrossRevenue,
 } from "./platformFinance";
+import { isDatabaseQueryable, shouldUseDemoDataStore } from "./databaseAvailability";
+import { ENV } from "./env";
 import * as db from "../db";
 
 async function summarizeCompletedServices(
@@ -62,17 +64,41 @@ async function buildLegacyFinancialSummary(user: {
     return await summarizeCompletedServices(rides, deliveries, periodLabel);
   }
 
-  const dbInstance = await db.getDb();
-  if (!dbInstance) {
+  if (await shouldUseDemoDataStore(user)) {
+    const rides = getAllDemoRides().filter((r) => r.status === "completed");
+    const deliveries = getAllDemoDeliveryOrders().filter((d) => d.status === "delivered");
+    return await summarizeCompletedServices(
+      rides,
+      deliveries,
+      "Dev local · estimado (sem ledger)"
+    );
+  }
+
+  const dbQueryable = await isDatabaseQueryable();
+  if (!dbQueryable) {
     return await summarizeCompletedServices([], [], periodLabel);
   }
 
-  const allRides = await db.getAllRides();
-  const rides = allRides.filter((r) => r.status === "completed");
-  const deliveries = await db.getAllDeliveryOrders();
-  const completedDeliveries = deliveries.filter((d) => d.status === "delivered");
+  try {
+    const allRides = await db.getAllRides();
+    const rides = allRides.filter((r) => r.status === "completed");
+    const deliveries = await db.getAllDeliveryOrders();
+    const completedDeliveries = deliveries.filter((d) => d.status === "delivered");
 
-  return await summarizeCompletedServices(rides, completedDeliveries, periodLabel);
+    return await summarizeCompletedServices(rides, completedDeliveries, periodLabel);
+  } catch (error) {
+    console.warn("[adminFinanceReport] DB read failed:", error);
+    if (!ENV.isProduction) {
+      const rides = getAllDemoRides().filter((r) => r.status === "completed");
+      const deliveries = getAllDemoDeliveryOrders().filter((d) => d.status === "delivered");
+      return await summarizeCompletedServices(
+        rides,
+        deliveries,
+        "Dev local · estimado (sem ledger)"
+      );
+    }
+    return await summarizeCompletedServices([], [], periodLabel);
+  }
 }
 
 export async function getAdminFinancialSummary(user: {

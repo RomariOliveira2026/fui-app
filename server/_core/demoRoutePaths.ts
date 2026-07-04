@@ -4,11 +4,23 @@ import { parseMapPoint } from "@shared/driverTracking";
 import {
   buildFallbackTripPath,
   densifyPath,
+  isUsableRoutePath,
   type RoutePoint,
 } from "@shared/routeAnimation";
 import { calculateDrivingRouteWithOsrm } from "./osrmRoute";
 
 const DENSIFY_STEP_M = 12;
+
+function preparePathForCache(path: RoutePoint[]): RoutePoint[] {
+  return densifyPath(path, DENSIFY_STEP_M);
+}
+
+function isCachedRouteUsable(path: RoutePoint[]): boolean {
+  if (path.length < 2) return false;
+  const origin = path[0]!;
+  const destination = path[path.length - 1]!;
+  return isUsableRoutePath(path, origin, destination);
+}
 
 type RouteCacheEntry = {
   path: RoutePoint[];
@@ -55,7 +67,7 @@ export function cacheDemoRoutePath(
 
   const prev = routeCache.get(rideId);
   const entry: RouteCacheEntry = {
-    path: densifyPath(path, DENSIFY_STEP_M),
+    path: preparePathForCache(path),
     source,
     polyline: polyline ?? encodeDemoPolyline(path),
   };
@@ -95,8 +107,12 @@ async function fetchAndCacheRoute(ride: Ride): Promise<RouteCacheEntry> {
   }
 
   const route = await calculateDrivingRouteWithOsrm(origin, destination);
-  const source: RouteCacheEntry["source"] = route.usedHaversineFallback ? "fallback" : "osrm";
-  const path = densifyPath(route.routePath, DENSIFY_STEP_M);
+  if (route.usedHaversineFallback) {
+    return { path: [], source: "fallback" };
+  }
+
+  const source: RouteCacheEntry["source"] = "osrm";
+  const path = preparePathForCache(route.routePath);
   const entry: RouteCacheEntry = {
     path,
     source,
@@ -116,7 +132,13 @@ async function fetchAndCacheRoute(ride: Ride): Promise<RouteCacheEntry> {
 /** Garante rota OSRM — dispara fetch em background se ainda estiver em fallback. */
 export function scheduleDemoRoutePathUpgrade(ride: Ride): void {
   const cached = routeCache.get(ride.id);
-  if (cached?.source === "osrm" && cached.path.length >= 2) return;
+  if (
+    cached?.source === "osrm" &&
+    cached.path.length >= 2 &&
+    isCachedRouteUsable(cached.path)
+  ) {
+    return;
+  }
   if (inflight.has(ride.id)) return;
   void ensureDemoRoutePath(ride);
 }
@@ -124,7 +146,11 @@ export function scheduleDemoRoutePathUpgrade(ride: Ride): void {
 /** Garante rota OSRM antes de iniciar simulação do motorista. */
 export async function ensureDemoRoutePath(ride: Ride): Promise<RoutePoint[]> {
   const cached = routeCache.get(ride.id);
-  if (cached?.source === "osrm" && cached.path.length >= 2) {
+  if (
+    cached?.source === "osrm" &&
+    cached.path.length >= 2 &&
+    isCachedRouteUsable(cached.path)
+  ) {
     return cached.path;
   }
 

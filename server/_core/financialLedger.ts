@@ -15,6 +15,7 @@ import {
   resolveServiceKeyForRide,
   splitGrossRevenue,
 } from "./platformFinance";
+import { isDatabaseQueryable } from "./databaseAvailability";
 import * as db from "../db";
 
 function isSameDay(a: Date, b: Date): boolean {
@@ -101,39 +102,49 @@ export async function recordDeliveryLedgerEntry(
 export async function getLedgerEntriesForDriver(
   driverId: number
 ): Promise<FinancialLedgerEntry[]> {
-  const dbInstance = await db.getDb();
   const demoEntries = getDemoLedgerEntriesForDriver(driverId);
+  const dbQueryable = await isDatabaseQueryable();
 
-  if (!dbInstance) {
+  if (!dbQueryable) {
     return demoEntries;
   }
 
-  const prodEntries = await db.getFinancialLedgerByDriver(driverId);
-  const merged = new Map<string, FinancialLedgerEntry>();
-  for (const e of [...prodEntries, ...demoEntries]) {
-    merged.set(`${e.entityType}:${e.entityId}`, e);
+  try {
+    const prodEntries = await db.getFinancialLedgerByDriver(driverId);
+    const merged = new Map<string, FinancialLedgerEntry>();
+    for (const e of [...prodEntries, ...demoEntries]) {
+      merged.set(`${e.entityType}:${e.entityId}`, e);
+    }
+    return Array.from(merged.values()).sort(
+      (a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()
+    );
+  } catch (error) {
+    console.warn("[financialLedger] DB read failed for driver, demo only:", error);
+    return demoEntries;
   }
-  return Array.from(merged.values()).sort(
-    (a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()
-  );
 }
 
 export async function getAllLedgerEntries(): Promise<FinancialLedgerEntry[]> {
-  const dbInstance = await db.getDb();
   const demoEntries = getAllDemoLedgerEntries();
+  const dbQueryable = await isDatabaseQueryable();
 
-  if (!dbInstance) {
+  if (!dbQueryable) {
     return demoEntries;
   }
 
-  const prodEntries = await db.getAllFinancialLedgerEntries();
-  const merged = new Map<string, FinancialLedgerEntry>();
-  for (const e of [...prodEntries, ...demoEntries]) {
-    merged.set(`${e.entityType}:${e.entityId}`, e);
+  try {
+    const prodEntries = await db.getAllFinancialLedgerEntries();
+    const merged = new Map<string, FinancialLedgerEntry>();
+    for (const e of [...prodEntries, ...demoEntries]) {
+      merged.set(`${e.entityType}:${e.entityId}`, e);
+    }
+    return Array.from(merged.values()).sort(
+      (a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()
+    );
+  } catch (error) {
+    console.warn("[financialLedger] DB read failed, demo only:", error);
+    return demoEntries;
   }
-  return Array.from(merged.values()).sort(
-    (a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()
-  );
 }
 
 export function aggregateLedgerSummary(
