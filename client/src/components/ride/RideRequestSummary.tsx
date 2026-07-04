@@ -17,6 +17,8 @@ type RideRequestSummaryProps = {
   distanceM: number;
   durationS: number;
   loading?: boolean;
+  error?: string | null;
+  onRetry?: () => void;
   className?: string;
 };
 
@@ -28,6 +30,8 @@ export default function RideRequestSummary({
   distanceM,
   durationS,
   loading,
+  error,
+  onRetry,
   className,
 }: RideRequestSummaryProps) {
   if (!origin.trim() || !destination.trim()) return null;
@@ -98,6 +102,14 @@ export default function RideRequestSummary({
           <p className={cn("text-3xl font-bold tabular-nums tracking-tight", fuiBrand.text)}>
             {formatRidePriceBRL(estimatedPrice)}
           </p>
+        ) : error ? (
+          <button
+            type="button"
+            onClick={onRetry}
+            className="text-sm font-medium text-primary underline-offset-2 hover:underline"
+          >
+            Tentar novamente
+          </button>
         ) : (
           <p className="text-sm text-muted-foreground">Aguardando rota…</p>
         )}

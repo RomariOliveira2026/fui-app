@@ -94,7 +94,6 @@ export default function RequestRide() {
   const prefillAppliedRef = useRef(false);
   const originFromGpsRef = useRef(false);
   const lowAccuracyWarnedRef = useRef(false);
-  const quoteResetRef = useRef<() => void>(() => {});
   const [autoLocateOrigin, setAutoLocateOrigin] = useState(false);
   
   // Carpool fields
@@ -170,7 +169,6 @@ export default function RequestRide() {
     setCouponCode("");
     setAppliedCoupon(null);
     setResolvedIntermediateStops([]);
-    quoteResetRef.current();
   };
 
   const activeIntermediateStopsForQuote = useMemo(
@@ -340,10 +338,14 @@ export default function RequestRide() {
     intermediateStops:
       activeIntermediateStopsForQuote.length > 0 ? activeIntermediateStopsForQuote : undefined,
     enabled: true,
-    allowDemoFallback: isDemoAppClient(),
+    allowDemoFallback: isDemoAppClient() || useOsmRouting,
   });
 
-  quoteResetRef.current = rideQuote.reset;
+  useEffect(() => {
+    if (rideQuote.loading && !rideQuote.ready) {
+      setRouteCalculated(false);
+    }
+  }, [rideQuote.loading, rideQuote.ready]);
 
   useEffect(() => {
     if (!rideQuote.ready) return;
@@ -675,7 +677,7 @@ export default function RequestRide() {
     const price = estimatedPriceRef.current ?? estimatedPrice;
     const dist = distanceRef.current || distance;
     const dur = durationRef.current || duration;
-    const isReady = routeReadyRef.current || routeCalculated;
+    const isReady = routeReadyRef.current || routeCalculated || rideQuote.ready;
 
     if (!isReady || !price || price <= 0 || dist <= 0 || dur <= 0) {
       toast.error("Calcule o preço primeiro");
@@ -755,7 +757,7 @@ export default function RequestRide() {
     const price = estimatedPriceRef.current ?? estimatedPrice;
     const dist = distanceRef.current || distance;
     const dur = durationRef.current || duration;
-    const isReady = routeReadyRef.current || routeCalculated;
+    const isReady = routeReadyRef.current || routeCalculated || rideQuote.ready;
 
     if (!isReady || !price || price <= 0) {
       toast.error("Calcule o preço primeiro");
@@ -836,7 +838,7 @@ export default function RequestRide() {
 
   const openScheduleDialog = () => {
     const price = estimatedPriceRef.current ?? estimatedPrice;
-    const isReady = routeReadyRef.current || routeCalculated;
+    const isReady = routeReadyRef.current || routeCalculated || rideQuote.ready;
     if (!isReady || !price || price <= 0) {
       toast.error("Calcule o preço primeiro");
       return;
@@ -903,6 +905,12 @@ export default function RequestRide() {
                       setOriginCoords(coords);
                     }
                     recordOriginHistory(result.address, result.placeId);
+                    void rideQuote.refetch({
+                      originAddress: result.address,
+                      originPlaceId: result.placeId,
+                      destinationAddress: destinationAddress.trim(),
+                      destinationPlaceId: destPlaceIdRef.current || undefined,
+                    });
                   }}
                   onConfirm={(address) => {
                     if (originFromGpsRef.current && originPlaceIdRef.current) {
@@ -976,6 +984,12 @@ export default function RequestRide() {
                   destPlaceIdRef.current = result.placeId;
                   recordDestinationHistory(result.address, result.placeId);
                   syncHistoryFromStorage();
+                  void rideQuote.refetch({
+                    originAddress: originAddress.trim(),
+                    originPlaceId: originPlaceIdRef.current || undefined,
+                    destinationAddress: result.address,
+                    destinationPlaceId: result.placeId,
+                  });
                 }}
                 onConfirm={(address) => {
                   const placeId = resolveDemoPlaceIdForHistory(
@@ -1044,6 +1058,8 @@ export default function RequestRide() {
               distanceM={distance}
               durationS={duration}
               loading={rideQuote.loading}
+              error={rideQuote.error}
+              onRetry={() => void rideQuote.refetch()}
             />
 
             {/* Carpool / Shared Ride Section */}
@@ -1356,7 +1372,12 @@ export default function RequestRide() {
                 onClick={handleRequestRide}
                 className={`flex-1 ${fuiBrand.btn}`}
                 size="lg"
-                disabled={!routeCalculated || estimatedPrice == null || estimatedPrice <= 0 || requestRide.isPending}
+                disabled={
+                  (!routeCalculated && !rideQuote.ready) ||
+                  estimatedPrice == null ||
+                  estimatedPrice <= 0 ||
+                  requestRide.isPending
+                }
               >
                 {requestRide.isPending ? (
                   <>
@@ -1373,7 +1394,12 @@ export default function RequestRide() {
                 variant="outline"
                 size="lg"
                 className={fuiBrand.btnOutline}
-                disabled={!routeCalculated || estimatedPrice == null || estimatedPrice <= 0 || scheduleRide.isPending}
+                disabled={
+                  (!routeCalculated && !rideQuote.ready) ||
+                  estimatedPrice == null ||
+                  estimatedPrice <= 0 ||
+                  scheduleRide.isPending
+                }
               >
                 <Clock className="w-4 h-4 mr-2" />
                 Agendar

@@ -23,6 +23,15 @@ export type PassengerRideQuoteState = {
   overviewPolyline: string | null;
 };
 
+export type QuoteFetchOverrides = {
+  originAddress?: string;
+  destinationAddress?: string;
+  originPlaceId?: string;
+  destinationPlaceId?: string;
+  originLat?: string;
+  originLng?: string;
+};
+
 const EMPTY_QUOTE: PassengerRideQuoteState = {
   loading: false,
   ready: false,
@@ -100,6 +109,8 @@ export function usePassengerRideQuote(input: UsePassengerRideQuoteInput) {
   vehicleTypeRef.current = vehicleType;
   const allowDemoFallbackRef = useRef(allowDemoFallback);
   allowDemoFallbackRef.current = allowDemoFallback;
+  const intermediateStopsRef = useRef(intermediateStops);
+  intermediateStopsRef.current = intermediateStops;
 
   const quoteSignature = useMemo(
     () =>
@@ -128,102 +139,21 @@ export function usePassengerRideQuote(input: UsePassengerRideQuoteInput) {
     setState(EMPTY_QUOTE);
   }, []);
 
-  useEffect(() => {
-    if (!enabled) {
-      reset();
-      return;
-    }
+  const quoteSignatureRef = useRef(quoteSignature);
+  quoteSignatureRef.current = quoteSignature;
 
-    const parsed = JSON.parse(quoteSignature) as {
+  const runQuoteFetch = useCallback(async (overrides?: QuoteFetchOverrides) => {
+    const parsed = JSON.parse(quoteSignatureRef.current) as {
       origin: string;
       destination: string;
+      originPlaceId: string;
+      destinationPlaceId: string;
+      originLat: string;
+      originLng: string;
     };
-    if (
-      parsed.origin.length < MIN_RIDE_PREFILL_ADDRESS_LENGTH ||
-      parsed.destination.length < MIN_RIDE_PREFILL_ADDRESS_LENGTH
-    ) {
-      reset();
-      return;
-    }
 
-    const timer = window.setTimeout(() => {
-      const origin = parsed.origin.trim();
-      const destination = parsed.destination.trim();
-      if (
-        origin.length < MIN_RIDE_PREFILL_ADDRESS_LENGTH ||
-        destination.length < MIN_RIDE_PREFILL_ADDRESS_LENGTH
-      ) {
-        return;
-      }
-
-      const requestId = ++requestIdRef.current;
-      setState((prev) => ({ ...prev, loading: true, error: null }));
-
-      void mutateAsyncRef
-        .current({
-          originAddress: origin,
-          destinationAddress: destination,
-          vehicleType: vehicleTypeRef.current,
-          originPlaceId: originPlaceId || undefined,
-          destinationPlaceId: destinationPlaceId || undefined,
-          originLat,
-          originLng,
-          intermediateStops:
-            intermediateStops && intermediateStops.length > 0 ? intermediateStops : undefined,
-          allowDemoFallback: allowDemoFallbackRef.current,
-        })
-        .then((result) => {
-          if (requestId !== requestIdRef.current) return;
-
-          const selectedQuote =
-            pickCategoryQuote(result.categoryQuotes, vehicleTypeRef.current) ??
-            result.categoryQuotes.find((q) => q.vehicleType === vehicleTypeRef.current);
-
-          setState({
-            loading: false,
-            ready: true,
-            error: null,
-            distance: result.distance,
-            duration: result.duration,
-            distanceText: result.distanceText,
-            durationText: result.durationText,
-            estimatedPrice: selectedQuote?.estimatedPrice ?? result.estimatedPrice,
-            categoryQuotes: result.categoryQuotes,
-            originCoords: { lat: result.origin.lat, lng: result.origin.lng },
-            destCoords: { lat: result.destination.lat, lng: result.destination.lng },
-            routePath: result.routePath,
-            overviewPolyline: result.overviewPolyline,
-          });
-        })
-        .catch((error: unknown) => {
-          if (requestId !== requestIdRef.current) return;
-          if (isRideInputValidationError(error)) {
-            setState(EMPTY_QUOTE);
-            return;
-          }
-          setState({
-            ...EMPTY_QUOTE,
-            error: getRideFlowErrorMessage(error),
-          });
-        });
-    }, debounceMs);
-
-    return () => window.clearTimeout(timer);
-  }, [
-    debounceMs,
-    enabled,
-    quoteSignature,
-    reset,
-    originPlaceId,
-    destinationPlaceId,
-    originLat,
-    originLng,
-    intermediateStops,
-  ]);
-
-  const fetchQuote = useCallback(async () => {
-    const origin = originAddress.trim();
-    const destination = destinationAddress.trim();
+    const origin = (overrides?.originAddress ?? parsed.origin).trim();
+    const destination = (overrides?.destinationAddress ?? parsed.destination).trim();
     if (
       origin.length < MIN_RIDE_PREFILL_ADDRESS_LENGTH ||
       destination.length < MIN_RIDE_PREFILL_ADDRESS_LENGTH
@@ -233,27 +163,31 @@ export function usePassengerRideQuote(input: UsePassengerRideQuoteInput) {
     }
 
     const requestId = ++requestIdRef.current;
-    setState((prev) => ({ ...prev, loading: true, error: null }));
+    setState((prev) => ({ ...prev, loading: true, ready: false, error: null }));
 
     try {
+      const stops = intermediateStopsRef.current;
       const result = await mutateAsyncRef.current({
         originAddress: origin,
         destinationAddress: destination,
-        vehicleType,
-        originPlaceId,
-        destinationPlaceId,
-        originLat,
-        originLng,
-        intermediateStops:
-          intermediateStops && intermediateStops.length > 0 ? intermediateStops : undefined,
+        vehicleType: vehicleTypeRef.current,
+        originPlaceId:
+          overrides?.originPlaceId ??
+          (parsed.originPlaceId || undefined),
+        destinationPlaceId:
+          overrides?.destinationPlaceId ??
+          (parsed.destinationPlaceId || undefined),
+        originLat: overrides?.originLat ?? (parsed.originLat || undefined),
+        originLng: overrides?.originLng ?? (parsed.originLng || undefined),
+        intermediateStops: stops && stops.length > 0 ? stops : undefined,
         allowDemoFallback: allowDemoFallbackRef.current,
       });
 
       if (requestId !== requestIdRef.current) return;
 
       const selectedQuote =
-        pickCategoryQuote(result.categoryQuotes, vehicleType) ??
-        result.categoryQuotes.find((q) => q.vehicleType === vehicleType);
+        pickCategoryQuote(result.categoryQuotes, vehicleTypeRef.current) ??
+        result.categoryQuotes.find((q) => q.vehicleType === vehicleTypeRef.current);
 
       setState({
         loading: false,
@@ -281,17 +215,56 @@ export function usePassengerRideQuote(input: UsePassengerRideQuoteInput) {
         error: getRideFlowErrorMessage(error),
       });
     }
+  }, [reset]);
+
+  useEffect(() => {
+    if (!enabled) {
+      reset();
+      return;
+    }
+
+    const parsed = JSON.parse(quoteSignature) as {
+      origin: string;
+      destination: string;
+    };
+    if (
+      parsed.origin.length < MIN_RIDE_PREFILL_ADDRESS_LENGTH ||
+      parsed.destination.length < MIN_RIDE_PREFILL_ADDRESS_LENGTH
+    ) {
+      reset();
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      void runQuoteFetch({
+        originAddress: parsed.origin.trim(),
+        destinationAddress: parsed.destination.trim(),
+        originPlaceId: originPlaceId || undefined,
+        destinationPlaceId: destinationPlaceId || undefined,
+        originLat,
+        originLng,
+      });
+    }, debounceMs);
+
+    return () => window.clearTimeout(timer);
   }, [
-    destinationAddress,
+    debounceMs,
+    enabled,
+    quoteSignature,
+    reset,
+    runQuoteFetch,
+    originPlaceId,
     destinationPlaceId,
-    intermediateStops,
-    originAddress,
     originLat,
     originLng,
-    originPlaceId,
-    reset,
-    vehicleType,
   ]);
+
+  const fetchQuote = useCallback(
+    async (overrides?: QuoteFetchOverrides) => {
+      await runQuoteFetch(overrides);
+    },
+    [runQuoteFetch]
+  );
 
   const priceForVehicle = useCallback(
     (type: DemoVehicleType) => {
