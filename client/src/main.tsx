@@ -44,6 +44,10 @@ const queryClient = new QueryClient({
       throwOnError: (error) => {
         if (isLandingRoutePathname()) return false;
         if (!import.meta.env.PROD) return false;
+        // Painéis admin tratam falhas de API localmente (toast / retry / fallback).
+        if (typeof window !== "undefined" && window.location.pathname.startsWith("/admin")) {
+          return false;
+        }
         // Falha de transporte (HTML/404 da Vercel) não deve derrubar a home.
         if (error instanceof TRPCClientError && error.data == null) return false;
         return true;

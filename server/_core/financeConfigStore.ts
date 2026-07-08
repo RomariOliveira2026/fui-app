@@ -8,10 +8,14 @@ import {
   getDemoFinanceConfig,
   updateDemoFinanceConfig,
 } from "./demoAdminFinance";
-import { shouldUseDemoDataStore } from "./databaseAvailability";
+import { isDatabaseQueryable, shouldUseDemoDataStore } from "./databaseAvailability";
 import * as db from "../db";
 
 let memoryCache: PlatformFinanceConfig | null = null;
+
+function defaultFinanceConfig(): PlatformFinanceConfig {
+  return buildDefaultFinanceConfig(ENV.platformFeePercent);
+}
 
 export async function loadFinanceConfig(
   user?: { openId: string; role?: string }
@@ -21,28 +25,30 @@ export async function loadFinanceConfig(
     return memoryCache;
   }
 
+  const dbQueryable = await isDatabaseQueryable();
+  if (!dbQueryable) {
+    const fallback = memoryCache ?? defaultFinanceConfig();
+    memoryCache = fallback;
+    return fallback;
+  }
+
   try {
     const fromDb = await db.getPlatformFinanceConfig();
     if (fromDb) {
-      const normalized = mergeFinanceConfig(
-        buildDefaultFinanceConfig(ENV.platformFeePercent),
-        fromDb
-      );
+      const normalized = mergeFinanceConfig(defaultFinanceConfig(), fromDb);
       memoryCache = normalized;
       return normalized;
     }
 
-    const defaults = buildDefaultFinanceConfig(ENV.platformFeePercent);
+    const defaults = defaultFinanceConfig();
     await db.upsertPlatformFinanceConfig(defaults);
     memoryCache = defaults;
     return defaults;
   } catch (error) {
     console.warn("[financeConfig] DB read failed:", error);
-    if (!ENV.isProduction) {
-      memoryCache = getDemoFinanceConfig();
-      return memoryCache;
-    }
-    throw error;
+    const fallback = memoryCache ?? defaultFinanceConfig();
+    memoryCache = fallback;
+    return fallback;
   }
 }
 
@@ -64,7 +70,15 @@ export async function saveFinanceConfig(
 
   const current = await loadFinanceConfig(user);
   const next = mergeFinanceConfig(current, patch);
-  await db.upsertPlatformFinanceConfig(next);
   memoryCache = next;
+
+  if (await isDatabaseQueryable()) {
+    try {
+      await db.upsertPlatformFinanceConfig(next);
+    } catch (error) {
+      console.warn("[financeConfig] DB write failed:", error);
+    }
+  }
+
   return next;
 }

@@ -47,7 +47,10 @@ export default function AdminDriverRegistrationPanel() {
   const [selected, setSelected] = useState<DriverApplication | null>(null);
   const [reviewNotes, setReviewNotes] = useState<Record<number, string>>({});
 
-  const { data: applications, isLoading } = trpc.driverRegistration.listForAdmin.useQuery();
+  const { data: applications, isLoading } = trpc.driverRegistration.listForAdmin.useQuery(
+    undefined,
+    { throwOnError: false, retry: 1 }
+  );
 
   const setStatus = trpc.driverRegistration.setStatus.useMutation({
     onSuccess: () => {

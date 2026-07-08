@@ -61,17 +61,31 @@ export default function AdminCampaigns() {
   }, [authLoading, allowed, setLocation]);
 
   const { data: partners = [], isLoading: partnersLoading } =
-    trpc.adminCampaigns.listPartners.useQuery(undefined, { enabled: allowed });
+    trpc.adminCampaigns.listPartners.useQuery(undefined, {
+      enabled: allowed,
+      throwOnError: false,
+      retry: 1,
+    });
   const { data: campaigns = [], isLoading: campaignsLoading } =
-    trpc.adminCampaigns.listCampaigns.useQuery(undefined, { enabled: allowed });
+    trpc.adminCampaigns.listCampaigns.useQuery(undefined, {
+      enabled: allowed,
+      throwOnError: false,
+      retry: 1,
+    });
   const { data: analytics } = trpc.adminCampaigns.getAnalytics.useQuery(undefined, {
     enabled: allowed && activeTab === "analytics",
+    throwOnError: false,
+    retry: 1,
   });
   const { data: domainReadiness } = trpc.adminCampaigns.getDomainReadiness.useQuery(undefined, {
     enabled: allowed && activeTab === "domain",
+    throwOnError: false,
+    retry: 1,
   });
   const { data: leads = [] } = trpc.adminCampaigns.listCommercialLeads.useQuery(undefined, {
     enabled: allowed && activeTab === "partners",
+    throwOnError: false,
+    retry: 1,
   });
 
   const createPartner = trpc.adminCampaigns.createPartner.useMutation({

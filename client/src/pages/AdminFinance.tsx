@@ -43,6 +43,7 @@ import type { FinanceServiceKey, PlatformFinanceConfig } from "@shared/adminFina
 import { FINANCE_SERVICE_KEYS, buildDefaultFinanceConfig, mergeFinanceConfig } from "@shared/adminFinance";
 import FuiMetricCard from "@/components/fui/FuiMetricCard";
 import AdminDriverRegistrationPanel from "@/components/admin/AdminDriverRegistrationPanel";
+import AdminPanelErrorBoundary from "@/components/admin/AdminPanelErrorBoundary";
 
 const SERVICE_LABELS: Record<FinanceServiceKey, string> = {
   ride: "Corrida",
@@ -87,6 +88,8 @@ export default function AdminFinance() {
     trpc.adminFinance.getFinancialSummary.useQuery(undefined, {
       enabled: allowed,
       refetchInterval: 30_000,
+      throwOnError: false,
+      retry: 1,
     });
   const {
     data: configRaw,
@@ -94,17 +97,21 @@ export default function AdminFinance() {
     isError: configError,
   } = trpc.adminFinance.getConfig.useQuery(undefined, {
     enabled: allowed,
+    throwOnError: false,
+    retry: 1,
   });
   const { data: coupons, isLoading: couponsLoading } = trpc.adminFinance.getCoupons.useQuery(
     undefined,
-    { enabled: allowed }
+    { enabled: allowed, throwOnError: false, retry: 1 }
   );
   const { data: pendingDrivers } = trpc.adminFinance.getPendingDriverReviews.useQuery(undefined, {
     enabled: allowed,
+    throwOnError: false,
+    retry: 1,
   });
   const { data: cancellations } = trpc.adminFinance.getCancellationAudit.useQuery(
     { limit: 40 },
-    { enabled: allowed }
+    { enabled: allowed, throwOnError: false, retry: 1 }
   );
 
   const config = resolveFinanceConfig(configRaw);
@@ -237,6 +244,7 @@ export default function AdminFinance() {
   };
 
   return (
+    <AdminPanelErrorBoundary title="Financeiro & Gestão">
     <div className="min-h-screen bg-background text-foreground">
       <AppHeader title="Financeiro & Gestão" />
       <div className="container max-w-6xl mx-auto py-8 px-4">
@@ -624,5 +632,6 @@ export default function AdminFinance() {
         </Tabs>
       </div>
     </div>
+    </AdminPanelErrorBoundary>
   );
 }

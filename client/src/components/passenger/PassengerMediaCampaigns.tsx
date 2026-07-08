@@ -36,7 +36,7 @@ export default function PassengerMediaCampaigns({
 
   const { data: slots = [] } = trpc.campaigns.getHomeMedia.useQuery(
     { city },
-    { staleTime: 60_000, refetchOnWindowFocus: false }
+    { staleTime: 60_000, refetchOnWindowFocus: false, throwOnError: false, retry: 1 }
   );
 
   const trackImpression = trpc.campaigns.trackImpression.useMutation();
