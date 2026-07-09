@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { redirectToLogin } from "@/const";
 import { trpc } from "@/lib/trpc";
@@ -11,7 +11,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
-import { fuiBrand, fuiSurface } from "@/lib/fuiTheme";
+import { fuiBrand, fuiIconRingClass, fuiSurface } from "@/lib/fuiTheme";
+import FuiMetricCard from "@/components/fui/FuiMetricCard";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import {
   clearDriverSignupIntent,
@@ -36,8 +38,10 @@ import {
   Car,
   CheckCircle2,
   Clock,
+  FileText,
   Loader2,
   Shield,
+  Sparkles,
   Truck,
   User,
 } from "lucide-react";
@@ -49,6 +53,58 @@ const VEHICLE_ICONS = {
   van: Truck,
   utilitario: Truck,
 } as const;
+
+const STEP_ICONS = [User, Shield, Car, Shield, FileText] as const;
+
+const STEP_GUIDES = [
+  {
+    title: "Dados pessoais",
+    description: "Nome, CPF, contato e região onde você pretende atuar como motorista.",
+  },
+  {
+    title: "CNH",
+    description: "Número, categoria, validade, EAR e fotos frente/verso do documento.",
+  },
+  {
+    title: "Veículo",
+    description: "Tipo, placa, CRLV e fotos do veículo que será usado nas corridas.",
+  },
+  {
+    title: "Segurança",
+    description: "Selfie, antecedentes, PIX e contato de emergência para validação.",
+  },
+  {
+    title: "Termos",
+    description: "Aceite as políticas para enviar o cadastro à Central Operacional.",
+  },
+] as const;
+
+function RegistrationShell({
+  title,
+  subtitle,
+  children,
+}: {
+  title: string;
+  subtitle: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="min-h-screen bg-background text-foreground">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-72 bg-[radial-gradient(ellipse_at_top,hsl(var(--primary)/0.12),transparent_65%)]" />
+      <AppHeader title="Cadastrar como Motorista" />
+      <div className="relative mx-auto w-full max-w-screen-xl px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+        <div>
+          <Badge variant="outline" className={cn("mb-3", fuiBrand.border, fuiBrand.text)}>
+            Central Operacional
+          </Badge>
+          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">{title}</h1>
+          <p className="text-muted-foreground mt-2 max-w-2xl text-base leading-relaxed">{subtitle}</p>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
 
 function formatCpf(value: string) {
   const digits = value.replace(/\D/g, "").slice(0, 11);
@@ -212,15 +268,24 @@ export default function DriverRegistration() {
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-background">
-        <AppHeader title="Cadastro de Motorista" />
-        <div className="container max-w-lg mx-auto py-12 px-4 text-center space-y-4">
-          <p className="text-muted-foreground">Faça login para iniciar seu cadastro como motorista.</p>
-          <Button className={fuiBrand.btn} onClick={() => redirectToLogin("/driver/register")}>
-            Fazer login
-          </Button>
-        </div>
-      </div>
+      <RegistrationShell
+        title="Quero Ser Motorista"
+        subtitle="Faça login para iniciar seu cadastro e enviar sua documentação à Central Operacional."
+      >
+        <Card className={cn(fuiSurface.card, "max-w-lg border-primary/20")}>
+          <CardContent className="p-8 text-center space-y-4">
+            <div className={fuiIconRingClass("brand", "h-14 w-14 mx-auto")}>
+              <User className="h-6 w-6" />
+            </div>
+            <p className="text-muted-foreground">
+              Você precisa estar autenticado para salvar rascunho e enviar o cadastro.
+            </p>
+            <Button className={fuiBrand.btn} onClick={() => redirectToLogin("/driver/register")}>
+              Fazer login
+            </Button>
+          </CardContent>
+        </Card>
+      </RegistrationShell>
     );
   }
 
@@ -228,36 +293,49 @@ export default function DriverRegistration() {
     const isApproved = statusView === "aprovado";
     const isRejected = statusView === "reprovado";
     return (
-      <div className="min-h-screen bg-background">
-        <AppHeader title="Cadastro de Motorista" />
-        <div className="container max-w-lg mx-auto py-8 px-4">
-          <Card className={cn(fuiSurface.card, "border-primary/20")}>
-            <CardHeader className="text-center">
+      <RegistrationShell
+        title={
+          isApproved
+            ? "Cadastro aprovado!"
+            : isRejected
+              ? "Cadastro não aprovado"
+              : "Cadastro enviado"
+        }
+        subtitle={`Status atual: ${DRIVER_APPLICATION_STATUS_LABELS[statusView]}`}
+      >
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+          <Card className={cn(fuiSurface.card, "border-primary/20 h-fit")}>
+            <CardContent className="p-8 text-center">
               <div
                 className={cn(
-                  "mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full",
-                  isApproved ? "bg-emerald-500/15" : isRejected ? "bg-red-500/15" : "bg-primary/10"
+                  "mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl ring-1",
+                  isApproved
+                    ? "bg-emerald-500/10 text-emerald-400 ring-emerald-500/20"
+                    : isRejected
+                      ? "bg-red-500/10 text-red-400 ring-red-500/20"
+                      : "bg-primary/10 text-primary ring-primary/25"
                 )}
               >
                 {isApproved ? (
-                  <CheckCircle2 className="h-7 w-7 text-emerald-400" />
+                  <CheckCircle2 className="h-8 w-8" />
                 ) : (
-                  <Clock className={cn("h-7 w-7", isRejected ? "text-red-400" : "text-primary")} />
+                  <Clock className="h-8 w-8" />
                 )}
               </div>
-              <CardTitle>
-                {isApproved
-                  ? "Cadastro aprovado!"
-                  : isRejected
-                    ? "Cadastro não aprovado"
-                    : "Cadastro enviado"}
+              <CardTitle className="text-xl">
+                {DRIVER_APPLICATION_STATUS_LABELS[statusView]}
               </CardTitle>
-              <CardDescription>
-                Status:{" "}
-                <span className="font-medium text-foreground">
-                  {DRIVER_APPLICATION_STATUS_LABELS[statusView]}
-                </span>
+              <CardDescription className="mt-2">
+                {isApproved
+                  ? "Você já pode acessar o painel do motorista."
+                  : "Acompanhe o retorno da Central Operacional."}
               </CardDescription>
+            </CardContent>
+          </Card>
+
+          <Card className={cn(fuiSurface.card, "border-border/80")}>
+            <CardHeader>
+              <CardTitle className="text-lg">Próximos passos</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 text-sm text-muted-foreground">
               {statusView === "enviado" && (
@@ -307,55 +385,123 @@ export default function DriverRegistration() {
             </CardContent>
           </Card>
         </div>
-      </div>
+      </RegistrationShell>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background pb-24">
-      <AppHeader title="Cadastrar como Motorista" />
+    <RegistrationShell
+      title="Quero Ser Motorista"
+      subtitle="Complete as etapas para enviar seu cadastro à Central Operacional do Fui."
+    >
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
+        <FuiMetricCard label="Etapa atual" value={`${step}/5`} icon={Sparkles} highlight />
+        <FuiMetricCard
+          label="Progresso"
+          value={`${Math.round((step / 5) * 100)}%`}
+          icon={CheckCircle2}
+        />
+        <FuiMetricCard
+          label="Veículo"
+          value={form.vehicle?.type ? String(form.vehicle.type) : "Pendente"}
+          icon={Car}
+        />
+        <FuiMetricCard
+          label="Rascunho"
+          value={saveDraft.isPending ? "Salvando" : "Ativo"}
+          icon={Clock}
+        />
+      </div>
 
-      <div className="container max-w-2xl mx-auto py-6 px-4 space-y-6">
-        <div className="text-center space-y-1">
-          <h1 className="text-2xl font-bold text-foreground">Quero Ser Motorista</h1>
-          <p className="text-sm text-muted-foreground">
-            Complete as etapas para enviar seu cadastro à Central Operacional
-          </p>
-        </div>
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,0.88fr)_minmax(0,1.12fr)]">
+        <Card className="overflow-hidden border-primary/20 bg-gradient-to-br from-primary/[0.08] via-card to-card h-fit">
+          <CardContent className="p-0">
+            <div className="border-b border-border/60 px-6 py-5">
+              <h2 className="text-lg font-semibold">Etapas do cadastro</h2>
+              <p className="text-sm text-muted-foreground mt-1">
+                {STEP_GUIDES[step - 1]?.description}
+              </p>
+            </div>
+            <div className="p-6 space-y-4">
+              {REGISTRATION_STEPS.map((s, index) => {
+                const Icon = STEP_ICONS[index] ?? User;
+                const done = s.id < step;
+                const active = s.id === step;
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    disabled={s.id > step}
+                    onClick={() => s.id < step && setStep(s.id)}
+                    className={cn(
+                      "flex w-full gap-4 text-left rounded-xl border p-4 transition-colors",
+                      active && "border-primary/40 bg-primary/[0.06]",
+                      done && "border-emerald-500/25 bg-emerald-500/[0.04] hover:bg-emerald-500/[0.08]",
+                      !done && !active && "border-border/60 opacity-70",
+                      s.id < step && "cursor-pointer"
+                    )}
+                  >
+                    <div className="flex flex-col items-center">
+                      <div
+                        className={cn(
+                          fuiIconRingClass(active ? "brand" : done ? "success" : "default", "h-10 w-10")
+                        )}
+                      >
+                        <Icon className="w-4 h-4" />
+                      </div>
+                      {index < REGISTRATION_STEPS.length - 1 ? (
+                        <div className="mt-2 h-full min-h-6 w-px bg-border/80" />
+                      ) : null}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-medium uppercase tracking-wide text-primary/80">
+                        Etapa {s.id}
+                      </p>
+                      <p className="font-medium mt-0.5">{s.title}</p>
+                      <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
+                        {STEP_GUIDES[index]?.description}
+                      </p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
 
-        {/* Progress */}
-        <div className="flex gap-1 overflow-x-auto pb-1">
-          {REGISTRATION_STEPS.map((s) => {
-            const done = s.id < step;
-            const active = s.id === step;
-            return (
-              <div
-                key={s.id}
-                className={cn(
-                  "flex-1 min-w-[4.5rem] rounded-lg border px-2 py-2 text-center text-[10px] font-medium",
-                  active && "border-primary bg-primary/10 text-primary",
-                  done && "border-emerald-500/30 bg-emerald-500/10 text-emerald-400",
-                  !done && !active && "border-border text-muted-foreground"
-                )}
-              >
-                <span className="block text-xs font-bold">{s.id}</span>
-                {s.title}
-              </div>
-            );
-          })}
-        </div>
-
-        <Card className={fuiSurface.card}>
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              {step === 1 && <User className="h-5 w-5 text-primary" />}
-              {step === 2 && <Shield className="h-5 w-5 text-primary" />}
-              {step >= 3 && <Car className="h-5 w-5 text-primary" />}
-              {REGISTRATION_STEPS[step - 1]?.title}
-            </CardTitle>
-            <CardDescription>Etapa {step} de 5</CardDescription>
+        <Card className="border-border/80 bg-card/50 backdrop-blur-sm overflow-hidden">
+          <CardHeader className="border-b border-border/60 bg-muted/10 space-y-4">
+            <div>
+              <CardTitle className="text-xl flex items-center gap-2">
+                {(() => {
+                  const Icon = STEP_ICONS[step - 1] ?? User;
+                  return <Icon className="h-5 w-5 text-primary" />;
+                })()}
+                {REGISTRATION_STEPS[step - 1]?.title}
+              </CardTitle>
+              <CardDescription>Etapa {step} de 5 — preencha os campos abaixo</CardDescription>
+            </div>
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {REGISTRATION_STEPS.map((s) => {
+                const done = s.id < step;
+                const active = s.id === step;
+                return (
+                  <div
+                    key={s.id}
+                    className={cn(
+                      "shrink-0 rounded-full border px-3 py-1 text-xs font-medium",
+                      active && "border-primary bg-primary/10 text-primary",
+                      done && "border-emerald-500/30 bg-emerald-500/10 text-emerald-400",
+                      !done && !active && "border-border text-muted-foreground"
+                    )}
+                  >
+                    {s.id}. {s.title}
+                  </div>
+                );
+              })}
+            </div>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="p-5 sm:p-6 space-y-4">
             {step === 1 && (
               <>
                 <div className="grid gap-4 sm:grid-cols-2">
@@ -655,38 +801,37 @@ export default function DriverRegistration() {
                 ))}
               </div>
             )}
+            <div className="flex gap-3 pt-2 border-t border-border/60">
+              {step > 1 ? (
+                <Button type="button" variant="outline" className="flex-1" onClick={goBack}>
+                  <ArrowLeft className="mr-2 h-4 w-4" />
+                  Voltar
+                </Button>
+              ) : null}
+              {step < 5 ? (
+                <Button type="button" className={cn("flex-1", fuiBrand.btn)} onClick={() => void goNext()}>
+                  Continuar
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  className={cn("flex-1", fuiBrand.btn)}
+                  disabled={submitMutation.isPending}
+                  onClick={() => void handleSubmit()}
+                >
+                  {submitMutation.isPending ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <CheckCircle2 className="mr-2 h-4 w-4" />
+                  )}
+                  Enviar cadastro
+                </Button>
+              )}
+            </div>
           </CardContent>
         </Card>
-
-        <div className="flex gap-3">
-          {step > 1 ? (
-            <Button type="button" variant="outline" className="flex-1" onClick={goBack}>
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Voltar
-            </Button>
-          ) : null}
-          {step < 5 ? (
-            <Button type="button" className={cn("flex-1", fuiBrand.btn)} onClick={() => void goNext()}>
-              Continuar
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </Button>
-          ) : (
-            <Button
-              type="button"
-              className={cn("flex-1", fuiBrand.btn)}
-              disabled={submitMutation.isPending}
-              onClick={() => void handleSubmit()}
-            >
-              {submitMutation.isPending ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <CheckCircle2 className="mr-2 h-4 w-4" />
-              )}
-              Enviar cadastro
-            </Button>
-          )}
-        </div>
       </div>
-    </div>
+    </RegistrationShell>
   );
 }
