@@ -71,7 +71,16 @@ export function useAuth(options?: UseAuthOptions) {
     const user = useDemoPassenger
       ? mergeDemoUserProfile(DEMO_PASSENGER_USER)
       : (meQuery.data ?? null);
-    localStorage.setItem("manus-runtime-user-info", JSON.stringify(user));
+    try {
+      // Avatares em data URL podem ter vários MB e estourar a cota do storage.
+      const storableUser =
+        user && typeof user.avatarUrl === "string" && user.avatarUrl.startsWith("data:")
+          ? { ...user, avatarUrl: null }
+          : user;
+      localStorage.setItem("manus-runtime-user-info", JSON.stringify(storableUser));
+    } catch {
+      // Cota excedida / modo privado — nunca derrubar a renderização por isso.
+    }
     const authUnavailable =
       !skipMeQuery && meQuery.isError && !betaDemoActive;
     const waitingForBetaConfig =
