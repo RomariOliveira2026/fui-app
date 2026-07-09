@@ -1,35 +1,40 @@
+import { useMemo, useState } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Loader2, MapPin, Navigation, Calendar, RotateCcw } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Loader2, MapPin, Route, Search, TrendingUp, Wallet } from "lucide-react";
 import { repeatRide } from "@/lib/ridePrefill";
 import { useLocation } from "wouter";
 import AppHeader from "@/components/AppHeader";
 import { useDemoRideHydration } from "@/lib/useDemoRideHydration";
 import { fuiBrand } from "@/lib/fuiTheme";
+import FuiMetricCard from "@/components/fui/FuiMetricCard";
+import RideHistoryCard from "@/components/ride/RideHistoryCard";
+import {
+  computeRideHistoryStats,
+  filterRideHistory,
+  formatBrlFromCents,
+  formatRideDistanceMeters,
+  groupRidesByMonth,
+  type RideHistoryStatusFilter,
+} from "@shared/rideHistoryUtils";
+import { cn } from "@/lib/utils";
 
-const statusLabels: Record<string, string> = {
-  requested: "Solicitada",
-  accepted: "Aceita",
-  in_progress: "Em andamento",
-  completed: "Concluída",
-  cancelled: "Cancelada",
-};
-
-const statusColors: Record<string, string> = {
-  requested: "bg-amber-500/10 text-amber-400 border-amber-500/25",
-  accepted: "bg-sky-500/10 text-sky-400 border-sky-500/25",
-  in_progress: "bg-emerald-500/10 text-emerald-400 border-emerald-500/25",
-  completed: "bg-muted text-foreground border-border",
-  cancelled: "bg-red-500/10 text-red-400 border-red-500/25",
-};
+const STATUS_FILTERS: { value: RideHistoryStatusFilter; label: string }[] = [
+  { value: "all", label: "Todas" },
+  { value: "completed", label: "Concluídas" },
+  { value: "active", label: "Em andamento" },
+  { value: "cancelled", label: "Canceladas" },
+];
 
 export default function RideHistory() {
   const { user, loading: authLoading } = useAuth();
   const [location, setLocation] = useLocation();
   const isDriverHistory = location.startsWith("/driver/history");
+  const [statusFilter, setStatusFilter] = useState<RideHistoryStatusFilter>("all");
+  const [searchQuery, setSearchQuery] = useState("");
 
   useDemoRideHydration();
 
@@ -38,6 +43,8 @@ export default function RideHistory() {
     isLoading: passengerLoading,
   } = trpc.ride.myRides.useQuery(undefined, {
     enabled: !!user && !isDriverHistory,
+    throwOnError: false,
+    retry: 1,
   });
 
   const {
@@ -45,11 +52,20 @@ export default function RideHistory() {
     isLoading: driverLoading,
   } = trpc.ride.myDrives.useQuery(undefined, {
     enabled: !!user && isDriverHistory,
-    retry: false,
+    throwOnError: false,
+    retry: 1,
   });
 
   const rides = isDriverHistory ? driverRides : passengerRides;
   const isLoading = isDriverHistory ? driverLoading : passengerLoading;
+
+  const filteredRides = useMemo(
+    () => filterRideHistory(rides ?? [], statusFilter, searchQuery),
+    [rides, statusFilter, searchQuery]
+  );
+
+  const stats = useMemo(() => computeRideHistoryStats(rides ?? []), [rides]);
+  const monthGroups = useMemo(() => groupRidesByMonth(filteredRides), [filteredRides]);
 
   if (authLoading || isLoading) {
     return (
@@ -63,12 +79,13 @@ export default function RideHistory() {
   const pageSubtitle = isDriverHistory
     ? "Corridas que você realizou como motorista"
     : "Suas corridas anteriores";
+  const totalDistanceLabel = formatRideDistanceMeters(stats.totalDistanceMeters) ?? "0 km";
 
   return (
     <div className="min-h-screen bg-background text-foreground">
       <AppHeader title={pageTitle} />
-      <div className="container max-w-4xl mx-auto py-8 p-4">
-        <div className="flex justify-between items-center mb-6 gap-4 flex-wrap">
+      <div className="mx-auto w-full max-w-screen-xl px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+        <div className="flex justify-between items-start gap-4 flex-wrap">
           <div>
             <h1 className="text-3xl font-bold text-foreground">{pageTitle}</h1>
             <p className="text-muted-foreground">{pageSubtitle}</p>
@@ -85,93 +102,112 @@ export default function RideHistory() {
         </div>
 
         {rides && rides.length > 0 ? (
-          <div className="space-y-4">
-            {rides.map((ride) => (
-              <Card
-                key={ride.id}
-                className="hover:shadow-lg transition-shadow border-border bg-card"
-              >
-                <CardHeader>
-                  <div className="flex justify-between items-start gap-3">
-                    <div>
-                      <CardTitle className="text-lg">Corrida #{ride.id}</CardTitle>
-                      <CardDescription className="flex items-center gap-2 mt-1">
-                        <Calendar className="w-3 h-3" />
-                        {new Date(
-                          ride.completedAt ?? ride.createdAt
-                        ).toLocaleDateString("pt-BR", {
-                          day: "2-digit",
-                          month: "2-digit",
-                          year: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </CardDescription>
-                    </div>
-                    <Badge variant="outline" className={statusColors[ride.status] ?? ""}>
-                      {statusLabels[ride.status] ?? ride.status}
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    <div className="flex items-start gap-2">
-                      <MapPin className="w-4 h-4 text-emerald-400 mt-1 shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs text-muted-foreground">Origem</p>
-                        <p className="text-sm truncate">{ride.originAddress}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <Navigation className="w-4 h-4 text-rose-400 mt-1 shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs text-muted-foreground">Destino</p>
-                        <p className="text-sm truncate">{ride.destinationAddress}</p>
-                      </div>
-                    </div>
+          <>
+            <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
+              <FuiMetricCard
+                label={isDriverHistory ? "Corridas realizadas" : "Total de corridas"}
+                value={String(stats.totalRides)}
+                sub={`${stats.completedRides} concluídas`}
+                icon={Route}
+              />
+              <FuiMetricCard
+                label={isDriverHistory ? "Ganhos estimados" : "Gasto total"}
+                value={formatBrlFromCents(stats.totalSpentCents)}
+                sub="Somente concluídas"
+                icon={Wallet}
+                highlight
+              />
+              <FuiMetricCard
+                label="Distância percorrida"
+                value={totalDistanceLabel}
+                sub="Acumulado"
+                icon={MapPin}
+              />
+              <FuiMetricCard
+                label={isDriverHistory ? "Ticket médio" : "Média por corrida"}
+                value={formatBrlFromCents(stats.avgPriceCents)}
+                sub="Concluídas"
+                icon={TrendingUp}
+              />
+            </div>
 
-                    <div className="flex justify-between items-center pt-3 border-t border-border gap-2 flex-wrap">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <Badge variant="outline" className="capitalize">
-                          {ride.vehicleType}
-                        </Badge>
-                        {ride.distance ? (
-                          <span className="text-sm text-muted-foreground">
-                            {(ride.distance / 1000).toFixed(1)} km
-                          </span>
-                        ) : null}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {!isDriverHistory && ride.status === "completed" ? (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              repeatRide(ride, setLocation);
-                            }}
-                          >
-                            <RotateCcw className="mr-1 h-3.5 w-3.5" />
-                            Repetir
-                          </Button>
-                        ) : null}
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setLocation(`/ride/${ride.id}`)}
-                        >
-                          Ver detalhes
-                        </Button>
-                        <p className={`text-lg font-bold ${fuiBrand.text}`}>
-                          R$ {((ride.finalPrice || ride.estimatedPrice || 0) / 100).toFixed(2)}
-                        </p>
-                      </div>
+            <div className="space-y-3">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Buscar por endereço, ID ou cupom..."
+                  className="pl-9 bg-card"
+                />
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                {STATUS_FILTERS.map((filter) => (
+                  <Button
+                    key={filter.value}
+                    type="button"
+                    size="sm"
+                    variant={statusFilter === filter.value ? "default" : "outline"}
+                    className={cn(
+                      statusFilter === filter.value && fuiBrand.btn,
+                      "rounded-full"
+                    )}
+                    onClick={() => setStatusFilter(filter.value)}
+                  >
+                    {filter.label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            {filteredRides.length > 0 ? (
+              <div className="space-y-8">
+                {monthGroups.map((group) => (
+                  <section key={group.key} className="space-y-3">
+                    <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                      {group.label}
+                    </h2>
+                    <div className="grid gap-3 lg:grid-cols-2 xl:gap-4">
+                      {group.rides.map((ride) => (
+                        <RideHistoryCard
+                          key={ride.id}
+                          ride={ride}
+                          isDriverHistory={isDriverHistory}
+                          onOpen={(id) => setLocation(`/ride/${id}`)}
+                          onRepeat={
+                            !isDriverHistory
+                              ? (r) => repeatRide(r, setLocation)
+                              : undefined
+                          }
+                        />
+                      ))}
                     </div>
-                  </div>
+                  </section>
+                ))}
+              </div>
+            ) : (
+              <Card className="border-border bg-card">
+                <CardContent className="py-10 text-center space-y-3">
+                  <Search className="w-10 h-10 mx-auto text-muted-foreground" />
+                  <h3 className="text-lg font-semibold">Nenhuma corrida encontrada</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Tente outro filtro ou limpe a busca para ver todo o histórico.
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setSearchQuery("");
+                      setStatusFilter("all");
+                    }}
+                  >
+                    Limpar filtros
+                  </Button>
                 </CardContent>
               </Card>
-            ))}
-          </div>
+            )}
+          </>
         ) : (
           <Card className="border-border bg-card">
             <CardContent className="py-12 text-center">
