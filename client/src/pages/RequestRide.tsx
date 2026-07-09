@@ -865,16 +865,18 @@ export default function RequestRide() {
         </div>
       )}
       
-      <div className="p-4">
-      <div className="container max-w-2xl mx-auto py-8">
-        <Card>
-          <CardHeader className="text-center">
-            <CardTitle className="text-3xl font-bold">Solicitar Corrida</CardTitle>
-            <CardDescription>
-              Informe origem e destino — o preço e a rota aparecem automaticamente
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
+      <div className="mx-auto w-full max-w-screen-xl px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
+        <div className="mb-6 lg:mb-8">
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">Solicitar Corrida</h1>
+          <p className="text-muted-foreground mt-1 max-w-2xl">
+            Informe origem e destino — o preço e a rota aparecem automaticamente
+          </p>
+        </div>
+
+        <div className="grid gap-6 lg:grid-cols-2 xl:grid-cols-[1.15fr_0.85fr] lg:items-start lg:gap-8">
+          <div className="space-y-6 order-2 lg:order-1">
+            <Card className="border-border bg-card">
+              <CardContent className="space-y-6 pt-6">
             {/* Origin */}
             <div className="space-y-2">
               <Label>
@@ -1028,38 +1030,12 @@ export default function RequestRide() {
               onChange={setBookedFor}
             />
 
-            {/* Mapa: Leaflet/OSM por padrão — ver VITE_REQUEST_RIDE_MAP_PROVIDER */}
-            <div className="space-y-2">
-              <Label>Mapa da Rota</Label>
-              <RequestRideMap
-                className="w-full h-[400px]"
-                origin={originCoords}
-                destination={destCoords}
-                vehicleType={vehicleType}
-                routePath={routePath}
-                encodedPolyline={routePolylineEncoded}
-                nearbyDrivers={nearbyDemoDrivers}
-              />
-            </div>
-
             <RideCategoryCompare
               selected={vehicleType}
               onSelect={setVehicleType}
               quotes={rideQuote.categoryQuotes}
               loading={rideQuote.loading}
               disabled={!originAddress.trim() || !destinationAddress.trim()}
-            />
-
-            <RideRequestSummary
-              origin={originAddress}
-              destination={destinationAddress}
-              vehicleType={vehicleType}
-              estimatedPrice={estimatedPrice}
-              distanceM={distance}
-              durationS={duration}
-              loading={rideQuote.loading}
-              error={rideQuote.error}
-              onRetry={() => void rideQuote.refetch()}
             />
 
             {/* Carpool / Shared Ride Section */}
@@ -1335,32 +1311,23 @@ export default function RequestRide() {
               </div>
             )}
 
-            {/* Price Display */}
-            {estimatedPrice !== null && (
+            {/* Price Display — cupom aplicado (resumo principal fica no painel do mapa) */}
+            {appliedCoupon && estimatedPrice !== null && (
               <Card className={fuiSurface.price}>
                 <CardContent className="pt-6">
                   <div className="text-center">
-                    <p className="text-sm text-muted-foreground mb-1">Preço {appliedCoupon ? "Final" : "Estimado"}</p>
-                    {appliedCoupon ? (
-                      <div>
-                        <p className="text-xl text-muted-foreground line-through">
-                          R$ {(estimatedPrice / 100).toFixed(2)}
-                        </p>
-                        <p className={`text-3xl font-bold ${fuiBrand.text}`}>
-                          R$ {(appliedCoupon.finalPrice / 100).toFixed(2)}
-                        </p>
-                        <p className="text-sm text-emerald-400 mt-1">
-                          Economia: R$ {(appliedCoupon.discountAmount / 100).toFixed(2)}
-                        </p>
-                      </div>
-                    ) : (
-                      <p className={`text-3xl font-bold ${fuiBrand.text}`}>
+                    <p className="text-sm text-muted-foreground mb-1">Preço Final com cupom</p>
+                    <div>
+                      <p className="text-xl text-muted-foreground line-through">
                         R$ {(estimatedPrice / 100).toFixed(2)}
                       </p>
-                    )}
-                    <p className="text-xs text-muted-foreground mt-2">
-                      {(distance / 1000).toFixed(1)} km &bull; {Math.round(duration / 60)} min
-                    </p>
+                      <p className={`text-3xl font-bold ${fuiBrand.text}`}>
+                        R$ {(appliedCoupon.finalPrice / 100).toFixed(2)}
+                      </p>
+                      <p className="text-sm text-emerald-400 mt-1">
+                        Economia: R$ {(appliedCoupon.discountAmount / 100).toFixed(2)}
+                      </p>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -1405,9 +1372,46 @@ export default function RequestRide() {
                 Agendar
               </Button>
             </div>
-          </CardContent>
-        </Card>
-      </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="space-y-4 order-1 lg:order-2 lg:sticky lg:top-20">
+            <Card className="overflow-hidden border-border bg-card">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base font-semibold">Mapa da Rota</CardTitle>
+                <CardDescription>
+                  Visualize origem, destino e motoristas próximos
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-0">
+                <RequestRideMap
+                  className="w-full h-[280px] sm:h-[360px] lg:h-[min(480px,calc(100vh-14rem))]"
+                  origin={originCoords}
+                  destination={destCoords}
+                  vehicleType={vehicleType}
+                  routePath={routePath}
+                  encodedPolyline={routePolylineEncoded}
+                  nearbyDrivers={nearbyDemoDrivers}
+                />
+              </CardContent>
+            </Card>
+
+            <RideRequestSummary
+              origin={originAddress}
+              destination={destinationAddress}
+              vehicleType={vehicleType}
+              estimatedPrice={
+                appliedCoupon ? appliedCoupon.finalPrice : estimatedPrice
+              }
+              distanceM={distance}
+              durationS={duration}
+              loading={rideQuote.loading}
+              error={rideQuote.error}
+              onRetry={() => void rideQuote.refetch()}
+            />
+          </div>
+        </div>
       </div>
 
       {/* Schedule Dialog */}
