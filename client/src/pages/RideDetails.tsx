@@ -3,11 +3,13 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import FuiMetricCard from "@/components/fui/FuiMetricCard";
 import StatusPanel from "@/components/fui/StatusPanel";
+import { Badge } from "@/components/ui/badge";
 import { RideStatusBadge, StatusBadge } from "@/components/fui/StatusBadge";
 import { fuiBrand, fuiRoute, fuiSurface } from "@/lib/fuiTheme";
 import { toast } from "sonner";
-import { Loader2, MapPin, Navigation, User, Car, XCircle, CheckCircle2, CreditCard, Star, Clock, MessageCircle } from "lucide-react";
+import { Loader2, MapPin, Navigation, User, Car, XCircle, CheckCircle2, CreditCard, Star, Clock, MessageCircle, DollarSign, Route } from "lucide-react";
 import { useLocation, useRoute } from "wouter";
 import AppHeader from "@/components/AppHeader";
 import RideRouteMap from "@/components/RideRouteMap";
@@ -311,6 +313,8 @@ export default function RideDetails() {
     ride.status === "requested" || ride.status === "accepted" || ride.status === "in_progress";
   const fareCents = ride.finalPrice || ride.estimatedPrice || 0;
   const fareLabel = ride.status === "completed" ? "Valor final" : "Preço estimado";
+  const paymentLabel =
+    ride.paymentMethod === "cash" ? "Dinheiro" : ride.paymentMethod?.toUpperCase() ?? "—";
 
   if (isLiveTrip && tracking) {
     return (
@@ -410,35 +414,60 @@ export default function RideDetails() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background text-foreground">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-72 bg-[radial-gradient(ellipse_at_top,hsl(var(--primary)/0.12),transparent_65%)]" />
       <AppHeader title="Detalhes da Corrida" />
-      <div className="container max-w-2xl mx-auto py-8 px-4">
-        <Card>
-          <CardHeader>
-            <div className="flex justify-between items-start">
-              <div>
-                <CardTitle className="text-2xl">Detalhes da Corrida</CardTitle>
-                <CardDescription>ID: #{ride.id}</CardDescription>
-              </div>
-              {tracking && tracking.phase !== "searching" && tracking.phase !== "completed" ? (
-                <StatusBadge
-                  variant={
-                    tracking.variant === "success"
-                      ? "success"
-                      : tracking.variant === "warning"
-                        ? "warning"
-                        : "brand"
-                  }
-                >
-                  {tracking.statusBadge}
-                </StatusBadge>
-              ) : (
-                <RideStatusBadge status={ride.status} />
-              )}
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {simulationEnabled && isDemoRide && isPassenger && ride.status !== "cancelled" && (
+      <div className="relative mx-auto w-full max-w-screen-xl px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <Badge variant="outline" className={`mb-3 ${fuiBrand.border} ${fuiBrand.text}`}>
+              Corrida #{ride.id}
+            </Badge>
+            <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">Detalhes da Corrida</h1>
+            <p className="text-muted-foreground mt-2 max-w-2xl">
+              {ride.originAddress} → {ride.destinationAddress}
+            </p>
+          </div>
+          {tracking && tracking.phase !== "searching" && tracking.phase !== "completed" ? (
+            <StatusBadge
+              variant={
+                tracking.variant === "success"
+                  ? "success"
+                  : tracking.variant === "warning"
+                    ? "warning"
+                    : "brand"
+              }
+            >
+              {tracking.statusBadge}
+            </StatusBadge>
+          ) : (
+            <RideStatusBadge status={ride.status} />
+          )}
+        </div>
+
+        <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
+          <FuiMetricCard
+            label="Distância"
+            value={ride.distance ? `${(ride.distance / 1000).toFixed(1)} km` : "—"}
+            icon={Route}
+            highlight
+          />
+          <FuiMetricCard
+            label="Duração"
+            value={ride.duration ? `${Math.round(ride.duration / 60)} min` : "—"}
+            icon={Clock}
+          />
+          <FuiMetricCard
+            label={fareLabel}
+            value={`R$ ${(fareCents / 100).toFixed(2)}`}
+            icon={DollarSign}
+          />
+          <FuiMetricCard label="Pagamento" value={paymentLabel} icon={CreditCard} />
+        </div>
+
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1.12fr)_minmax(0,0.88fr)]">
+          <div className="space-y-6">
+            {simulationEnabled && isDemoRide && isPassenger && ride.status !== "cancelled" ? (
               <RideSimulationPanel
                 ride={simRide}
                 onSimulateAccept={() => simulationAccept.mutate({ rideId: ride.id })}
@@ -446,33 +475,65 @@ export default function RideDetails() {
                 acceptPending={simulationAccept.isPending}
                 startPending={simulationStart.isPending}
               />
-            )}
+            ) : null}
 
-            {/* Map + rastreamento premium */}
-            <div className="space-y-3">
-              <RideRouteMap
-                rideId={ride.id}
-                originLat={ride.originLat}
-                originLng={ride.originLng}
-                destinationLat={ride.destinationLat}
-                destinationLng={ride.destinationLng}
-                driverLat={showDriverOnMap ? ride.driverCurrentLat : null}
-                driverLng={showDriverOnMap ? ride.driverCurrentLng : null}
-                rideStatus={ride.status}
-                driverId={ride.driverId}
-                vehicleType={ride.vehicleType}
-                simulationPhase={simRide.simulationPhase}
-                tripPath={tripPath}
-                tripPathSource={tripPathSource}
-                demoRoutePolyline={demoRoutePolyline}
-                driverEtaSeconds={etaSecondsRemaining ?? null}
-              />
+            <Card className="overflow-hidden border-border/80 bg-card/50 backdrop-blur-sm">
+              <CardHeader className="border-b border-border/60 bg-muted/10 pb-4">
+                <CardTitle className="text-lg">Trajeto da corrida</CardTitle>
+                <CardDescription>Mapa com origem, destino e rota percorrida</CardDescription>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="min-h-[380px] sm:min-h-[440px]">
+                  <RideRouteMap
+                    rideId={ride.id}
+                    originLat={ride.originLat}
+                    originLng={ride.originLng}
+                    destinationLat={ride.destinationLat}
+                    destinationLng={ride.destinationLng}
+                    driverLat={showDriverOnMap ? ride.driverCurrentLat : null}
+                    driverLng={showDriverOnMap ? ride.driverCurrentLng : null}
+                    rideStatus={ride.status}
+                    driverId={ride.driverId}
+                    vehicleType={ride.vehicleType}
+                    simulationPhase={simRide.simulationPhase}
+                    tripPath={tripPath}
+                    tripPathSource={tripPathSource}
+                    demoRoutePolyline={demoRoutePolyline}
+                    driverEtaSeconds={etaSecondsRemaining ?? null}
+                    className="h-full min-h-[380px] sm:min-h-[440px] rounded-none border-0"
+                  />
+                </div>
+              </CardContent>
+            </Card>
 
-              {!ride.driverId && tracking && ride.status === "requested" ? (
-                <RideETAStatusCard tracking={tracking} />
-              ) : null}
-            </div>
+            {!ride.driverId && tracking && ride.status === "requested" ? (
+              <RideETAStatusCard tracking={tracking} />
+            ) : null}
 
+            <Card className="border-border/80">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg">Endereços</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-start gap-3">
+                  <MapPin className={`w-5 h-5 mt-0.5 shrink-0 ${fuiRoute.originIcon}`} />
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-muted-foreground">Origem</p>
+                    <p className="text-base text-foreground">{ride.originAddress}</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <Navigation className={`w-5 h-5 mt-0.5 shrink-0 ${fuiRoute.destinationIcon}`} />
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-muted-foreground">Destino</p>
+                    <p className="text-base text-foreground">{ride.destinationAddress}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="space-y-6">
             {ride.driverId ? (
               <RideDriverTrackingPanel
                 ride={simRide}
@@ -491,71 +552,52 @@ export default function RideDetails() {
               />
             ) : null}
 
-            {/* Route Information */}
-            <div className="space-y-3">
-              <div className="flex items-start gap-3">
-                <MapPin className={`w-5 h-5 mt-1 ${fuiRoute.originIcon}`} />
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-muted-foreground">Origem</p>
-                  <p className="text-base text-foreground">{ride.originAddress}</p>
+            <Card className="border-border/80">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg">Resumo da viagem</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className={`grid grid-cols-2 gap-4 p-4 ${fuiSurface.muted}`}>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Tipo de veículo</p>
+                    <p className="font-semibold capitalize text-foreground">{ride.vehicleType}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Distância</p>
+                    <p className="font-semibold text-foreground">
+                      {ride.distance ? `${(ride.distance / 1000).toFixed(1)} km` : "—"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Duração estimada</p>
+                    <p className="font-semibold text-foreground">
+                      {ride.duration ? `${Math.round(ride.duration / 60)} min` : "—"}
+                    </p>
+                    {demoEta.visible && showDriverOnMap ? (
+                      <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
+                        Tempo total da viagem no trajeto real.
+                      </p>
+                    ) : null}
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Pagamento</p>
+                    <p className="font-semibold capitalize text-foreground">{paymentLabel}</p>
+                  </div>
                 </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <Navigation className={`w-5 h-5 mt-1 ${fuiRoute.destinationIcon}`} />
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-muted-foreground">Destino</p>
-                  <p className="text-base text-foreground">{ride.destinationAddress}</p>
-                </div>
-              </div>
-            </div>
+              </CardContent>
+            </Card>
 
-            {/* Ride Info */}
-            <div className={`grid grid-cols-2 gap-4 p-4 ${fuiSurface.muted}`}>
-              <div>
-                <p className="text-sm text-muted-foreground">Tipo de Veículo</p>
-                <p className="font-semibold capitalize text-foreground">{ride.vehicleType}</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Distância</p>
-                <p className="font-semibold text-foreground">
-                  {ride.distance ? `${(ride.distance / 1000).toFixed(1)} km` : "-"}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Duração Estimada</p>
-                <p className="font-semibold text-foreground">
-                  {ride.duration ? `${Math.round(ride.duration / 60)} min` : "-"}
-                </p>
-                {demoEta.visible && showDriverOnMap ? (
-                  <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
-                    Tempo total da viagem no trajeto real. O cronômetro acima mostra o tempo
-                    restante na {demoEta.label.toLowerCase()}.
-                  </p>
-                ) : null}
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Pagamento</p>
-                <p className="font-semibold capitalize text-foreground">
-                  {ride.paymentMethod === "cash" ? "Dinheiro" : ride.paymentMethod?.toUpperCase()}
-                </p>
-              </div>
-            </div>
-
-            {/* Price */}
             <Card className={fuiSurface.price}>
               <CardContent className="pt-6">
                 <div className="text-center">
-                  <p className="text-sm text-muted-foreground mb-1">
-                    {ride.status === "completed" ? "Valor Final" : "Valor Estimado"}
-                  </p>
-                  <p className={`text-3xl font-bold ${fuiBrand.text}`}>
-                    R$ {((ride.finalPrice || ride.estimatedPrice || 0) / 100).toFixed(2)}
+                  <p className="text-sm text-muted-foreground mb-1">{fareLabel}</p>
+                  <p className={`text-4xl font-bold ${fuiBrand.text}`}>
+                    R$ {(fareCents / 100).toFixed(2)}
                   </p>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Driver Info — legado compacto quando painel premium não cobre */}
             {ride.driverId && !tracking?.showDriverOnMap && ride.status === "requested" && (
               <StatusPanel
                 variant="success"
@@ -566,12 +608,12 @@ export default function RideDetails() {
                     <p className="text-base font-medium text-foreground">
                       {demoDriver?.driverName ?? "Motorista Fui!"}
                     </p>
-                    {demoDriver?.rating && (
+                    {demoDriver?.rating ? (
                       <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
                         <Star className="w-4 h-4 text-amber-400 fill-amber-400/80" />
                         {demoDriver.rating}
                       </p>
-                    )}
+                    ) : null}
                   </>
                 }
               >
@@ -587,22 +629,7 @@ export default function RideDetails() {
                     </div>
                     <div>
                       <p className="text-muted-foreground">Placa</p>
-                      <p className="font-medium text-foreground">
-                        {demoDriver?.vehiclePlate ?? "—"}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Cor</p>
-                      <p className="font-medium text-foreground">
-                        {demoDriver?.vehicleColor ?? "—"}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Avaliação</p>
-                      <p className="font-medium text-foreground flex items-center gap-1">
-                        <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400/80" />
-                        {demoDriver?.rating ?? "4.8"}
-                      </p>
+                      <p className="font-medium text-foreground">{demoDriver?.vehiclePlate ?? "—"}</p>
                     </div>
                   </div>
                 )}
@@ -632,101 +659,100 @@ export default function RideDetails() {
               />
             )}
 
-            {/* Payment status */}
             {(ride.paymentMethod === "pix" || ride.paymentMethod === "card") &&
               ride.status !== "cancelled" && (
-              <>
-                {paymentPending ? (
-                  <StatusPanel
-                    variant="brand"
-                    title="Pagamento pendente"
-                    description={
-                      ride.paymentMethod === "pix"
-                        ? "Pague via Pix para confirmar a corrida"
-                        : "Pague com cartão para confirmar a corrida"
-                    }
-                    action={
-                      <Button
-                        onClick={handlePayNow}
-                        disabled={confirmDemoPayment.isPending}
-                        className={`${fuiBrand.btn} shrink-0`}
-                        size="sm"
-                      >
-                        {confirmDemoPayment.isPending ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <>
-                            <CreditCard className="w-4 h-4 mr-1" />
-                            Pagar agora
-                          </>
-                        )}
-                      </Button>
-                    }
-                  />
-                ) : paymentApproved ? (
-                  <>
+                <>
+                  {paymentPending ? (
                     <StatusPanel
-                      variant="success"
-                      icon={<CheckCircle2 className="w-5 h-5" />}
-                      title="Pagamento aprovado"
-                      badge={<StatusBadge variant="success">Aprovado</StatusBadge>}
-                      description="Sua corrida está confirmada. O motorista seguirá para o embarque."
+                      variant="brand"
+                      title="Pagamento pendente"
+                      description={
+                        ride.paymentMethod === "pix"
+                          ? "Pague via Pix para confirmar a corrida"
+                          : "Pague com cartão para confirmar a corrida"
+                      }
+                      action={
+                        <Button
+                          onClick={handlePayNow}
+                          disabled={confirmDemoPayment.isPending}
+                          className={`${fuiBrand.btn} shrink-0`}
+                          size="sm"
+                        >
+                          {confirmDemoPayment.isPending ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <>
+                              <CreditCard className="w-4 h-4 mr-1" />
+                              Pagar agora
+                            </>
+                          )}
+                        </Button>
+                      }
                     />
-
-                    {showDriverEnRoute && tracking && (
+                  ) : paymentApproved ? (
+                    <>
                       <StatusPanel
-                        variant={tracking.variant === "success" ? "success" : "info"}
-                        icon={<Car className="w-5 h-5" />}
-                        title={tracking.statusTitle}
-                        description={
-                          <>
-                            <p className="flex items-center gap-1.5">
-                              <Clock className="w-4 h-4" />
-                              {tracking.etaSubline}
-                            </p>
-                            <p className="text-xs mt-1">
-                              {driverDisplayName} está a caminho do ponto de embarque
-                            </p>
-                          </>
-                        }
-                      >
-                        {isPassenger && (
-                          <Button
-                            type="button"
-                            className={`w-full ${fuiBrand.btn}`}
-                            onClick={() => setChatOpen(true)}
-                          >
-                            <MessageCircle className="w-4 h-4 mr-2" />
-                            Chat com Motorista
-                          </Button>
-                        )}
-                      </StatusPanel>
-                    )}
-
-                    {paymentApproved && !ride.driverId && (
-                      <StatusPanel
-                        variant="warning"
-                        title="Aguardando motorista"
-                        description="Pagamento confirmado. Aguardando motorista aceitar a corrida..."
-                        compact
+                        variant="success"
+                        icon={<CheckCircle2 className="w-5 h-5" />}
+                        title="Pagamento aprovado"
+                        badge={<StatusBadge variant="success">Aprovado</StatusBadge>}
+                        description="Sua corrida está confirmada. O motorista seguirá para o embarque."
                       />
-                    )}
-                  </>
-                ) : null}
-              </>
-            )}
+
+                      {showDriverEnRoute && tracking ? (
+                        <StatusPanel
+                          variant={tracking.variant === "success" ? "success" : "info"}
+                          icon={<Car className="w-5 h-5" />}
+                          title={tracking.statusTitle}
+                          description={
+                            <>
+                              <p className="flex items-center gap-1.5">
+                                <Clock className="w-4 h-4" />
+                                {tracking.etaSubline}
+                              </p>
+                              <p className="text-xs mt-1">
+                                {driverDisplayName} está a caminho do ponto de embarque
+                              </p>
+                            </>
+                          }
+                        >
+                          {isPassenger ? (
+                            <Button
+                              type="button"
+                              className={`w-full ${fuiBrand.btn}`}
+                              onClick={() => setChatOpen(true)}
+                            >
+                              <MessageCircle className="w-4 h-4 mr-2" />
+                              Chat com Motorista
+                            </Button>
+                          ) : null}
+                        </StatusPanel>
+                      ) : null}
+
+                      {paymentApproved && !ride.driverId ? (
+                        <StatusPanel
+                          variant="warning"
+                          title="Aguardando motorista"
+                          description="Pagamento confirmado. Aguardando motorista aceitar a corrida..."
+                          compact
+                        />
+                      ) : null}
+                    </>
+                  ) : null}
+                </>
+              )}
+
             {isPassenger && ride.shareToken ? (
               <RideSafetyToolbar shareToken={ride.shareToken} />
             ) : null}
 
-            {/* Actions */}
-            <div className="flex gap-3">
-              {canCancel && (
+            <div className="flex flex-wrap gap-3">
+              {canCancel ? (
                 <Button
                   variant="destructive"
                   onClick={() => cancelRide.mutate({ rideId: ride.id })}
                   disabled={cancelRide.isPending}
-                  className="flex-1"
+                  className="flex-1 min-w-[140px]"
                 >
                   {cancelRide.isPending ? (
                     <>
@@ -740,41 +766,38 @@ export default function RideDetails() {
                     </>
                   )}
                 </Button>
-              )}
-              
-              {ride.status === "completed" && !existingRating && ride.driverId && (
-                <Button
-                  onClick={() => setShowRatingModal(true)}
-                  className={`flex-1 ${fuiBrand.btn}`}
-                >
+              ) : null}
+
+              {ride.status === "completed" && !existingRating && ride.driverId ? (
+                <Button onClick={() => setShowRatingModal(true)} className={`flex-1 min-w-[140px] ${fuiBrand.btn}`}>
                   Avaliar Motorista
                 </Button>
-              )}
-              
-              {ride.status === "completed" && (
+              ) : null}
+
+              {ride.status === "completed" ? (
                 <Button
                   onClick={() => setLocation("/request-ride")}
-                  className={`flex-1 ${existingRating ? fuiBrand.btn : fuiBrand.btnOutline}`}
+                  className={`flex-1 min-w-[140px] ${existingRating ? fuiBrand.btn : fuiBrand.btnOutline}`}
                   variant={existingRating ? "default" : "outline"}
                 >
                   Nova Corrida
                 </Button>
-              )}
+              ) : null}
 
-              {(ride.status === "cancelled" || ride.status === "completed") && (
+              {ride.status === "cancelled" || ride.status === "completed" ? (
                 <Button
                   variant="outline"
                   onClick={() => setLocation("/ride-history")}
-                  className="flex-1 border-border text-muted-foreground"
+                  className="flex-1 min-w-[140px] border-border text-muted-foreground"
                 >
                   Ver Histórico
                 </Button>
-              )}
+              ) : null}
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
-        {(showDriverOnMap || showDriverEnRoute) && isPassenger && (
+        {(showDriverOnMap || showDriverEnRoute) && isPassenger ? (
           <DemoRideChat
             rideId={ride.id}
             otherUserName={driverDisplayName}
@@ -782,10 +805,9 @@ export default function RideDetails() {
             onOpenChange={setChatOpen}
             showFloatingButton={false}
           />
-        )}
+        ) : null}
 
-        {/* Rating Modal */}
-        {ride && ride.driverId && showRatingModal && (
+        {ride.driverId && showRatingModal ? (
           <RateDriverModal
             open={showRatingModal}
             onClose={() => setShowRatingModal(false)}
@@ -793,7 +815,7 @@ export default function RideDetails() {
             driverId={ride.driverId}
             driverName={driverDisplayName}
           />
-        )}
+        ) : null}
       </div>
     </div>
   );
