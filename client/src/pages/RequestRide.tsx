@@ -873,7 +873,7 @@ export default function RequestRide() {
           </p>
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-2 xl:grid-cols-[1.15fr_0.85fr] lg:items-start lg:gap-8">
+        <div className="grid gap-6 lg:grid-cols-2 xl:grid-cols-[1fr_1fr] lg:items-start lg:gap-8">
           <div className="space-y-6 order-2 lg:order-1">
             <Card className="border-border bg-card">
               <CardContent className="space-y-6 pt-6">
@@ -1376,17 +1376,17 @@ export default function RequestRide() {
             </Card>
           </div>
 
-          <div className="space-y-4 order-1 lg:order-2 lg:sticky lg:top-20">
-            <Card className="overflow-hidden border-border bg-card">
-              <CardHeader className="pb-2">
+          <div className="flex flex-col gap-4 order-1 lg:order-2 lg:sticky lg:top-20 lg:h-[calc(100vh-6rem)]">
+            <Card className="flex flex-col overflow-hidden border-border bg-card lg:flex-1 lg:min-h-0">
+              <CardHeader className="pb-2 shrink-0">
                 <CardTitle className="text-base font-semibold">Mapa da Rota</CardTitle>
                 <CardDescription>
                   Visualize origem, destino e motoristas próximos
                 </CardDescription>
               </CardHeader>
-              <CardContent className="p-0">
+              <CardContent className="p-0 lg:flex lg:flex-1 lg:min-h-0">
                 <RequestRideMap
-                  className="w-full h-[280px] sm:h-[360px] lg:h-[min(480px,calc(100vh-14rem))]"
+                  className="h-[300px] sm:h-[380px] lg:h-full lg:min-h-0 w-full rounded-none border-0"
                   origin={originCoords}
                   destination={destCoords}
                   vehicleType={vehicleType}
@@ -1398,6 +1398,7 @@ export default function RequestRide() {
             </Card>
 
             <RideRequestSummary
+              className="shrink-0"
               origin={originAddress}
               destination={destinationAddress}
               vehicleType={vehicleType}
