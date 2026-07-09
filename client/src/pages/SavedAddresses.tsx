@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
@@ -7,9 +7,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Loader2, Home, Briefcase, Star, Trash2, Plus } from "lucide-react";
+import { Loader2, Home, Briefcase, Star, Trash2, Plus, MapPin } from "lucide-react";
 import { useLocation } from "wouter";
 import AppHeader from "@/components/AppHeader";
+import FuiMetricCard from "@/components/fui/FuiMetricCard";
+import { fuiBrand } from "@/lib/fuiTheme";
 import { useSavedAddresses } from "@/lib/useSavedAddresses";
 import { appendCountryToAddress } from "@shared/mapDefaults";
 import { WL } from "@/whitelabel";
@@ -17,6 +19,18 @@ import {
   deleteDemoSavedAddress,
   saveDemoSavedAddress,
 } from "@/lib/demoSavedAddresses";
+
+function getAddressLabel(addr: { label: string; customLabel?: string | null }): string {
+  if (addr.label === "home") return "Casa";
+  if (addr.label === "work") return "Trabalho";
+  return addr.customLabel || "Outro";
+}
+
+function AddressTypeIcon({ label }: { label: string }) {
+  if (label === "home") return <Home className="w-5 h-5 text-sky-400" />;
+  if (label === "work") return <Briefcase className="w-5 h-5 text-emerald-400" />;
+  return <Star className={`w-5 h-5 ${fuiBrand.text}`} />;
+}
 
 export default function SavedAddresses() {
   const { user, loading: authLoading } = useAuth();
@@ -30,6 +44,16 @@ export default function SavedAddresses() {
 
   const utils = trpc.useUtils();
   const { savedAddresses, isLoading, isDemo, setLocalAddresses } = useSavedAddresses();
+
+  const addressStats = useMemo(() => {
+    const list = savedAddresses ?? [];
+    return {
+      total: list.length,
+      home: list.filter((a) => a.label === "home").length,
+      work: list.filter((a) => a.label === "work").length,
+      other: list.filter((a) => a.label === "other").length,
+    };
+  }, [savedAddresses]);
 
   const saveMutation = trpc.user.saveFavoriteAddress.useMutation({
     onSuccess: () => {
@@ -124,7 +148,7 @@ export default function SavedAddresses() {
   if (authLoading || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="w-8 h-8 animate-spin text-[#F39200]" />
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
     );
   }
@@ -135,60 +159,41 @@ export default function SavedAddresses() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background text-foreground">
       <AppHeader title="Endereços Salvos" />
-      <div className="container max-w-2xl mx-auto py-8 px-4">
-        <Card>
-          <CardHeader>
-            <CardTitle>Meus Endereços</CardTitle>
-            <CardDescription>
+      <div className="mx-auto w-full max-w-screen-xl px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Endereços Salvos</h1>
+            <p className="text-muted-foreground mt-1 max-w-2xl">
               Salve seus endereços favoritos para agilizar futuros pedidos
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {savedAddresses && savedAddresses.length > 0 ? (
-              <div className="space-y-3">
-                {savedAddresses.map((addr: any) => (
-                  <div
-                    key={addr.id}
-                    className="flex items-start justify-between p-4 border border-border rounded-lg hover:bg-accent/50 transition-colors"
-                  >
-                    <div className="flex items-start gap-3 flex-1">
-                      <div className="mt-1">
-                        {addr.label === "home" && <Home className="w-5 h-5 text-blue-400" />}
-                        {addr.label === "work" && <Briefcase className="w-5 h-5 text-green-400" />}
-                        {addr.label === "other" && <Star className="w-5 h-5 text-[#F39200]" />}
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-semibold text-foreground">
-                          {addr.label === "home"
-                            ? "Casa"
-                            : addr.label === "work"
-                              ? "Trabalho"
-                              : addr.customLabel || "Outro"}
-                        </p>
-                        <p className="text-sm text-muted-foreground">{addr.address}</p>
-                      </div>
-                    </div>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => handleDelete(addr.id)}
-                      disabled={!isDemo && deleteMutation.isPending}
-                    >
-                      <Trash2 className="w-4 h-4 text-red-400" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-center text-muted-foreground py-8">
-                Nenhum endereço salvo ainda
-              </p>
-            )}
+            </p>
+          </div>
+          {!showAddForm ? (
+            <Button onClick={() => setShowAddForm(true)} className={fuiBrand.btn}>
+              <Plus className="w-4 h-4 mr-2" />
+              Adicionar Endereço
+            </Button>
+          ) : null}
+        </div>
 
-            {showAddForm ? (
-              <div className="space-y-4 p-4 border border-[#F39200]/30 rounded-lg bg-[#F39200]/5">
+        {addressStats.total > 0 ? (
+          <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
+            <FuiMetricCard label="Total salvos" value={String(addressStats.total)} icon={MapPin} highlight />
+            <FuiMetricCard label="Casa" value={String(addressStats.home)} icon={Home} />
+            <FuiMetricCard label="Trabalho" value={String(addressStats.work)} icon={Briefcase} />
+            <FuiMetricCard label="Outros" value={String(addressStats.other)} icon={Star} />
+          </div>
+        ) : null}
+
+        {showAddForm ? (
+          <Card className="border-primary/25 bg-card">
+            <CardHeader>
+              <CardTitle className="text-lg">Novo endereço</CardTitle>
+              <CardDescription>Preencha os dados abaixo para salvar um atalho</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label>Tipo de Endereço</Label>
                   <Select value={label} onValueChange={(v) => setLabel(v as "home" | "work" | "other")}>
@@ -203,7 +208,7 @@ export default function SavedAddresses() {
                   </Select>
                 </div>
 
-                {label === "other" && (
+                {label === "other" ? (
                   <div className="space-y-2">
                     <Label>Nome do Endereço</Label>
                     <Input
@@ -212,56 +217,114 @@ export default function SavedAddresses() {
                       onChange={(e) => setCustomLabel(e.target.value)}
                     />
                   </div>
+                ) : (
+                  <div className="hidden sm:block" />
                 )}
+              </div>
 
-                <div className="space-y-2">
-                  <Label>Endereço</Label>
-                  <Input
-                    placeholder="Digite o endereço completo"
-                    value={address}
-                    onChange={(e) => setAddress(e.target.value)}
-                  />
+              <div className="space-y-2">
+                <Label>Endereço</Label>
+                <Input
+                  placeholder="Digite o endereço completo"
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                />
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <Button onClick={handleSave} disabled={saving} className={`${fuiBrand.btn} sm:min-w-[140px]`}>
+                  {saving ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Salvando...
+                    </>
+                  ) : (
+                    "Salvar"
+                  )}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowAddForm(false);
+                    setAddress("");
+                    setCustomLabel("");
+                  }}
+                >
+                  Cancelar
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        ) : null}
+
+        {savedAddresses && savedAddresses.length > 0 ? (
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {savedAddresses.map((addr: any) => (
+              <Card key={addr.id} className="border-border bg-card hover:border-primary/25 transition-colors">
+                <CardContent className="p-5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-3 min-w-0 flex-1">
+                      <div className="mt-0.5 shrink-0">
+                        <AddressTypeIcon label={addr.label} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-semibold text-foreground">{getAddressLabel(addr)}</p>
+                        <p className="text-sm text-muted-foreground mt-1 line-clamp-3">{addr.address}</p>
+                      </div>
+                    </div>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="shrink-0 text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                      onClick={() => handleDelete(addr.id)}
+                      disabled={!isDemo && deleteMutation.isPending}
+                      aria-label="Remover endereço"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : (
+          <Card className="border-border bg-card overflow-hidden">
+            <CardContent className="p-0">
+              <div className="grid lg:grid-cols-[1fr_1.2fr] lg:items-center">
+                <div className="flex flex-col items-center justify-center px-6 py-12 lg:py-16 lg:border-r border-border">
+                  <MapPin className="w-20 h-20 text-muted-foreground/40 mb-4" />
+                  <h3 className="text-xl font-semibold text-foreground mb-2 text-center">
+                    Nenhum endereço salvo ainda
+                  </h3>
+                  <p className="text-muted-foreground text-center max-w-sm">
+                    Cadastre Casa, Trabalho ou locais que você usa com frequência.
+                  </p>
                 </div>
-
-                <div className="flex gap-2">
-                  <Button
-                    onClick={handleSave}
-                    disabled={saving}
-                    className="flex-1 bg-[#F39200] hover:bg-[#D46A03] text-white"
-                  >
-                    {saving ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Salvando...
-                      </>
-                    ) : (
-                      "Salvar"
-                    )}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setShowAddForm(false);
-                      setAddress("");
-                      setCustomLabel("");
-                    }}
-                  >
-                    Cancelar
+                <div className="px-6 py-10 lg:py-16 space-y-4 bg-muted/20">
+                  <p className="text-sm font-medium text-foreground">Por que salvar?</p>
+                  <ul className="space-y-3 text-sm text-muted-foreground">
+                    <li className="flex gap-2">
+                      <span className={fuiBrand.text}>1.</span>
+                      Preencha origem ou destino com um toque
+                    </li>
+                    <li className="flex gap-2">
+                      <span className={fuiBrand.text}>2.</span>
+                      Agilize corridas e entregas recorrentes
+                    </li>
+                    <li className="flex gap-2">
+                      <span className={fuiBrand.text}>3.</span>
+                      Organize Casa, Trabalho e favoritos personalizados
+                    </li>
+                  </ul>
+                  <Button onClick={() => setShowAddForm(true)} className={`${fuiBrand.btn} w-full sm:w-auto`}>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Adicionar Novo Endereço
                   </Button>
                 </div>
               </div>
-            ) : (
-              <Button
-                onClick={() => setShowAddForm(true)}
-                className="w-full border-[#F39200]/30 text-[#F39200] hover:bg-[#F39200]/10"
-                variant="outline"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Adicionar Novo Endereço
-              </Button>
-            )}
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );
