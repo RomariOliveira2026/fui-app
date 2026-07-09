@@ -14,14 +14,17 @@ import {
 import { useLocation } from "wouter";
 import { buildLoginUrl, rememberLoginReturnTo } from "@/const";
 import AppHeader from "@/components/AppHeader";
-import { isLocalDemoDev } from "@/lib/demoMode";
+import { isDemoAppClient, isDemoLocalUser } from "@/lib/demoMode";
+import { useBetaDemoRuntime } from "@/lib/useBetaDemoRuntime";
 import { mergeDemoUserProfile, saveDemoUserProfile } from "@/lib/demoUserProfile";
+import { compressImageFile } from "@/lib/compressImage";
 
 export default function Profile() {
-  const { user, loading: authLoading, logout, canUsePrivateUserApi, isDemoUser } = useAuth();
+  const { user, loading: authLoading, logout, canUsePrivateUserApi } = useAuth();
   const [, setLocation] = useLocation();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const isDemo = isLocalDemoDev() || isDemoUser;
+  useBetaDemoRuntime(false);
+  const useLocalAvatar = isDemoAppClient() || isDemoLocalUser(user);
 
   const [isEditing, setIsEditing] = useState(false);
   const [name, setName] = useState("");
@@ -44,17 +47,17 @@ export default function Profile() {
 
   const { data: recentRides, isLoading: ridesLoading } = trpc.user.getRecentRides.useQuery(
     undefined,
-    { enabled: !!user && canUsePrivateUserApi, retry: false }
+    { enabled: !!user && canUsePrivateUserApi, retry: false, throwOnError: false }
   );
 
   const { data: userStats, isLoading: statsLoading } = trpc.user.getStats.useQuery(
     undefined,
-    { enabled: !!user && canUsePrivateUserApi, retry: false }
+    { enabled: !!user && canUsePrivateUserApi, retry: false, throwOnError: false }
   );
 
   const { data: loyaltyStats } = trpc.loyalty.getStats.useQuery(
     undefined,
-    { enabled: !!user && canUsePrivateUserApi, retry: false }
+    { enabled: !!user && canUsePrivateUserApi, retry: false, throwOnError: false }
   );
 
   const updateProfileMutation = trpc.user.updateProfile.useMutation({
@@ -95,7 +98,7 @@ export default function Profile() {
       return;
     }
 
-    if (isDemo) {
+    if (useLocalAvatar) {
       setSaveState("saving");
       saveDemoUserProfile({
         name: name.trim(),
@@ -141,14 +144,13 @@ export default function Profile() {
       return;
     }
 
-    const previewUrl = URL.createObjectURL(file);
-    setAvatarPreview(previewUrl);
+    let previewUrl: string | null = null;
+    try {
+      const { dataUrl, mimeType, base64 } = await compressImageFile(file);
+      previewUrl = URL.createObjectURL(file);
+      setAvatarPreview(previewUrl);
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = reader.result as string;
-
-      if (isDemo) {
+      if (useLocalAvatar) {
         saveDemoUserProfile({ avatarUrl: dataUrl });
         const updated = mergeDemoUserProfile({ ...user!, avatarUrl: dataUrl });
         utils.auth.me.setData(undefined, updated as never);
@@ -157,13 +159,14 @@ export default function Profile() {
         return;
       }
 
-      const base64 = dataUrl.split(",")[1];
-      uploadAvatarMutation.mutate({
-        base64,
-        mimeType: file.type,
-      });
-    };
-    reader.readAsDataURL(file);
+      await uploadAvatarMutation.mutateAsync({ base64, mimeType });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Erro ao enviar foto");
+      setAvatarPreview(null);
+    } finally {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
   };
 
   const formatPhone = (value: string) => {
@@ -237,7 +240,7 @@ export default function Profile() {
                         <User className="w-10 h-10 text-primary" />
                       </div>
                     )}
-                    {!isDemo && uploadAvatarMutation.isPending && (
+                    {!useLocalAvatar && uploadAvatarMutation.isPending && (
                       <div className="absolute inset-0 bg-black/50 flex items-center justify-center rounded-full">
                         <Loader2 className="w-6 h-6 animate-spin text-white" />
                       </div>
@@ -247,7 +250,7 @@ export default function Profile() {
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
                     className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-md hover:bg-primary/90 transition-colors"
-                    disabled={!isDemo && uploadAvatarMutation.isPending}
+                    disabled={!useLocalAvatar && uploadAvatarMutation.isPending}
                   >
                     <Camera className="w-4 h-4" />
                   </button>
@@ -266,7 +269,7 @@ export default function Profile() {
                   {loyaltyStats && (
                     <div className="inline-flex items-center gap-1.5 mt-1.5 px-2.5 py-0.5 bg-primary/15 text-primary rounded-full text-xs font-semibold">
                       <Star className="w-3 h-3" />
-                      {loyaltyStats.currentLevel.toUpperCase()}
+                      {loyaltyStats.currentLevel?.toUpperCase() ?? "BRONZE"}
                       <span className="text-muted-foreground font-normal ml-1">
                         • {loyaltyStats.currentPoints} pts
                       </span>
@@ -390,7 +393,7 @@ export default function Profile() {
             </Button>
           </div>
 
-          {!isDemo && (
+          {canUsePrivateUserApi && (
             <>
               <div className="grid grid-cols-3 gap-3">
                 <Card>
@@ -437,7 +440,7 @@ export default function Profile() {
                     {loyaltyStats.nextLevel && (
                       <div className="space-y-1.5">
                         <div className="flex items-center justify-between text-xs">
-                          <span className="text-muted-foreground">Próximo: {loyaltyStats.nextLevel.toUpperCase()}</span>
+                          <span className="text-muted-foreground">Próximo: {loyaltyStats.nextLevel?.toUpperCase()}</span>
                           <span className="font-medium">{loyaltyStats.pointsToNextLevel} pts</span>
                         </div>
                         <div className="w-full bg-secondary rounded-full h-1.5">
@@ -543,7 +546,7 @@ export default function Profile() {
             </>
           )}
 
-          {isDemo && (
+          {useLocalAvatar && (
             <p className="text-center text-xs text-muted-foreground pb-4">
               Modo demo local — nome e WhatsApp salvos neste navegador.
             </p>

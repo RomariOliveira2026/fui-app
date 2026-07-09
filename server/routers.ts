@@ -270,17 +270,43 @@ export const appRouter = router({
         mimeType: z.string(),
       }))
       .mutation(async ({ ctx, input }) => {
-        const ext = input.mimeType.split("/")[1] || "jpg";
-        const fileKey = `avatars/${ctx.user.id}-${nanoid(8)}.${ext}`;
+        if (isDemoPassenger(ctx.user)) {
+          return { url: `data:${input.mimeType};base64,${input.base64}` };
+        }
+
         const buffer = Buffer.from(input.base64, "base64");
-        
+
         if (buffer.length > 5 * 1024 * 1024) {
           throw new TRPCError({ code: "BAD_REQUEST", message: "Imagem muito grande. Máximo 5MB." });
         }
-        
-        const { url } = await storagePut(fileKey, buffer, input.mimeType);
-        await db.updateUserProfile(ctx.user.id, { avatarUrl: url });
-        return { url };
+
+        let avatarUrl: string;
+        try {
+          const ext = input.mimeType.split("/")[1] || "jpg";
+          const fileKey = `avatars/${ctx.user.id}-${nanoid(8)}.${ext}`;
+          const uploaded = await storagePut(fileKey, buffer, input.mimeType);
+          avatarUrl = uploaded.url;
+        } catch (error) {
+          console.warn("[uploadAvatar] Storage unavailable:", error);
+          if (buffer.length > 512 * 1024) {
+            throw new TRPCError({
+              code: "PRECONDITION_FAILED",
+              message:
+                "Armazenamento de fotos indisponível. Use uma imagem menor ou tente novamente mais tarde.",
+            });
+          }
+          avatarUrl = `data:${input.mimeType};base64,${input.base64}`;
+        }
+
+        const saved = await db.updateUserProfile(ctx.user.id, { avatarUrl });
+        if (!saved) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Não foi possível salvar a foto no momento.",
+          });
+        }
+
+        return { url: avatarUrl };
       }),
 
     getStats: protectedProcedure.query(async ({ ctx }) => {
