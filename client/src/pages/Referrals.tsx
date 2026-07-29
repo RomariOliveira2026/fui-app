@@ -13,6 +13,7 @@ import {
   persistDemoReferralsSnapshot,
   useDemoReferralsHydration,
 } from "@/lib/useDemoReferralsHydration";
+import { getConfiguredAppUrl } from "@shared/appUrl";
 import {
   Gift,
   Copy,
@@ -88,7 +89,8 @@ export default function Referrals() {
   const handleShare = async () => {
     if (!myCode?.code) return;
 
-    const shareText = `Use meu código ${myCode.code} no Fui! e ganhe R$ 5,00 em créditos na sua primeira corrida! Baixe agora: https://fuiapp.com.br`;
+    const appUrl = getConfiguredAppUrl(import.meta.env.VITE_APP_URL);
+    const shareText = `Use meu código ${myCode.code} no Fui! e ganhe R$ 5,00 em créditos na sua primeira corrida! Baixe agora: ${appUrl}`;
 
     if (navigator.share) {
       try {

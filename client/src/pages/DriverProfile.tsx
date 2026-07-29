@@ -13,12 +13,12 @@ export default function DriverProfile() {
 
   const { data: driver, isLoading } = trpc.driver.getProfile.useQuery(
     { driverId },
-    { enabled: !!driverId }
+    { enabled: !!driverId, throwOnError: false, retry: 1 }
   );
 
   const { data: ratings } = trpc.rating.getByUser.useQuery(
     { userId: driver?.userId || 0 },
-    { enabled: !!driver?.userId }
+    { enabled: !!driver?.userId, throwOnError: false, retry: 1 }
   );
 
   if (isLoading) {
@@ -32,8 +32,9 @@ export default function DriverProfile() {
   if (!driver) {
     return (
       <div className="min-h-screen bg-background text-foreground">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-72 bg-[radial-gradient(ellipse_at_top,hsl(var(--primary)/0.12),transparent_65%)]" />
         <AppHeader title="Motorista" />
-        <div className="container max-w-2xl mx-auto py-8 px-4">
+        <div className="relative mx-auto w-full max-w-screen-xl px-4 sm:px-6 lg:px-8 py-8">
           <Card>
             <CardContent className="py-8 text-center">
               <p className="text-muted-foreground">Motorista não encontrado</p>
@@ -52,18 +53,26 @@ export default function DriverProfile() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-72 bg-[radial-gradient(ellipse_at_top,hsl(var(--primary)/0.12),transparent_65%)]" />
       <AppHeader title="Perfil do Motorista" />
-      <div className="container max-w-2xl mx-auto py-8 px-4 space-y-6">
-        {/* Back Button */}
+      <div className="relative mx-auto w-full max-w-screen-xl px-4 sm:px-6 lg:px-8 py-8 space-y-6">
         <Button
           variant="ghost"
           onClick={() => window.history.back()}
-          className="mb-4"
         >
           <ArrowLeft className="w-4 h-4 mr-2" />
           Voltar
         </Button>
 
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Perfil do Motorista</h1>
+          <p className="text-muted-foreground mt-1">
+            {driver.user?.name || "Motorista"} · {driver.totalRides || 0} corridas
+          </p>
+        </div>
+
+        <div className="grid gap-6 lg:grid-cols-2">
+          <div className="space-y-6">
         {/* Driver Info Card */}
         <Card>
           <CardHeader>
@@ -145,9 +154,11 @@ export default function DriverProfile() {
             )}
           </CardContent>
         </Card>
+          </div>
 
+          <div className="space-y-6">
         {/* Ratings Card */}
-        {ratings && ratings.length > 0 && (
+        {ratings && ratings.length > 0 ? (
           <Card>
             <CardHeader>
               <CardTitle>Avaliações</CardTitle>
@@ -168,7 +179,16 @@ export default function DriverProfile() {
               ))}
             </CardContent>
           </Card>
+        ) : (
+          <Card>
+            <CardContent className="py-12 text-center text-muted-foreground">
+              <Star className="w-10 h-10 mx-auto mb-3 opacity-40" />
+              Nenhuma avaliação ainda
+            </CardContent>
+          </Card>
         )}
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -291,10 +291,20 @@ export default function UtilityRequest() {
   };
 
   return (
-    <div className="min-h-screen bg-background pb-24">
+    <div className="min-h-screen bg-background text-foreground pb-24">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-72 bg-[radial-gradient(ellipse_at_top,hsl(var(--primary)/0.12),transparent_65%)]" />
       <AppHeader title="Solicitar Utilitário" />
 
-      <div className="mx-auto max-w-lg px-4 py-4 space-y-4">
+      <div className="relative mx-auto w-full max-w-screen-xl px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Solicitar Utilitário</h1>
+          <p className="text-muted-foreground mt-1">
+            {UTILITY_SERVICE_LABELS[serviceType]} — preencha os dados do transporte
+          </p>
+        </div>
+
+        <div className="grid gap-6 lg:grid-cols-2">
+          <div className="space-y-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
@@ -480,6 +490,9 @@ export default function UtilityRequest() {
           </CardContent>
         </Card>
 
+          </div>
+
+          <div className="space-y-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Veículo</CardTitle>
@@ -589,6 +602,8 @@ export default function UtilityRequest() {
             <Calendar className="w-4 h-4 mr-2" />
             Agendar
           </Button>
+        </div>
+          </div>
         </div>
       </div>
     </div>

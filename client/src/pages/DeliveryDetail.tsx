@@ -59,7 +59,11 @@ export default function DeliveryDetail() {
     refetch,
   } = trpc.delivery.getTrackingDetails.useQuery(
     { id: orderId },
-    { enabled: !!user && Number.isFinite(orderId) && orderId > 0 }
+    {
+      enabled: !!user && Number.isFinite(orderId) && orderId > 0,
+      throwOnError: false,
+      retry: 1,
+    }
   );
 
   const advanceMutation = trpc.delivery.advanceDemoStatus.useMutation({
@@ -159,15 +163,25 @@ export default function DeliveryDetail() {
   };
 
   return (
-    <div className="min-h-screen bg-background pb-8">
+    <div className="min-h-screen bg-background text-foreground pb-8">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-72 bg-[radial-gradient(ellipse_at_top,hsl(var(--primary)/0.12),transparent_65%)]" />
       <AppHeader title={`Entrega #${order.id}`} />
 
-      <div className="p-4 space-y-4 max-w-lg mx-auto">
-        <Button variant="ghost" size="sm" className="-ml-2" onClick={() => navigate("/delivery")}>
-          <ArrowLeft className="h-4 w-4 mr-1" />
-          Voltar
-        </Button>
+      <div className="relative mx-auto w-full max-w-screen-xl px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+        <div>
+          <Button variant="ghost" size="sm" className="-ml-2" onClick={() => navigate("/delivery")}>
+            <ArrowLeft className="h-4 w-4 mr-1" />
+            Voltar
+          </Button>
+          <h1 className="text-3xl font-bold tracking-tight mt-2">Entrega #{order.id}</h1>
+          <p className="text-muted-foreground mt-1">
+            {DELIVERY_STATUS_LABELS[status] ?? status}
+            {order.trackingCode ? ` · ${order.trackingCode}` : ""}
+          </p>
+        </div>
 
+        <div className="grid gap-6 lg:grid-cols-2">
+          <div className="space-y-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center justify-between gap-2">
@@ -248,6 +262,9 @@ export default function DeliveryDetail() {
           </Card>
         ) : null}
 
+          </div>
+
+          <div className="space-y-4">
         {status === "delivered" ? (
           <Card className="border-emerald-500/30">
             <CardContent className="pt-4 space-y-3">
@@ -378,6 +395,8 @@ export default function DeliveryDetail() {
             Cancelar entrega
           </Button>
         ) : null}
+          </div>
+        </div>
       </div>
     </div>
   );

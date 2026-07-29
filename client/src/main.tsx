@@ -47,7 +47,24 @@ const queryClient = new QueryClient({
         // Painéis admin tratam falhas de API localmente (toast / retry / fallback).
         if (typeof window !== "undefined") {
           const path = window.location.pathname;
-          if (path.startsWith("/admin") || path.startsWith("/profile")) {
+          const resilientPrefixes = [
+            "/admin",
+            "/profile",
+            "/utilities",
+            "/ride-history",
+            "/saved-addresses",
+            "/emergency-contacts",
+            "/favorite-drivers",
+            "/scheduled-rides",
+            "/request-ride",
+            "/ride/",
+            "/delivery",
+            "/driver/",
+            "/complete-profile",
+            "/referrals",
+            "/payment/",
+          ];
+          if (resilientPrefixes.some((prefix) => path.startsWith(prefix))) {
             return false;
           }
         }

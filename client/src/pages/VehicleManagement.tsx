@@ -36,10 +36,14 @@ export default function VehicleManagement() {
 
   const { data: driverProfile, isLoading: profileLoading } = trpc.driver.getMyProfile.useQuery(undefined, {
     enabled: !!user,
+    throwOnError: false,
+    retry: 1,
   });
 
   const { data: vehicles, isLoading: vehiclesLoading } = trpc.vehicle.list.useQuery(undefined, {
     enabled: !!driverProfile,
+    throwOnError: false,
+    retry: 1,
   });
 
   const createVehicle = trpc.vehicle.create.useMutation({
@@ -113,13 +117,13 @@ export default function VehicleManagement() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-72 bg-[radial-gradient(ellipse_at_top,hsl(var(--primary)/0.12),transparent_65%)]" />
       <AppHeader title="Gerenciar Veículos" />
-      <div className="p-4">
-      <div className="container max-w-4xl mx-auto py-8">
-        <div className="flex justify-between items-center mb-6">
+      <div className="relative mx-auto w-full max-w-screen-xl px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-foreground">Meus Veículos</h1>
-            <p className="text-muted-foreground">Gerencie seus veículos cadastrados</p>
+            <h1 className="text-3xl font-bold tracking-tight">Meus Veículos</h1>
+            <p className="text-muted-foreground mt-1">Gerencie seus veículos cadastrados</p>
           </div>
           
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -298,7 +302,6 @@ export default function VehicleManagement() {
             </CardContent>
           </Card>
         )}
-      </div>
       </div>
     </div>
   );

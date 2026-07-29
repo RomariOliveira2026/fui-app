@@ -246,8 +246,9 @@ export default function AdminFinance() {
   return (
     <AdminPanelErrorBoundary title="Financeiro & Gestão">
     <div className="min-h-screen bg-background text-foreground">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-72 bg-[radial-gradient(ellipse_at_top,hsl(var(--primary)/0.12),transparent_65%)]" />
       <AppHeader title="Financeiro & Gestão" />
-      <div className="container max-w-6xl mx-auto py-8 px-4">
+      <div className="relative mx-auto w-full max-w-screen-xl px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <h1 className="text-3xl font-bold mb-2">Financeiro & Gestão</h1>

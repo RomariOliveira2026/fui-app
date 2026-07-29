@@ -36,6 +36,8 @@ export default function UtilityDetail() {
     { id: orderId },
     {
       enabled: !!user && Number.isFinite(orderId) && orderId > 0,
+      throwOnError: false,
+      retry: 1,
       refetchInterval: (query) => {
         const data = query.state.data;
         if (!data) return false;
@@ -88,23 +90,24 @@ export default function UtilityDetail() {
   const showTracking = shouldShowUtilityDriverOnMap(order.status, order.driverId);
 
   return (
-    <div className="min-h-screen bg-background pb-8">
+    <div className="min-h-screen bg-background text-foreground pb-8">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-72 bg-[radial-gradient(ellipse_at_top,hsl(var(--primary)/0.12),transparent_65%)]" />
       <AppHeader title="Detalhes do Utilitário" />
 
-      <div className="mx-auto max-w-lg px-4 py-4 space-y-4">
-        <Card className="border-primary/20 bg-gradient-to-br from-primary/[0.04] to-transparent">
-          <CardContent className="pt-5">
+      <div className="relative mx-auto w-full max-w-screen-xl px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
             <p className="text-xs text-primary font-medium uppercase tracking-wider">
               {UTILITY_SERVICE_LABELS[order.serviceType]}
             </p>
-            <p className="text-2xl font-bold mt-1">
+            <h1 className="text-3xl font-bold tracking-tight mt-1">
               R$ {((order.finalPrice ?? order.estimatedPrice ?? 0) / 100).toFixed(2)}
-            </p>
+            </h1>
             <p className="text-sm text-muted-foreground mt-1 font-mono">
               {order.utilityMeta.trackingCode}
             </p>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         <UtilityStatusBanner
           status={order.status}
@@ -112,115 +115,128 @@ export default function UtilityDetail() {
           distance={order.distance}
         />
 
-        {(showTracking || order.status === "waiting_driver" || order.status === "requested") && (
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">Rastreio</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <UtilityTrackingMap
-                originLat={order.originLat}
-                originLng={order.originLng}
-                destinationLat={order.destinationLat}
-                destinationLng={order.destinationLng}
-                driverLat={order.driverCurrentLat}
-                driverLng={order.driverCurrentLng}
-                status={order.status}
-                driverId={order.driverId}
-                distance={order.distance}
-              />
-            </CardContent>
-          </Card>
-        )}
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1.12fr)_minmax(0,0.88fr)]">
+          <div className="space-y-6">
+            {(showTracking || order.status === "waiting_driver" || order.status === "requested") && (
+              <Card className="overflow-hidden border-border/80">
+                <CardHeader className="border-b border-border/60 bg-muted/10 pb-3">
+                  <CardTitle className="text-lg">Rastreio</CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <div className="min-h-[360px]">
+                    <UtilityTrackingMap
+                      originLat={order.originLat}
+                      originLng={order.originLng}
+                      destinationLat={order.destinationLat}
+                      destinationLng={order.destinationLng}
+                      driverLat={order.driverCurrentLat}
+                      driverLng={order.driverCurrentLng}
+                      status={order.status}
+                      driverId={order.driverId}
+                      distance={order.distance}
+                      className="h-full min-h-[360px] rounded-none border-0"
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Linha do tempo</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <UtilityStatusStepper status={order.status} />
-            {isLocalDemoDev() && order.status !== "completed" && order.status !== "cancelled" ? (
+            <Card className="border-border/80">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg">Linha do tempo</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <UtilityStatusStepper status={order.status} />
+                {isLocalDemoDev() && order.status !== "completed" && order.status !== "cancelled" ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-4 w-full"
+                    onClick={() => advanceMutation.mutate({ id: orderId })}
+                    disabled={advanceMutation.isPending}
+                  >
+                    Avançar status (demo)
+                  </Button>
+                ) : null}
+              </CardContent>
+            </Card>
+
+            <UtilityChatPanel orderId={orderId} enabled={chatEnabled} otherPartyLabel="Prestador" />
+          </div>
+
+          <div className="space-y-6">
+            <Card className="border-border/80">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <MapPin className="w-4 h-4 text-primary" />
+                  Rota
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 text-sm">
+                <div>
+                  <p className="text-xs text-muted-foreground">Origem</p>
+                  <p>{order.originAddress}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Destino</p>
+                  <p>{order.destinationAddress}</p>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-border/80">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Package className="w-4 h-4 text-primary" />
+                  Carga
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                {order.cargo.itemType ? (
+                  <p>
+                    <span className="text-muted-foreground">Item:</span> {order.cargo.itemType}
+                  </p>
+                ) : null}
+                {order.cargo.description ? <p>{order.cargo.description}</p> : null}
+                {order.cargo.estimatedWeightKg ? <p>Peso: {order.cargo.estimatedWeightKg} kg</p> : null}
+                {order.cargo.photoUrls?.[0] ? (
+                  <img
+                    src={order.cargo.photoUrls[0]}
+                    alt="Carga"
+                    className="h-32 rounded-lg object-cover border border-border"
+                  />
+                ) : null}
+              </CardContent>
+            </Card>
+
+            <Card className="border-border/80">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Truck className="w-4 h-4 text-primary" />
+                  Veículo & extras
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="text-sm space-y-1">
+                <p>{UTILITY_VEHICLE_LABELS[order.vehicleType]}</p>
+                {order.extras.needsHelper ? <p>Ajudantes: {order.extras.helperCount ?? 1}</p> : null}
+                {order.extras.isUrgent ? <p className="text-orange-400">Urgente</p> : null}
+                {order.extras.notes ? <p className="text-muted-foreground">{order.extras.notes}</p> : null}
+              </CardContent>
+            </Card>
+
+            {canCancel ? (
               <Button
                 variant="outline"
-                size="sm"
-                className="mt-4 w-full"
-                onClick={() => advanceMutation.mutate({ id: orderId })}
-                disabled={advanceMutation.isPending}
+                className="w-full text-red-400 border-red-500/30 hover:bg-red-500/10"
+                onClick={() => cancelMutation.mutate({ id: orderId })}
+                disabled={cancelMutation.isPending}
               >
-                Avançar status (demo)
+                <XCircle className="w-4 h-4 mr-2" />
+                Cancelar pedido
               </Button>
             ) : null}
-          </CardContent>
-        </Card>
-
-        <UtilityChatPanel
-          orderId={orderId}
-          enabled={chatEnabled}
-          otherPartyLabel="Prestador"
-        />
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <MapPin className="w-4 h-4 text-primary" />
-              Rota
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm">
-            <div>
-              <p className="text-xs text-muted-foreground">Origem</p>
-              <p>{order.originAddress}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Destino</p>
-              <p>{order.destinationAddress}</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Package className="w-4 h-4 text-primary" />
-              Carga
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            {order.cargo.itemType ? <p><span className="text-muted-foreground">Item:</span> {order.cargo.itemType}</p> : null}
-            {order.cargo.description ? <p>{order.cargo.description}</p> : null}
-            {order.cargo.estimatedWeightKg ? <p>Peso: {order.cargo.estimatedWeightKg} kg</p> : null}
-            {order.cargo.photoUrls?.[0] ? (
-              <img src={order.cargo.photoUrls[0]} alt="Carga" className="h-32 rounded-lg object-cover border border-border" />
-            ) : null}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Truck className="w-4 h-4 text-primary" />
-              Veículo & extras
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm space-y-1">
-            <p>{UTILITY_VEHICLE_LABELS[order.vehicleType]}</p>
-            {order.extras.needsHelper ? <p>Ajudantes: {order.extras.helperCount ?? 1}</p> : null}
-            {order.extras.isUrgent ? <p className="text-orange-400">Urgente</p> : null}
-            {order.extras.notes ? <p className="text-muted-foreground">{order.extras.notes}</p> : null}
-          </CardContent>
-        </Card>
-
-        {canCancel ? (
-          <Button
-            variant="outline"
-            className="w-full text-red-400 border-red-500/30 hover:bg-red-500/10"
-            onClick={() => cancelMutation.mutate({ id: orderId })}
-            disabled={cancelMutation.isPending}
-          >
-            <XCircle className="w-4 h-4 mr-2" />
-            Cancelar pedido
-          </Button>
-        ) : null}
+          </div>
+        </div>
       </div>
     </div>
   );
