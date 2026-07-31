@@ -102,14 +102,18 @@ export function AddressAutocomplete({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const skipBlurConfirmRef = useRef(false);
+  const [hasUserEdited, setHasUserEdited] = useState(false);
   const [debouncedQuery, setDebouncedQuery] = useState("");
 
   useEffect(() => {
     setQuery(value);
+    setHasUserEdited(false);
+    setDebouncedQuery("");
   }, [value]);
 
   const handleInputChange = useCallback(
     (newValue: string) => {
+      setHasUserEdited(true);
       setQuery(newValue);
       onChange(newValue);
       setSelectedIndex(-1);
@@ -270,6 +274,7 @@ export function AddressAutocomplete({
     (flatSuggestions.length > 0 || (debouncedQuery.trim().length >= MIN_QUERY_LENGTH && isLoading));
 
   const showEmptyState =
+    hasUserEdited &&
     isFocused &&
     trimmedQuery.length > 0 &&
     debouncedQuery.trim().length >= MIN_QUERY_LENGTH &&
@@ -278,6 +283,7 @@ export function AddressAutocomplete({
 
   const handleSelectResult = useCallback(
     (result: AddressResult) => {
+      setHasUserEdited(true);
       skipBlurConfirmRef.current = true;
       setQuery(result.description);
       onChange(result.description);
@@ -300,6 +306,7 @@ export function AddressAutocomplete({
 
   const handleSelectFlat = useCallback(
     (item: FlatSuggestion) => {
+      setHasUserEdited(true);
       skipBlurConfirmRef.current = true;
 
       if (item.type === "place") {
@@ -406,6 +413,7 @@ export function AddressAutocomplete({
               setQuery("");
               onChange("");
               setDebouncedQuery("");
+              setHasUserEdited(false);
               inputRef.current?.focus();
             }}
             className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"

@@ -32,6 +32,7 @@ import type { BookedForThirdParty, IntermediateStop, IntermediateStopInput } fro
 import { estimateDemoRidePriceCents } from "@shared/demoPricing";
 import { useSavedAddresses } from "@/lib/useSavedAddresses";
 import { isLocalDemoDev, isDemoAppClient } from "@/lib/demoMode";
+import { useBetaDemoRuntime } from "@/lib/useBetaDemoRuntime";
 import { usePassengerCurrentLocation } from "@/lib/usePassengerCurrentLocation";
 import { useDemoFleetDrivers } from "@/lib/useDemoFleetDrivers";
 import { fetchRouteWithDemoFallback } from "@/lib/demoRoute";
@@ -95,6 +96,8 @@ export default function RequestRide() {
   const originFromGpsRef = useRef(false);
   const lowAccuracyWarnedRef = useRef(false);
   const [autoLocateOrigin, setAutoLocateOrigin] = useState(false);
+  /** Só busca rota/preço após o passageiro informar o destino (evita spinner/erro ao abrir a tela). */
+  const [quoteFetchEnabled, setQuoteFetchEnabled] = useState(false);
   
   // Carpool fields
   const [isShared, setIsShared] = useState(false);
@@ -186,6 +189,7 @@ export default function RequestRide() {
 
   const shouldAutoLocate = autoLocateOrigin && !originAddress.trim();
   const passengerLocation = usePassengerCurrentLocation({ enabled: shouldAutoLocate });
+  const { active: betaDemoActive, pending: betaConfigPending } = useBetaDemoRuntime(false);
   const fleetMapCenter = passengerLocation.coords ?? originCoords;
   const nearbyDemoDrivers = useDemoFleetDrivers(fleetMapCenter);
 
@@ -321,6 +325,10 @@ export default function RequestRide() {
   const requestRide = trpc.ride.request.useMutation();
   const calculatePassengerRouteMutation = trpc.maps.calculatePassengerRoute.useMutation();
 
+  const canQuoteAddresses =
+    originAddress.trim().length >= MIN_RIDE_PREFILL_ADDRESS_LENGTH &&
+    destinationAddress.trim().length >= MIN_RIDE_PREFILL_ADDRESS_LENGTH;
+
   const rideQuote = usePassengerRideQuote({
     originAddress,
     destinationAddress,
@@ -337,8 +345,8 @@ export default function RequestRide() {
         : undefined,
     intermediateStops:
       activeIntermediateStopsForQuote.length > 0 ? activeIntermediateStopsForQuote : undefined,
-    enabled: true,
-    allowDemoFallback: isDemoAppClient() || useOsmRouting,
+    enabled: quoteFetchEnabled && canQuoteAddresses && !betaConfigPending,
+    allowDemoFallback: isDemoAppClient() || isLocalDemoDev() || useOsmRouting || betaDemoActive,
   });
 
   useEffect(() => {
@@ -389,14 +397,14 @@ export default function RequestRide() {
   }, [vehicleType, rideQuote.ready, rideQuote.categoryQuotes, rideQuote.priceForVehicle]);
 
   useEffect(() => {
-    if (!rideQuote.error) return;
+    if (!rideQuote.error || !quoteFetchEnabled) return;
     if (
       originAddress.trim().length >= MIN_RIDE_PREFILL_ADDRESS_LENGTH &&
       destinationAddress.trim().length >= MIN_RIDE_PREFILL_ADDRESS_LENGTH
     ) {
       toast.error(rideQuote.error);
     }
-  }, [rideQuote.error, originAddress, destinationAddress]);
+  }, [rideQuote.error, quoteFetchEnabled, originAddress, destinationAddress]);
 
   const applyPassengerRouteResult = (
     result: Awaited<ReturnType<typeof calculatePassengerRouteMutation.mutateAsync>>,
@@ -503,6 +511,7 @@ export default function RequestRide() {
     const prefill = loadRidePrefill();
     if (!prefill || prefillAppliedRef.current || !isCompleteRidePrefill(prefill)) return;
     prefillAppliedRef.current = true;
+    setQuoteFetchEnabled(true);
     setAutoLocateOrigin(false);
     clearRidePrefill();
 
@@ -851,7 +860,7 @@ export default function RequestRide() {
       <AppHeader title="Solicitar Corrida" />
       
       {/* Loading Overlay */}
-      {((rideQuote.loading && !rideQuote.ready) || calculating) && (
+      {((rideQuote.loading && quoteFetchEnabled) || calculating) && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center backdrop-blur-sm">
           <div className="bg-card rounded-2xl p-8 shadow-2xl max-w-sm mx-4 text-center border border-border">
             <div className="relative w-24 h-24 mx-auto mb-6">
@@ -907,12 +916,14 @@ export default function RequestRide() {
                       setOriginCoords(coords);
                     }
                     recordOriginHistory(result.address, result.placeId);
-                    void rideQuote.refetch({
-                      originAddress: result.address,
-                      originPlaceId: result.placeId,
-                      destinationAddress: destinationAddress.trim(),
-                      destinationPlaceId: destPlaceIdRef.current || undefined,
-                    });
+                    if (quoteFetchEnabled && destinationAddress.trim().length >= MIN_RIDE_PREFILL_ADDRESS_LENGTH) {
+                      void rideQuote.refetch({
+                        originAddress: result.address,
+                        originPlaceId: result.placeId,
+                        destinationAddress: destinationAddress.trim(),
+                        destinationPlaceId: destPlaceIdRef.current || undefined,
+                      });
+                    }
                   }}
                   onConfirm={(address) => {
                     if (originFromGpsRef.current && originPlaceIdRef.current) {
@@ -978,8 +989,12 @@ export default function RequestRide() {
                   setDestPlaceId("");
                   destPlaceIdRef.current = "";
                   clearRouteCalculation();
+                  if (val.trim().length >= MIN_RIDE_PREFILL_ADDRESS_LENGTH) {
+                    setQuoteFetchEnabled(true);
+                  }
                 }}
                 onSelect={(result) => {
+                  setQuoteFetchEnabled(true);
                   clearRouteCalculation();
                   setDestinationAddress(result.address);
                   setDestPlaceId(result.placeId);
@@ -994,6 +1009,9 @@ export default function RequestRide() {
                   });
                 }}
                 onConfirm={(address) => {
+                  if (address.trim().length >= MIN_RIDE_PREFILL_ADDRESS_LENGTH) {
+                    setQuoteFetchEnabled(true);
+                  }
                   const placeId = resolveDemoPlaceIdForHistory(
                     address,
                     destPlaceIdRef.current || undefined
@@ -1034,7 +1052,7 @@ export default function RequestRide() {
               selected={vehicleType}
               onSelect={setVehicleType}
               quotes={rideQuote.categoryQuotes}
-              loading={rideQuote.loading}
+              loading={quoteFetchEnabled && rideQuote.loading}
               disabled={!originAddress.trim() || !destinationAddress.trim()}
             />
 
@@ -1407,8 +1425,8 @@ export default function RequestRide() {
               }
               distanceM={distance}
               durationS={duration}
-              loading={rideQuote.loading}
-              error={rideQuote.error}
+              loading={quoteFetchEnabled && rideQuote.loading}
+              error={quoteFetchEnabled ? rideQuote.error : null}
               onRetry={() => void rideQuote.refetch()}
             />
           </div>
