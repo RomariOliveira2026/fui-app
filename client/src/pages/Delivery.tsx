@@ -29,6 +29,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import AppHeader from "@/components/AppHeader";
 import DeliveryStatusStepper from "@/components/delivery/DeliveryStatusStepper";
+import DeliveryRouteSummaryCard from "@/components/delivery/DeliveryRouteSummaryCard";
+import { cn } from "@/lib/utils";
 import {
   Package,
   MapPin,
@@ -45,6 +47,23 @@ import {
   Bike,
 } from "lucide-react";
 import { DELIVERY_STATUS_LABELS, type DeliveryStatus, type DeliveryStatusEvent } from "@shared/deliveryPremium";
+
+const DELIVERY_TAB_LIST_CLASS =
+  "w-full grid h-11 grid-cols-3 gap-1 rounded-xl border border-border/70 bg-muted/40 p-1";
+
+const DELIVERY_TAB_TRIGGER_CLASS = cn(
+  "rounded-lg border border-transparent text-sm font-medium text-muted-foreground",
+  "transition-colors duration-200 hover:text-foreground",
+  "data-[state=active]:border-primary/30 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground",
+  "data-[state=active]:shadow-sm"
+);
+
+const DELIVERY_PRIMARY_BTN_CLASS = cn(
+  "w-full h-12 sm:h-[3.25rem] gap-2.5 text-sm sm:text-base font-semibold",
+  "inline-flex items-center justify-center",
+  "bg-orange-500 text-white shadow-sm",
+  "transition-colors duration-200 hover:bg-orange-600/95 active:bg-orange-600"
+);
 
 const PACKAGE_TYPES = [
   { value: "documento", label: "Documento", icon: FileText },
@@ -377,12 +396,18 @@ export default function Delivery() {
     <div className="min-h-screen bg-background">
       <AppHeader title="Entregas" />
 
-      <div className="p-4">
+      <div className="mx-auto w-full max-w-2xl p-4 sm:p-6">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="w-full grid grid-cols-3">
-            <TabsTrigger value="new">Nova Entrega</TabsTrigger>
-            <TabsTrigger value="orders">Meus Pedidos</TabsTrigger>
-            <TabsTrigger value="track">Rastrear</TabsTrigger>
+          <TabsList className={DELIVERY_TAB_LIST_CLASS}>
+            <TabsTrigger value="new" className={DELIVERY_TAB_TRIGGER_CLASS}>
+              Nova Entrega
+            </TabsTrigger>
+            <TabsTrigger value="orders" className={DELIVERY_TAB_TRIGGER_CLASS}>
+              Meus Pedidos
+            </TabsTrigger>
+            <TabsTrigger value="track" className={DELIVERY_TAB_TRIGGER_CLASS}>
+              Rastrear
+            </TabsTrigger>
           </TabsList>
 
           {/* New Delivery */}
@@ -403,7 +428,7 @@ export default function Delivery() {
                       onChange={(e) => setPickupAddress(e.target.value)}
                       placeholder="Rua, número, bairro, cidade"
                     />
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                       <div>
                         <Label className="text-xs">Nome do contato</Label>
                         <Input
@@ -437,7 +462,7 @@ export default function Delivery() {
                       onChange={(e) => setDeliveryAddress(e.target.value)}
                       placeholder="Rua, número, bairro, cidade"
                     />
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                       <div>
                         <Label className="text-xs">Nome do destinatário *</Label>
                         <Input
@@ -458,39 +483,16 @@ export default function Delivery() {
                   </CardContent>
                 </Card>
 
-                {routeInfo && portfolioDeliveryDemo ? (
-                  <Card className="bg-orange-500/10 border-orange-500/30">
-                    <CardContent className="p-4 space-y-2 text-sm">
-                      <p className="text-foreground">
-                        <span className="text-muted-foreground">Distância: </span>
-                        <span className="font-semibold">
-                          {(routeInfo.distance / 1000).toLocaleString("pt-BR", {
-                            minimumFractionDigits: 1,
-                            maximumFractionDigits: 1,
-                          })}{" "}
-                          km
-                        </span>
-                      </p>
-                      <p className="text-foreground">
-                        <span className="text-muted-foreground">Tempo estimado: </span>
-                        <span className="font-semibold">
-                          {Math.ceil(routeInfo.duration / 60)} min
-                        </span>
-                      </p>
-                      <p className="text-foreground">
-                        <span className="text-muted-foreground">Valor da entrega: </span>
-                        <span className="font-bold text-orange-500">
-                          {formatDeliveryPortfolioPrice(
-                            effectiveEstimatedPrice ?? DELIVERY_PORTFOLIO_DEMO.estimatedPriceCents
-                          )}
-                        </span>
-                      </p>
-                    </CardContent>
-                  </Card>
+                {routeInfo && portfolioDeliveryDemo && effectiveEstimatedPrice != null ? (
+                  <DeliveryRouteSummaryCard
+                    distanceM={routeInfo.distance}
+                    durationS={routeInfo.duration}
+                    priceCents={effectiveEstimatedPrice}
+                  />
                 ) : null}
 
                 <Button
-                  className="w-full bg-orange-500 hover:bg-orange-600"
+                  className={DELIVERY_PRIMARY_BTN_CLASS}
                   onClick={() => {
                     if (portfolioDeliveryDemo && routeInfo && effectiveEstimatedPrice) {
                       setStep(2);
@@ -501,11 +503,11 @@ export default function Delivery() {
                   disabled={calculatingRoute || !pickupAddress || !deliveryAddress}
                 >
                   {calculatingRoute ? (
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                    <div className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-white/30 border-t-white" />
                   ) : portfolioDeliveryDemo && routeInfo && effectiveEstimatedPrice ? (
-                    <CheckCircle2 className="h-4 w-4 mr-2" />
+                    <CheckCircle2 className="h-4 w-4 shrink-0" />
                   ) : (
-                    <Search className="h-4 w-4 mr-2" />
+                    <Search className="h-4 w-4 shrink-0" />
                   )}
                   {portfolioDeliveryDemo && routeInfo && effectiveEstimatedPrice
                     ? `Confirmar Entrega — ${formatDeliveryPortfolioPrice(effectiveEstimatedPrice)}`
@@ -517,25 +519,13 @@ export default function Delivery() {
             {/* Step 2: Package Details */}
             {step === 2 && (
               <>
-                {routeInfo && (
-                  <Card className="bg-orange-500/10 border-orange-500/30">
-                    <CardContent className="p-3 flex items-center justify-between">
-                      <div className="flex items-center gap-2 text-sm">
-                        <MapPin className="h-4 w-4 text-orange-500" />
-                        <span>{(routeInfo.distance / 1000).toFixed(1)} km</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-sm">
-                        <Clock className="h-4 w-4 text-orange-500" />
-                        <span>{Math.ceil(routeInfo.duration / 60)} min</span>
-                      </div>
-                      {effectiveEstimatedPrice != null && (
-                        <div className="text-lg font-bold text-orange-500">
-                          {formatDeliveryPortfolioPrice(effectiveEstimatedPrice)}
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                )}
+                {routeInfo && effectiveEstimatedPrice != null ? (
+                  <DeliveryRouteSummaryCard
+                    distanceM={routeInfo.distance}
+                    durationS={routeInfo.duration}
+                    priceCents={effectiveEstimatedPrice}
+                  />
+                ) : null}
 
                 <Card>
                   <CardHeader className="pb-3">
@@ -545,7 +535,7 @@ export default function Delivery() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3">
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                       <div>
                         <Label className="text-xs">Nome do destinatário *</Label>
                         <Input
