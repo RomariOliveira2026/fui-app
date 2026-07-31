@@ -6,6 +6,13 @@ type PassengerSummaryCardsProps = {
   summary: PassengerSummary;
 };
 
+function formatBrl(cents: number): string {
+  return (cents / 100).toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  });
+}
+
 export default function PassengerSummaryCards({ summary }: PassengerSummaryCardsProps) {
   const items = [
     {
@@ -16,13 +23,13 @@ export default function PassengerSummaryCards({ summary }: PassengerSummaryCards
     },
     {
       label: "Total gasto",
-      value: `R$ ${(summary.totalSpent / 100).toFixed(0)}`,
+      value: formatBrl(summary.totalSpent),
       icon: DollarSign,
       accent: "text-foreground",
     },
     {
       label: "Economia",
-      value: `R$ ${(summary.totalSaved / 100).toFixed(0)}`,
+      value: formatBrl(summary.totalSaved),
       icon: TrendingUp,
       accent: "text-emerald-400",
     },

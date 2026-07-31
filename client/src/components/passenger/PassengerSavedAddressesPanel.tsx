@@ -52,7 +52,7 @@ export default function PassengerSavedAddressesPanel({
         />
       ) : (
         <div className="space-y-2">
-          {addresses.slice(0, 4).map((addr) => {
+          {addresses.slice(0, 5).map((addr) => {
             const Icon = iconFor(addr.label);
             return (
               <Card key={addr.id} className="border-border bg-card">

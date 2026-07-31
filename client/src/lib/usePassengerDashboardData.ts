@@ -1,12 +1,16 @@
 import { useMemo } from "react";
-import type { Ride } from "../../../drizzle/schema";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
-import { isLocalDemoDev } from "@/lib/demoMode";
+import { isDemoAppClient } from "@/lib/demoMode";
 import { mergeDemoUserProfile } from "@/lib/demoUserProfile";
-import { loadDemoRides } from "@/lib/demoRideStorage";
 import { useSavedAddresses } from "@/lib/useSavedAddresses";
 import { useDemoRideHydration } from "@/lib/useDemoRideHydration";
+import { useBetaDemoRuntime } from "@/lib/useBetaDemoRuntime";
+import {
+  PORTFOLIO_PASSENGER_SUMMARY,
+  PORTFOLIO_RECENT_RIDES,
+  PORTFOLIO_SAVED_ADDRESSES,
+} from "@/lib/passengerPortfolioDemoData";
 
 export type PassengerSummary = {
   totalRides: number;
@@ -15,27 +19,10 @@ export type PassengerSummary = {
   scheduledCount: number;
 };
 
-function computeDemoSummary(rides: Ride[]): PassengerSummary {
-  const completed = rides.filter((r) => r.status === "completed");
-  const totalSpent = completed.reduce(
-    (sum, r) => sum + (r.finalPrice ?? r.estimatedPrice ?? 0),
-    0
-  );
-  const scheduledCount = rides.filter(
-    (r) => r.isScheduled === "yes" && r.status !== "cancelled" && r.status !== "completed"
-  ).length;
-
-  return {
-    totalRides: completed.length,
-    totalSpent,
-    totalSaved: Math.round(totalSpent * 0.08),
-    scheduledCount,
-  };
-}
-
 export function usePassengerDashboardData() {
   const { user, canUsePrivateUserApi, isDemoUser } = useAuth();
-  const isDemo = isLocalDemoDev() || isDemoUser;
+  const { active: betaDemoActive } = useBetaDemoRuntime(false);
+  const isDemo = isDemoAppClient() || isDemoUser || betaDemoActive;
   useDemoRideHydration();
 
   const displayUser = useMemo(
@@ -62,8 +49,6 @@ export function usePassengerDashboardData() {
     { enabled: !!user && canUsePrivateUserApi, retry: false }
   );
 
-  const demoRides = useMemo(() => (isDemo ? loadDemoRides() : []), [isDemo, activeRides]);
-
   const activeRide = useMemo(() => {
     const list = activeRides ?? [];
     return list.find(
@@ -75,18 +60,16 @@ export function usePassengerDashboardData() {
 
   const recentRides = useMemo(() => {
     if (isDemo) {
-      return demoRides
-        .filter((r) => r.status !== "cancelled")
-        .slice(0, 5);
+      return PORTFOLIO_RECENT_RIDES;
     }
     return recentRidesApi ?? [];
-  }, [isDemo, demoRides, recentRidesApi]);
+  }, [isDemo, recentRidesApi]);
 
   const lastRide = recentRides[0] ?? null;
 
   const summary = useMemo((): PassengerSummary => {
     if (isDemo) {
-      return computeDemoSummary(demoRides);
+      return PORTFOLIO_PASSENGER_SUMMARY;
     }
     return {
       totalRides: statsApi?.totalRides ?? 0,
@@ -94,10 +77,11 @@ export function usePassengerDashboardData() {
       totalSaved: statsApi?.totalSaved ?? 0,
       scheduledCount: 0,
     };
-  }, [isDemo, demoRides, statsApi]);
+  }, [isDemo, statsApi]);
 
-  const homeAddress = savedAddresses.find((a) => a.label === "home");
-  const workAddress = savedAddresses.find((a) => a.label === "work");
+  const portfolioSavedAddresses = isDemo ? PORTFOLIO_SAVED_ADDRESSES : savedAddresses;
+  const homeAddress = portfolioSavedAddresses.find((a) => a.label === "home");
+  const workAddress = portfolioSavedAddresses.find((a) => a.label === "work");
 
   return {
     displayUser,
@@ -106,7 +90,7 @@ export function usePassengerDashboardData() {
     recentRides,
     lastRide,
     summary,
-    savedAddresses,
+    savedAddresses: portfolioSavedAddresses,
     homeAddress,
     workAddress,
     isLoading: isDemo ? false : recentLoadingApi || statsLoadingApi,
