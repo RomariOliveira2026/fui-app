@@ -1,8 +1,13 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useLocation } from "wouter";
-import { isLocalDemoDev } from "@/lib/demoMode";
+import { isDemoAppClient, isLocalDemoDev } from "@/lib/demoMode";
+import { useBetaDemoRuntime } from "@/lib/useBetaDemoRuntime";
+import {
+  DELIVERY_PORTFOLIO_DEMO,
+  formatDeliveryPortfolioPrice,
+} from "@/lib/deliveryPortfolioDemoData";
 import {
   useDemoDeliveryHydration,
   persistDemoDeliveryFromServer,
@@ -69,7 +74,11 @@ type PackageType = "documento" | "pacote_pequeno" | "pacote_medio" | "pacote_gra
 type PaymentMethod = "pix" | "card" | "cash";
 
 export default function Delivery() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, isDemoUser } = useAuth();
+  const { active: betaDemoActive } = useBetaDemoRuntime(false);
+  const portfolioDeliveryDemo =
+    isDemoAppClient() || isLocalDemoDev() || isDemoUser || betaDemoActive;
+  const portfolioSeededRef = useRef(false);
   const [, navigate] = useLocation();
   const [activeTab, setActiveTab] = useState("new");
   const [trackingInput, setTrackingInput] = useState("");
@@ -131,8 +140,29 @@ export default function Delivery() {
 
   const { data: priceData, isFetching: priceFetching } = trpc.delivery.calculatePrice.useQuery(
     priceInput!,
-    { enabled: !!priceInput }
+    { enabled: !!priceInput && !portfolioDeliveryDemo }
   );
+
+  const portfolioEstimatedPrice = portfolioDeliveryDemo ? DELIVERY_PORTFOLIO_DEMO.estimatedPriceCents : null;
+  const effectiveEstimatedPrice =
+    portfolioEstimatedPrice ?? priceData?.estimatedPrice ?? null;
+
+  useEffect(() => {
+    if (!portfolioDeliveryDemo || portfolioSeededRef.current) return;
+    portfolioSeededRef.current = true;
+    const d = DELIVERY_PORTFOLIO_DEMO;
+    setPickupAddress(d.pickupAddress);
+    setPickupContactName(d.pickupContactName);
+    setPickupContactPhone(d.pickupContactPhone);
+    setPickupLat(d.pickupLat);
+    setPickupLng(d.pickupLng);
+    setDeliveryAddress(d.deliveryAddress);
+    setRecipientName(d.recipientName);
+    setRecipientPhone(d.recipientPhone);
+    setDeliveryLat(d.deliveryLat);
+    setDeliveryLng(d.deliveryLng);
+    setRouteInfo({ distance: d.distanceM, duration: d.durationS });
+  }, [portfolioDeliveryDemo]);
 
   const submitReadiness = useMemo(() => {
     const blockers: string[] = [];
@@ -140,8 +170,8 @@ export default function Delivery() {
     if (!pickupAddress.trim()) blockers.push("endereço de coleta");
     if (!deliveryAddress.trim()) blockers.push("endereço de entrega");
     if (!routeInfo) blockers.push("rota calculada");
-    if (priceFetching) blockers.push("preço em cálculo");
-    else if (!priceData?.estimatedPrice) blockers.push("preço estimado");
+    if (!portfolioDeliveryDemo && priceFetching) blockers.push("preço em cálculo");
+    else if (!effectiveEstimatedPrice) blockers.push("preço estimado");
     if (!recipientName.trim()) blockers.push("nome do destinatário");
     if (!recipientPhone.trim()) blockers.push("telefone do destinatário");
 
@@ -150,8 +180,9 @@ export default function Delivery() {
     pickupAddress,
     deliveryAddress,
     routeInfo,
-    priceData,
+    effectiveEstimatedPrice,
     priceFetching,
+    portfolioDeliveryDemo,
     recipientName,
     recipientPhone,
   ]);
@@ -207,22 +238,37 @@ export default function Delivery() {
   }
 
   const resetForm = () => {
-    setPickupAddress("");
-    setPickupLat("");
-    setPickupLng("");
-    setPickupContactName("");
-    setPickupContactPhone("");
-    setDeliveryAddress("");
-    setDeliveryLat("");
-    setDeliveryLng("");
-    setRecipientName("");
-    setRecipientPhone("");
+    if (!portfolioDeliveryDemo) {
+      setPickupAddress("");
+      setPickupLat("");
+      setPickupLng("");
+      setPickupContactName("");
+      setPickupContactPhone("");
+      setDeliveryAddress("");
+      setDeliveryLat("");
+      setDeliveryLng("");
+      setRecipientName("");
+      setRecipientPhone("");
+      setRouteInfo(null);
+    } else {
+      const d = DELIVERY_PORTFOLIO_DEMO;
+      setPickupAddress(d.pickupAddress);
+      setPickupContactName(d.pickupContactName);
+      setPickupContactPhone(d.pickupContactPhone);
+      setPickupLat(d.pickupLat);
+      setPickupLng(d.pickupLng);
+      setDeliveryAddress(d.deliveryAddress);
+      setRecipientName(d.recipientName);
+      setRecipientPhone(d.recipientPhone);
+      setDeliveryLat(d.deliveryLat);
+      setDeliveryLng(d.deliveryLng);
+      setRouteInfo({ distance: d.distanceM, duration: d.durationS });
+    }
     setPackageType("pacote_pequeno");
     setPackageDescription("");
     setIsFragile(false);
     setRequiresSignature(false);
     setPaymentMethod("pix");
-    setRouteInfo(null);
     setStep(1);
   };
 
@@ -275,7 +321,7 @@ export default function Delivery() {
     }
 
     const route = routeInfo!;
-    const price = priceData!;
+    const price = effectiveEstimatedPrice!;
 
     createMutation.mutate({
       pickupAddress,
@@ -294,7 +340,7 @@ export default function Delivery() {
       requiresSignature,
       distance: route.distance,
       duration: route.duration,
-      estimatedPrice: price.estimatedPrice,
+      estimatedPrice: price,
       paymentMethod,
     });
   };
@@ -412,17 +458,58 @@ export default function Delivery() {
                   </CardContent>
                 </Card>
 
+                {routeInfo && portfolioDeliveryDemo ? (
+                  <Card className="bg-orange-500/10 border-orange-500/30">
+                    <CardContent className="p-4 space-y-2 text-sm">
+                      <p className="text-foreground">
+                        <span className="text-muted-foreground">Distância: </span>
+                        <span className="font-semibold">
+                          {(routeInfo.distance / 1000).toLocaleString("pt-BR", {
+                            minimumFractionDigits: 1,
+                            maximumFractionDigits: 1,
+                          })}{" "}
+                          km
+                        </span>
+                      </p>
+                      <p className="text-foreground">
+                        <span className="text-muted-foreground">Tempo estimado: </span>
+                        <span className="font-semibold">
+                          {Math.ceil(routeInfo.duration / 60)} min
+                        </span>
+                      </p>
+                      <p className="text-foreground">
+                        <span className="text-muted-foreground">Valor da entrega: </span>
+                        <span className="font-bold text-orange-500">
+                          {formatDeliveryPortfolioPrice(
+                            effectiveEstimatedPrice ?? DELIVERY_PORTFOLIO_DEMO.estimatedPriceCents
+                          )}
+                        </span>
+                      </p>
+                    </CardContent>
+                  </Card>
+                ) : null}
+
                 <Button
                   className="w-full bg-orange-500 hover:bg-orange-600"
-                  onClick={handleCalculateRoute}
+                  onClick={() => {
+                    if (portfolioDeliveryDemo && routeInfo && effectiveEstimatedPrice) {
+                      setStep(2);
+                      return;
+                    }
+                    void handleCalculateRoute();
+                  }}
                   disabled={calculatingRoute || !pickupAddress || !deliveryAddress}
                 >
                   {calculatingRoute ? (
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                  ) : portfolioDeliveryDemo && routeInfo && effectiveEstimatedPrice ? (
+                    <CheckCircle2 className="h-4 w-4 mr-2" />
                   ) : (
                     <Search className="h-4 w-4 mr-2" />
                   )}
-                  Calcular Rota e Preço
+                  {portfolioDeliveryDemo && routeInfo && effectiveEstimatedPrice
+                    ? `Confirmar Entrega — ${formatDeliveryPortfolioPrice(effectiveEstimatedPrice)}`
+                    : "Calcular Rota e Preço"}
                 </Button>
               </>
             )}
@@ -441,9 +528,9 @@ export default function Delivery() {
                         <Clock className="h-4 w-4 text-orange-500" />
                         <span>{Math.ceil(routeInfo.duration / 60)} min</span>
                       </div>
-                      {priceData && (
+                      {effectiveEstimatedPrice != null && (
                         <div className="text-lg font-bold text-orange-500">
-                          R$ {(priceData.estimatedPrice / 100).toFixed(2)}
+                          {formatDeliveryPortfolioPrice(effectiveEstimatedPrice)}
                         </div>
                       )}
                     </CardContent>
