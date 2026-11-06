@@ -2,11 +2,27 @@ import type { Request, Response } from "express";
 import Stripe from "stripe";
 import * as db from "./db";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
-  apiVersion: "2025-11-17.clover",
-});
+let stripeClient: Stripe | null = null;
+
+/** Lazy init — sem STRIPE_SECRET_KEY o servidor precisa subir mesmo assim. */
+function getStripe(): Stripe | null {
+  const key = process.env.STRIPE_SECRET_KEY?.trim();
+  if (!key) return null;
+  if (!stripeClient) {
+    stripeClient = new Stripe(key, {
+      apiVersion: "2025-11-17.clover",
+    });
+  }
+  return stripeClient;
+}
 
 export async function handleStripeWebhook(req: Request, res: Response) {
+  const stripe = getStripe();
+  if (!stripe) {
+    console.warn("[Stripe Webhook] STRIPE_SECRET_KEY não configurada — webhook ignorado");
+    return res.status(503).send("Stripe not configured");
+  }
+
   const sig = req.headers["stripe-signature"];
 
   if (!sig) {
